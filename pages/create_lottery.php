@@ -29,6 +29,7 @@ if($_SERVER['REQUEST_METHOD']=='POST'){
   }
 
   header("Location: dashboard.php");
+  header("Location: stage2_distribution.php?id=".$lottery_pk);
   exit;
 }
 ?>
