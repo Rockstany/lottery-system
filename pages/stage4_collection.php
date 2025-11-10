@@ -52,7 +52,7 @@ add_notification($conn,$user_id,"Payment Recorded","Received ₹$amount for book
 </header>
 
 <div class="container">
-<?php if(!empty($msg)) echo "<p class='success'>$msg</p>"; ?>
+<?php if(!empty($msg)) echo "<script>showToast('$msg');</script>"; ?>
 
 <h3>Record Payment</h3>
 <form method="POST">
@@ -113,5 +113,6 @@ while($r=$res->fetch_assoc()){
   </button>
 </form>
 </div>
+<script src="../assets/js/toast.js"></script>
 </body>
 </html>

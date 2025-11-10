@@ -78,5 +78,6 @@ if(file_exists($backup_file)){
   <button type="submit">Export CSV</button>
 </form>
 </div>
+<script src="../assets/js/toast.js"></script>
 </body>
 </html>

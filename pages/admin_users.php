@@ -61,7 +61,7 @@ $users = $conn->query("SELECT * FROM users ORDER BY id DESC");
 </header>
 
 <div class="container">
-<?php if(!empty($msg)) echo "<p class='success'>$msg</p>"; ?>
+<?php if(!empty($msg)) echo "<script>showToast('$msg');</script>"; ?>
 
 <h3>Add New User</h3>
 <form method="POST">
@@ -105,5 +105,6 @@ $users = $conn->query("SELECT * FROM users ORDER BY id DESC");
 <?php endwhile; ?>
 </table>
 </div>
+<script src="../assets/js/toast.js"></script>
 </body>
 </html>

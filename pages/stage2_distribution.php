@@ -46,7 +46,7 @@ if($_SERVER['REQUEST_METHOD']=='POST'){
 </header>
 
 <div class="container">
-<?php if(!empty($msg)) echo "<p class='success'>$msg</p>"; ?>
+<?php if(!empty($msg)) echo "<script>showToast('$msg');</script>"; ?>
 
 <h3>Create a New Distribution Template</h3>
 <form method="POST">
@@ -93,6 +93,6 @@ function showLevels(val){
   l3.style.display = (val>2)?'block':'none';
 }
 </script>
-
+<script src="../assets/js/toast.js"></script>
 </body>
 </html>

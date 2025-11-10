@@ -53,5 +53,6 @@ $res = $conn->query("SELECT l.*, u.name FROM logs l LEFT JOIN users u ON l.user_
 <?php endwhile; ?>
 </table>
 </div>
+<script src="../assets/js/toast.js"></script>
 </body>
 </html>

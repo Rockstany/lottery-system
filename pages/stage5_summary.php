@@ -89,5 +89,6 @@ new Chart(document.getElementById('pieChart'), {type:'pie', data:barData});
   <button type="submit" name="delete" style="background:#f44336;margin-top:10px;">Delete Lottery</button>
 </form>
 </div>
+<script src="../assets/js/toast.js"></script>
 </body>
 </html>

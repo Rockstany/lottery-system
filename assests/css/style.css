@@ -335,6 +335,58 @@ tr.read td { color:#666; }
   color:#256b3a;
   border-radius:6px;
 }
+/* --- Final Responsive Polish --- */
+body { font-family: 'Inter', sans-serif; background:#faf9ff; margin:0; }
+
+.container { padding: 1rem; }
+
+.lottery-card {
+  background:#fff;
+  border-radius:12px;
+  box-shadow:0 1px 5px rgba(0,0,0,0.08);
+  padding:1rem;
+  margin:1rem 0;
+}
+
+.add-button {
+  position: fixed;
+  bottom:20px;
+  right:20px;
+  background:linear-gradient(90deg,#7b61ff,#9f7bff);
+  color:#fff;
+  border:none;
+  font-size:1.8rem;
+  border-radius:50%;
+  width:50px;
+  height:50px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  text-decoration:none;
+  box-shadow:0 2px 8px rgba(0,0,0,0.2);
+}
+
+.toast {
+  position:fixed;
+  bottom:-80px;
+  left:50%;
+  transform:translateX(-50%);
+  background:#7b61ff;
+  color:#fff;
+  padding:10px 20px;
+  border-radius:8px;
+  transition:all .3s ease;
+  z-index:9999;
+}
+.toast.show { bottom:30px; }
+.toast.error { background:#ff5c5c; }
+
+@media (max-width:768px){
+  .filter-bar form { flex-direction:column; }
+  .filter-bar input, .filter-bar select, .filter-bar button { width:100%; }
+  .lottery-card { margin:0.5rem 0; }
+}
+
 
 
 

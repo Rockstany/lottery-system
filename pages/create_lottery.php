@@ -56,5 +56,6 @@ add_notification($conn,$user_id,"Lottery Created","Lottery $new_lottery_uid crea
   <input type="number" name="tickets_per_book" placeholder="Tickets per Book" required>
   <button type="submit">Generate</button>
 </form>
+<script src="../assets/js/toast.js"></script>
 </body>
 </html>

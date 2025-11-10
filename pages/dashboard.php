@@ -109,5 +109,6 @@ echo "</div>";
 <footer>
   <p>&copy; <?php echo date('Y'); ?> Lottery System</p>
 </footer>
+<script src="../assets/js/toast.js"></script>
 </body>
 </html>

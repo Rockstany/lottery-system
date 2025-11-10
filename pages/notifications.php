@@ -32,5 +32,6 @@ $conn->query("UPDATE notifications SET is_read=1 WHERE user_id=$uid");
 <?php endwhile; ?>
 </table>
 </div>
+<script src="../assets/js/toast.js"></script>
 </body>
 </html>

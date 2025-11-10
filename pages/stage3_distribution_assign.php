@@ -67,7 +67,7 @@ add_notification($conn,$user_id,"Booklet Assigned","Booklet $booklet_id assigned
 </header>
 
 <div class="container">
-<?php if(!empty($msg)) echo "<p class='success'>$msg</p>"; ?>
+<?php if(!empty($msg)) echo "<script>showToast('$msg');</script>"; ?>
 
 <h3>Assign Booklet</h3>
 <form method="POST">
@@ -119,5 +119,6 @@ while($r=$res->fetch_assoc()){
   <button style="margin-top:20px" onclick="return confirm('Proceed to Stage 4?')">Proceed to Stage 4 →</button>
 </form>
 </div>
+<script src="../assets/js/toast.js"></script>
 </body>
 </html>
