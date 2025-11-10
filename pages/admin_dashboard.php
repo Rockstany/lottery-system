@@ -33,7 +33,7 @@ $recent = $conn->query("SELECT name, lottery_id, created_at, status_stage FROM l
 <head>
 <meta charset="UTF-8">
 <title>Admin Dashboard | Lottery System</title>
-<link rel="stylesheet" href="../assets/css/style.css">
+<link rel="stylesheet" href="../assests/css/style.css">
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
