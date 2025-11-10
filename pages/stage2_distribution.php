@@ -25,11 +25,17 @@ if($_SERVER['REQUEST_METHOD']=='POST'){
 
     $conn->query("UPDATE lotteries SET taxonomy_id=$tid, status_stage=2 WHERE id=$lottery_id");
     $msg = "Template created and linked to this lottery.";
+
+    $msg = "Template created and linked to this lottery.";
+    header("Location: stage3_distribution_assign.php?id=".$lottery_id);
+    exit;
   }
   if($action == 'reuse'){
     $reuse = $_POST['reuse_template'];
     $conn->query("UPDATE lotteries SET taxonomy_id=$reuse, status_stage=2 WHERE id=$lottery_id");
     $msg = "Existing template linked to this lottery.";
+    header("Location: stage3_distribution_assign.php?id=".$lottery_id);
+    exit;
   }
 }
 ?>
