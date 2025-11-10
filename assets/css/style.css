@@ -498,6 +498,42 @@ footer {
   .filter-bar form { flex-direction: column; }
   .add-button { width: 100%; text-align: center; }
 }
+/* Compact filter style */
+.filter-bar {
+  background: #fff;
+  padding: 12px 18px;
+  border-radius: 12px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+  margin-bottom: 1.5rem;
+  text-align: center;
+}
+.filter-bar form {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.filter-bar input,
+.filter-bar select {
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 6px 10px;
+  min-width: 160px;
+  font-size: 14px;
+}
+.filter-bar button {
+  background: #9b75ff;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 7px 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.filter-bar button:hover {
+  opacity: 0.9;
+}
+
 
 
 
