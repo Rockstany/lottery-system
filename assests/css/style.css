@@ -387,6 +387,119 @@ body { font-family: 'Inter', sans-serif; background:#faf9ff; margin:0; }
   .lottery-card { margin:0.5rem 0; }
 }
 
+/* General UI */
+body {
+  font-family: "Inter", "Poppins", sans-serif;
+  margin: 0;
+  background: #f8f8ff;
+  color: #222;
+}
+h2, h3, h4 { margin: 0; }
+
+.dashboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 2rem;
+  background: linear-gradient(90deg, #7b61ff, #9f7bff);
+  color: #fff;
+}
+.dashboard-header .right { display: flex; align-items: center; gap: 1rem; }
+.logout-btn {
+  color: white; background: rgba(255,255,255,0.2);
+  padding: 6px 12px; border-radius: 6px; text-decoration: none;
+  transition: 0.2s;
+}
+.logout-btn:hover { background: rgba(255,255,255,0.4); }
+
+.dashboard-main { padding: 1.5rem 2rem; }
+
+.dashboard-top {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 1rem;
+}
+.add-button {
+  background: linear-gradient(90deg, #7b61ff, #9f7bff);
+  color: white; text-decoration: none;
+  padding: 8px 14px; border-radius: 8px;
+  font-weight: 500; transition: 0.2s;
+}
+.add-button:hover { opacity: 0.9; }
+
+.filter-bar {
+  background: #fff;
+  padding: 10px 16px;
+  border-radius: 12px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  margin-bottom: 1.5rem;
+}
+.filter-bar form {
+  display: flex; flex-wrap: wrap; gap: 8px;
+}
+.filter-bar input, .filter-bar select, .filter-bar button {
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+}
+.filter-bar button {
+  background: linear-gradient(90deg, #7b61ff, #9f7bff);
+  color: #fff; border: none;
+  cursor: pointer;
+}
+
+.lottery-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1.2rem;
+}
+
+.lottery-card {
+  background: #fff;
+  padding: 1rem;
+  border-radius: 14px;
+  box-shadow: 0 3px 8px rgba(0,0,0,0.1);
+  transition: transform 0.2s;
+}
+.lottery-card:hover { transform: translateY(-4px); }
+
+.lottery-header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 0.5rem;
+}
+.lottery-id { font-size: 0.85rem; color: #777; }
+
+.progress-bar {
+  height: 6px; background: #eee; border-radius: 10px; margin: 8px 0;
+}
+.progress {
+  height: 100%; border-radius: 10px;
+  background: linear-gradient(90deg, #7b61ff, #9f7bff);
+}
+
+.actions { display: flex; gap: 8px; margin-top: 10px; }
+.open-btn, .dup-btn {
+  flex: 1; text-align: center; padding: 8px 0;
+  border-radius: 8px; text-decoration: none; font-size: 0.9rem;
+  transition: 0.2s;
+}
+.open-btn { background: #7b61ff; color: #fff; }
+.open-btn:hover { background: #6c54e0; }
+.dup-btn { background: #fff; color: #7b61ff; border: 1px solid #7b61ff; }
+.dup-btn:hover { background: #7b61ff; color: #fff; }
+
+footer {
+  text-align: center; padding: 1rem; margin-top: 2rem;
+  color: #777; font-size: 0.9rem;
+}
+
+/* Responsive */
+@media(max-width:768px){
+  .dashboard-header { flex-direction: column; align-items: flex-start; }
+  .filter-bar form { flex-direction: column; }
+  .add-button { width: 100%; text-align: center; }
+}
+
+
 
 
 
