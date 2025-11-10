@@ -136,4 +136,35 @@ button[name="action"][value="unassign"] {
   background: #f76b6b;
 }
 
+/* --- Stage 4 Styles --- */
+input[type=number] {
+  width:100%;
+  margin:8px 0;
+  padding:10px;
+  border-radius:8px;
+  border:1px solid #ccc;
+}
+select[name=payment_mode] {
+  width:100%;
+  margin:8px 0;
+  padding:10px;
+  border-radius:8px;
+}
+/* --- Stage 5 --- */
+canvas {
+  background:#fff;
+  margin-top:20px;
+  padding:10px;
+  border-radius:12px;
+  box-shadow:0 1px 5px rgba(0,0,0,0.1);
+}
+button[name="delete"] {
+  background:#f44336;
+  color:#fff;
+  border:none;
+  padding:10px 16px;
+  border-radius:8px;
+}
+
+
 
