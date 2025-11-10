@@ -242,5 +242,48 @@ button[name="delete"] {
   font-weight:600;
   color:#333;
 }
+/* --- Dashboard Filters & Pagination --- */
+.filter-bar {
+  background:#fff;
+  padding:10px;
+  border-radius:12px;
+  box-shadow:0 1px 4px rgba(0,0,0,0.08);
+  margin:1rem auto;
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px;
+  justify-content:center;
+}
+.filter-bar input, .filter-bar select {
+  padding:8px;
+  border-radius:8px;
+  border:1px solid #ccc;
+}
+.filter-bar button {
+  background:linear-gradient(90deg,#7b61ff,#9f7bff);
+  color:white;
+  border:none;
+  border-radius:8px;
+  padding:8px 14px;
+  cursor:pointer;
+}
+.pagination {
+  text-align:center;
+  margin:15px 0;
+}
+.page-btn {
+  display:inline-block;
+  background:#f1f1f1;
+  margin:0 3px;
+  padding:6px 10px;
+  border-radius:6px;
+  text-decoration:none;
+  color:#333;
+}
+.page-btn.active {
+  background:linear-gradient(90deg,#7b61ff,#9f7bff);
+  color:#fff;
+}
+
 
 
