@@ -1,4 +1,8 @@
 <?php
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
+
 session_start();
 include("../includes/db.php");
 if(!isset($_SESSION['user_id'])) header("Location: ../auth/login.php");
@@ -11,23 +15,26 @@ $tax = $conn->query("SELECT t.* FROM taxonomy_templates t
                      JOIN lotteries l ON l.taxonomy_id=t.id
                      WHERE l.id=$lottery_id")->fetch_assoc();
 
+if(!$tax){
+  die("<h3 style='color:red;text-align:center;margin-top:50px;'>❌ No taxonomy template found for this lottery. Please complete Stage 2 first.</h3>");
+}
+
 $l1 = $tax['level1_label'];
 $l2 = $tax['level2_label'];
 $l3 = $tax['level3_label'];
 $levels = $tax['levels'];
 
-// Handle assignment submit
+// Handle form submission
 if($_SERVER['REQUEST_METHOD']=='POST'){
   $booklet_id = $_POST['booklet_id'];
   $action = $_POST['action'];
 
   if($action == 'assign'){
       $name = $_POST['assignee_name'];
-      $val1 = $_POST['level1'];
-      $val2 = $_POST['level2'];
-      $val3 = $_POST['level3'];
+      $val1 = $_POST['level1'] ?? '';
+      $val2 = $_POST['level2'] ?? '';
+      $val3 = $_POST['level3'] ?? '';
 
-      // Check if booklet already assigned
       $check = $conn->query("SELECT id FROM assignments WHERE booklet_id=$booklet_id");
       if($check->num_rows == 0){
         $stmt = $conn->prepare("INSERT INTO assignments (lottery_id, booklet_id, assignee_name, level1, level2, level3, assigned_by)
@@ -36,6 +43,12 @@ if($_SERVER['REQUEST_METHOD']=='POST'){
         $stmt->execute();
         $conn->query("UPDATE booklets SET status='assigned' WHERE id=$booklet_id");
         $msg = "✅ Booklet assigned successfully.";
+
+        include_once("../includes/log_action.php");
+        log_action($conn, $user_id, "Assigned Booklet", "Lottery ID $lottery_id, Booklet $booklet_id to $name");
+        include_once("../includes/notify.php");
+        add_notification($conn,$user_id,"Booklet Assigned","Booklet $booklet_id assigned to $name.");
+
       } else {
         $msg = "⚠️ Booklet already assigned.";
       }
@@ -45,15 +58,13 @@ if($_SERVER['REQUEST_METHOD']=='POST'){
       $conn->query("DELETE FROM assignments WHERE booklet_id=$booklet_id");
       $conn->query("UPDATE booklets SET status='unassigned' WHERE id=$booklet_id");
       $msg = "🔄 Booklet marked as Unassigned.";
+
+      include_once("../includes/log_action.php");
+      log_action($conn, $user_id, "Unassigned Booklet", "Lottery ID $lottery_id, Booklet $booklet_id");
   }
 }
-include_once("../includes/log_action.php");
-log_action($conn, $user_id, "Assigned Booklet", "Lottery ID $lottery_id, Booklet $booklet_id to $name");
-
-log_action($conn, $user_id, "Unassigned Booklet", "Lottery ID $lottery_id, Booklet $booklet_id");
-add_notification($conn,$user_id,"Booklet Assigned","Booklet $booklet_id assigned to $name.");
-
 ?>
+
 <!DOCTYPE html>
 <html>
 <head>
