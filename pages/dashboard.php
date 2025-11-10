@@ -18,9 +18,10 @@ if(!isset($_SESSION['user_id'])) {
     <h2>🎟️ Lottery Dashboard</h2>
   </div>
   <div class="right">
-    <p>Welcome, <?php echo $_SESSION['user_name']; ?>!</p>
-    <a href="../auth/logout.php" class="logout-btn">Logout</a>
-  </div>
+  <a href="notifications.php" class="bell">🔔</a>
+  <p>Welcome, <?php echo $_SESSION['user_name']; ?>!</p>
+  <a href="../auth/logout.php" class="logout-btn">Logout</a>
+</div>
 </header>
 
 
@@ -89,6 +90,7 @@ while($row = $res->fetch_assoc()) {
     <div class='progress-bar'><div class='progress' style='width:{$progress}%;'></div></div>
     <p class='stage-label'>Stage {$row['status_stage']} of 5</p>
     <a href='$link?id={$row['id']}' class='open-btn'>Open</a>
+    <a href='duplicate_lottery.php?id={$row['id']}' class='dup-btn'>Duplicate</a>
   </div>";
 }
 

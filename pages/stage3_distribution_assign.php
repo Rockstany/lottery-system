@@ -47,6 +47,12 @@ if($_SERVER['REQUEST_METHOD']=='POST'){
       $msg = "🔄 Booklet marked as Unassigned.";
   }
 }
+include_once("../includes/log_action.php");
+log_action($conn, $user_id, "Assigned Booklet", "Lottery ID $lottery_id, Booklet $booklet_id to $name");
+
+log_action($conn, $user_id, "Unassigned Booklet", "Lottery ID $lottery_id, Booklet $booklet_id");
+add_notification($conn,$user_id,"Booklet Assigned","Booklet $booklet_id assigned to $name.");
+
 ?>
 <!DOCTYPE html>
 <html>

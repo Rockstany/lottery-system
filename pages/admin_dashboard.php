@@ -47,6 +47,11 @@ $recent = $conn->query("SELECT name, lottery_id, created_at, status_stage FROM l
 
 <div class="container">
   <h3>System Overview</h3>
+  <p><a href="admin_users.php" class="dup-btn">👥 Manage Users</a></p>
+  <p><a href="admin_logs.php" class="dup-btn">🕓 View Activity Logs</a></p>
+  <p><a href="admin_backup.php" class="dup-btn">🗄️ Backup & Export</a></p>
+
+
   <div class="admin-stats">
     <div class="stat-card"><h4>Total Users</h4><p><?=$users?></p></div>
     <div class="stat-card"><h4>Total Lotteries</h4><p><?=$lotteries?></p></div>

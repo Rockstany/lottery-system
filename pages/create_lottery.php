@@ -32,6 +32,12 @@ if($_SERVER['REQUEST_METHOD']=='POST'){
   header("Location: stage2_distribution.php?id=".$lottery_pk);
   exit;
 }
+
+include("../includes/log_action.php");
+log_action($conn, $_SESSION['user_id'], "Created Lottery", "Lottery ID: $new_lottery_uid");
+
+add_notification($conn,$user_id,"Lottery Created","Lottery $new_lottery_uid created successfully.");
+
 ?>
 <!DOCTYPE html>
 <html>

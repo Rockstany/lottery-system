@@ -32,6 +32,12 @@ if($_SERVER['REQUEST_METHOD']=='POST' && isset($_POST['booklet_id'])){
 
   $msg = "✅ Payment recorded: ₹$amount ($status)";
 }
+
+include_once("../includes/log_action.php");
+log_action($conn, $user_id, "Payment Recorded", "Lottery $lottery_id, Booklet $booklet_id, Amount ₹$amount");
+
+add_notification($conn,$user_id,"Payment Recorded","Received ₹$amount for booklet $booklet_id.");
+
 ?>
 <!DOCTYPE html>
 <html>

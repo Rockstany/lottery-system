@@ -284,6 +284,58 @@ button[name="delete"] {
   background:linear-gradient(90deg,#7b61ff,#9f7bff);
   color:#fff;
 }
+/* --- Duplicate Button --- */
+.dup-btn {
+  display:inline-block;
+  margin-left:8px;
+  background:#fff;
+  color:#7b61ff;
+  border:1px solid #7b61ff;
+  padding:6px 12px;
+  border-radius:8px;
+  font-size:14px;
+  text-decoration:none;
+  transition:0.2s;
+}
+.dup-btn:hover {
+  background:#7b61ff;
+  color:#fff;
+}
+/* --- User Management --- */
+form[method="POST"] input,
+form[method="POST"] select {
+  margin:4px;
+  padding:6px 8px;
+  border:1px solid #ccc;
+  border-radius:6px;
+}
+form[method="POST"] button {
+  background:#7b61ff;
+  color:#fff;
+  border:none;
+  border-radius:6px;
+  padding:6px 10px;
+  cursor:pointer;
+}
+form[method="POST"] button:hover { opacity:0.9; }
+/* --- Notifications --- */
+.bell {
+  font-size:1.3rem;
+  margin-right:10px;
+  text-decoration:none;
+}
+tr.unread td { font-weight:600; background:#f6f4ff; }
+tr.read td { color:#666; }
+
+.success {
+  background:#e7f7ee;
+  border-left:4px solid #32a852;
+  padding:10px;
+  margin-bottom:15px;
+  color:#256b3a;
+  border-radius:6px;
+}
+
 
 
 
