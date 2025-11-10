@@ -22,6 +22,25 @@ if(!isset($_SESSION['user_id'])) {
     <p>All lotteries will appear here.</p>
   </div>
 </main>
+<!-- Add button bottom-right -->
+<a href="create_lottery.php" class="add-button">+</a>
+
+<div class="lottery-list">
+<?php
+include("../includes/db.php");
+$user_id = $_SESSION['user_id'];
+$res = $conn->query("SELECT * FROM lotteries WHERE user_id=$user_id ORDER BY id DESC");
+while($row = $res->fetch_assoc()) {
+  echo "
+  <div class='lottery-card'>
+     <h3>{$row['name']}</h3>
+     <p>ID: {$row['lottery_id']}</p>
+     <p>Created: {$row['created_at']}</p>
+     <p>Stage: {$row['status_stage']}</p>
+  </div>";
+}
+?>
+</div>
 <footer>
   <p>&copy; <?php echo date("Y"); ?> Lottery System</p>
 </footer>

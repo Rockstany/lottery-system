@@ -52,3 +52,32 @@ button:hover {
   color: red;
   margin-top: 10px;
 }
+.add-button {
+  position: fixed;
+  bottom: 25px;
+  right: 25px;
+  background: linear-gradient(90deg,#7b61ff,#9f7bff);
+  color:#fff;
+  font-size:32px;
+  border-radius:50%;
+  width:55px;
+  height:55px;
+  text-align:center;
+  line-height:55px;
+  box-shadow:0 3px 8px rgba(0,0,0,0.2);
+  text-decoration:none;
+}
+.lottery-card {
+  background:#fff;
+  border-radius:12px;
+  padding:15px;
+  margin:10px 0;
+  box-shadow:0 1px 4px rgba(0,0,0,0.1);
+}
+header {
+  background: linear-gradient(90deg,#7b61ff,#9f7bff);
+  color:white;
+  padding:1rem;
+  border-radius:0 0 12px 12px;
+}
+
