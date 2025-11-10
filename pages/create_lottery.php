@@ -3,7 +3,6 @@ error_reporting(E_ALL);
 ini_set('display_errors', 1);
 session_start();
 
-session_start();
 include("../includes/db.php");
 
 if($_SERVER['REQUEST_METHOD']=='POST'){
@@ -32,16 +31,17 @@ if($_SERVER['REQUEST_METHOD']=='POST'){
        VALUES ($lottery_pk,".($i+1).",$start,$end)");
   }
 
-  header("Location: dashboard.php");
+  // logging and notification
+  include("../includes/log_action.php");
+  log_action($conn, $_SESSION['user_id'], "Created Lottery", "Lottery ID: $lottery_uid");
+
+  include("../includes/notify.php");
+  add_notification($conn,$user,"Lottery Created","Lottery $lottery_uid created successfully.");
+
+  // redirect to next stage
   header("Location: stage2_distribution.php?id=".$lottery_pk);
   exit;
 }
-
-include("../includes/log_action.php");
-log_action($conn, $_SESSION['user_id'], "Created Lottery", "Lottery ID: $new_lottery_uid");
-
-add_notification($conn,$user_id,"Lottery Created","Lottery $new_lottery_uid created successfully.");
-
 ?>
 <!DOCTYPE html>
 <html>
