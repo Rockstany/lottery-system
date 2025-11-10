@@ -97,4 +97,19 @@ select, input[type=text], button {
   border:1px solid #ccc;
 }
 .success { color:green; margin:10px 0; }
+.open-btn {
+  display: inline-block;
+  background: linear-gradient(90deg, #7b61ff, #9f7bff);
+  color: white;
+  padding: 8px 14px;
+  border-radius: 8px;
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 500;
+  margin-top: 8px;
+  transition: 0.2s ease;
+}
 
+.open-btn:hover {
+  opacity: 0.9;
+}

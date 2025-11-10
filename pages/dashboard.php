@@ -37,6 +37,7 @@ while($row = $res->fetch_assoc()) {
      <p>ID: {$row['lottery_id']}</p>
      <p>Created: {$row['created_at']}</p>
      <p>Stage: {$row['status_stage']}</p>
+     <a href='stage2_distribution.php?id={$row['id']}' class='open-btn'>Open</a>
   </div>";
 }
 ?>
