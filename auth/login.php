@@ -16,7 +16,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         if (hash('sha256', $password) == $row['password_hash']) {
             $_SESSION['user_id'] = $row['id'];
             $_SESSION['user_name'] = $row['name'];
-            header("Location: ../pages/dashboard.php");
+            if($row['role'] == 'admin'){
+  header("Location: ../pages/admin_dashboard.php");
+} else {
+  header("Location: ../pages/dashboard.php");
+}
+
             exit;
         } else {
             $error = "Invalid password.";

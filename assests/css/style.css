@@ -219,4 +219,28 @@ button[name="delete"] {
   .logout-btn { margin-top: 10px; }
 }
 
+/* --- Admin Dashboard --- */
+.admin-stats {
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+  gap:1rem;
+  margin-top:1rem;
+}
+.stat-card {
+  background:white;
+  border-radius:12px;
+  padding:1rem;
+  text-align:center;
+  box-shadow:0 1px 5px rgba(0,0,0,0.1);
+}
+.stat-card h4 {
+  color:#7b61ff;
+  margin-bottom:8px;
+}
+.stat-card p {
+  font-size:1.2rem;
+  font-weight:600;
+  color:#333;
+}
+
 
