@@ -13,10 +13,16 @@ if(!isset($_SESSION['user_id'])) {
 <link rel="stylesheet" href="../assets/css/style.css">
 </head>
 <body>
-<header>
-  <h2>🎟️ Lottery Dashboard</h2>
-  <p>Welcome, <?php echo $_SESSION['user_name']; ?>!</p>
+<header class="dashboard-header">
+  <div class="left">
+    <h2>🎟️ Lottery Dashboard</h2>
+  </div>
+  <div class="right">
+    <p>Welcome, <?php echo $_SESSION['user_name']; ?>!</p>
+    <a href="../auth/logout.php" class="logout-btn">Logout</a>
+  </div>
 </header>
+
 
 <main>
   <div class="card">
@@ -41,15 +47,19 @@ while($row = $res->fetch_assoc()) {
   if($row['status_stage'] == 4) $link = 'stage4_collection.php';
   if($row['status_stage'] == 5) $link = 'stage5_summary.php';
 
-  // 🎨 Lottery card output
-  echo "
+  $progress = ($row['status_stage'] / 5) * 100;
+echo "
   <div class='lottery-card'>
      <h3>{$row['name']}</h3>
      <p>ID: {$row['lottery_id']}</p>
      <p>Created: {$row['created_at']}</p>
-     <p>Stage: {$row['status_stage']}</p>
+     <div class='progress-bar'>
+       <div class='progress' style='width: {$progress}%;'></div>
+     </div>
+     <p class='stage-label'>Stage {$row['status_stage']} of 5</p>
      <a href='$link?id={$row['id']}' class='open-btn'>Open</a>
   </div>";
+
 }
 ?>
 </div>
