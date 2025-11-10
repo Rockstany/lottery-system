@@ -113,3 +113,27 @@ select, input[type=text], button {
 .open-btn:hover {
   opacity: 0.9;
 }
+
+table {
+  border-collapse: collapse;
+  background: #fff;
+  margin-top: 1rem;
+  border-radius: 10px;
+  box-shadow: 0 1px 5px rgba(0,0,0,0.1);
+}
+
+th {
+  background: #7b61ff;
+  color: white;
+}
+
+td, th {
+  padding: 8px 10px;
+  border: 1px solid #eee;
+}
+
+button[name="action"][value="unassign"] {
+  background: #f76b6b;
+}
+
+

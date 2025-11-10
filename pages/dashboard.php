@@ -40,6 +40,11 @@ while($row = $res->fetch_assoc()) {
      <a href='stage2_distribution.php?id={$row['id']}' class='open-btn'>Open</a>
   </div>";
 }
+
+$link = 'stage2_distribution.php';
+if($row['status_stage']==3) $link = 'stage3_distribution_assign.php';
+echo "<a href='$link?id={$row['id']}' class='open-btn'>Open</a>";
+
 ?>
 </div>
 <footer>
