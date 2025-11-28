@@ -228,6 +228,7 @@ if ($communityId) {
                 <li><a href="/public/group-admin/dashboard.php" style="font-weight: 600;">Dashboard</a></li>
                 <li><a href="/public/group-admin/transactions.php">Transaction Collection</a></li>
                 <li><a href="/public/group-admin/lottery.php">Lottery System</a></li>
+                <li><a href="/public/group-admin/change-password.php">Change Password</a></li>
                 <li><a href="/public/logout.php">Logout</a></li>
             </ul>
         </nav>

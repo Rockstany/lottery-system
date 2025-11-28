@@ -244,6 +244,7 @@ $recentActivity = $stmt->fetchAll();
                 <li><a href="/public/admin/dashboard.php" style="font-weight: 600;">Dashboard</a></li>
                 <li><a href="/public/admin/users.php">Manage Users</a></li>
                 <li><a href="/public/admin/communities.php">Manage Communities</a></li>
+                <li><a href="/public/admin/change-password.php">Change Password</a></li>
                 <li><a href="/public/logout.php">Logout</a></li>
             </ul>
         </nav>
