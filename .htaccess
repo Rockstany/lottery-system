@@ -39,6 +39,9 @@
 # Disable directory browsing
 Options -Indexes
 
+# Set default index files
+DirectoryIndex index.php index.html dashboard.php
+
 # Protect sensitive files
 <FilesMatch "^\.">
     Order allow,deny
