@@ -5,6 +5,10 @@
     RewriteEngine On
     RewriteBase /
 
+    # Redirect root to login
+    RewriteCond %{REQUEST_URI} ^/$
+    RewriteRule ^$ /public/login.php [L,R=301]
+
     # Redirect to public directory
     RewriteCond %{REQUEST_URI} !^/public/
     RewriteCond %{REQUEST_FILENAME} !-f
