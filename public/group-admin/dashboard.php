@@ -226,9 +226,8 @@ if ($communityId) {
         <nav class="nav-menu no-print">
             <ul>
                 <li><a href="/public/group-admin/dashboard.php" style="font-weight: 600;">Dashboard</a></li>
-                <li><a href="#lottery">Lottery System</a></li>
-                <li><a href="#transaction">Transaction Collection</a></li>
-                <li><a href="#reports">Reports</a></li>
+                <li><a href="/public/group-admin/transactions.php">Transaction Collection</a></li>
+                <li><a href="/public/group-admin/lottery.php">Lottery System</a></li>
                 <li><a href="/public/logout.php">Logout</a></li>
             </ul>
         </nav>
@@ -260,21 +259,21 @@ if ($communityId) {
             </div>
             <div class="card-body">
                 <div class="quick-actions">
-                    <a href="#create-lottery" class="action-btn">
-                        <div class="action-icon">🎫</div>
-                        <div>Create Lottery Event</div>
-                    </a>
-                    <a href="#create-transaction" class="action-btn">
+                    <a href="/public/group-admin/transaction-create.php" class="action-btn">
                         <div class="action-icon">💰</div>
                         <div>Create Transaction Campaign</div>
                     </a>
-                    <a href="#view-reports" class="action-btn">
-                        <div class="action-icon">📊</div>
-                        <div>View Reports</div>
+                    <a href="/public/group-admin/transactions.php" class="action-btn">
+                        <div class="action-icon">📋</div>
+                        <div>View Campaigns</div>
                     </a>
-                    <a href="#manage-members" class="action-btn">
-                        <div class="action-icon">👥</div>
-                        <div>Manage Members</div>
+                    <a href="/public/group-admin/lottery-create.php" class="action-btn">
+                        <div class="action-icon">🎫</div>
+                        <div>Create Lottery Event</div>
+                    </a>
+                    <a href="/public/group-admin/lottery.php" class="action-btn">
+                        <div class="action-icon">🎰</div>
+                        <div>Manage Lottery</div>
                     </a>
                 </div>
             </div>
@@ -293,32 +292,34 @@ if ($communityId) {
             </div>
         </div>
 
-        <!-- Coming Soon Features -->
+        <!-- Feature Overview -->
         <div class="card">
             <div class="card-header">
-                <h3 class="card-title">Features Coming Soon</h3>
+                <h3 class="card-title">Available Features</h3>
             </div>
             <div class="card-body">
                 <div class="row">
                     <div class="col-6">
                         <h4>🎫 Lottery System</h4>
                         <ul>
-                            <li>Event Creation</li>
-                            <li>Auto Book Generation</li>
-                            <li>Distribution Management</li>
-                            <li>Payment Collection</li>
-                            <li>Reports & Analytics</li>
+                            <li>✅ Event Creation</li>
+                            <li>✅ Auto Book Generation</li>
+                            <li>✅ Distribution Management</li>
+                            <li>✅ Payment Collection</li>
+                            <li>✅ Reports & Analytics</li>
                         </ul>
+                        <a href="/public/group-admin/lottery.php" class="btn btn-primary">Manage Lottery →</a>
                     </div>
                     <div class="col-6">
                         <h4>💰 Transaction Collection</h4>
                         <ul>
-                            <li>CSV Upload</li>
-                            <li>WhatsApp Reminders</li>
-                            <li>Payment Tracking</li>
-                            <li>Collection Reports</li>
-                            <li>Member Management</li>
+                            <li>✅ CSV Upload</li>
+                            <li>✅ WhatsApp Reminders</li>
+                            <li>✅ Payment Tracking</li>
+                            <li>✅ Collection Reports</li>
+                            <li>✅ Member Management</li>
                         </ul>
+                        <a href="/public/group-admin/transactions.php" class="btn btn-success">Manage Transactions →</a>
                     </div>
                 </div>
             </div>
