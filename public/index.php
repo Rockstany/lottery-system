@@ -8,7 +8,7 @@ require_once __DIR__ . '/../config/config.php';
 
 // Redirect to login if not authenticated
 if (!AuthMiddleware::isAuthenticated()) {
-    header("Location: /login.php");
+    header("Location: /public/login.php");
     exit;
 }
 
@@ -16,13 +16,13 @@ if (!AuthMiddleware::isAuthenticated()) {
 $role = AuthMiddleware::getUserRole();
 
 if ($role === 'admin') {
-    header("Location: /admin/dashboard.php");
+    header("Location: /public/admin/dashboard.php");
 } else if ($role === 'group_admin') {
-    header("Location: /group-admin/dashboard.php");
+    header("Location: /public/group-admin/dashboard.php");
 } else {
     // Invalid role - logout
     AuthMiddleware::logout();
-    header("Location: /login.php");
+    header("Location: /public/login.php");
 }
 
 exit;

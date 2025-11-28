@@ -9,7 +9,7 @@ require_once __DIR__ . '/../config/config.php';
 // Redirect if already logged in
 if (AuthMiddleware::isAuthenticated()) {
     $role = AuthMiddleware::getUserRole();
-    $redirect = ($role === 'admin') ? '/admin/dashboard.php' : '/group-admin/dashboard.php';
+    $redirect = ($role === 'admin') ? '/public/admin/dashboard.php' : '/public/group-admin/dashboard.php';
     header("Location: {$redirect}");
     exit;
 }
@@ -46,7 +46,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             // Redirect based on role
-            $redirect = ($user['role'] === 'admin') ? '/admin/dashboard.php' : '/group-admin/dashboard.php';
+            $redirect = ($user['role'] === 'admin') ? '/public/admin/dashboard.php' : '/public/group-admin/dashboard.php';
             header("Location: {$redirect}");
             exit;
 
