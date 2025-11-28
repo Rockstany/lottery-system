@@ -272,10 +272,10 @@ CREATE TABLE whatsapp_messages (
 -- =====================================================
 
 -- Insert default admin user
--- Password: admin123 (bcrypt hash)
+-- Password: admin123 (bcrypt hash - cost 10)
 INSERT INTO users (mobile_number, password_hash, full_name, email, role, status)
 VALUES
-('9999999999', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'System Admin', 'admin@zatana.in', 'admin', 'active');
+('9999999999', '$2y$10$CZ3qGSfZLNqOd.ZqkqP7V.7p8N5.5a5LR0wKYfOKvqXqQX0rqZ8Li', 'System Admin', 'admin@zatana.in', 'admin', 'active');
 
 -- =====================================================
 -- VIEWS (For Easy Data Retrieval)
