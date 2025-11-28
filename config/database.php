@@ -5,10 +5,10 @@
  */
 
 // Database credentials
-define('DB_HOST', 'localhost');
-define('DB_NAME', 'gettoknow_db');
-define('DB_USER', 'root');  // Change in production
-define('DB_PASS', '');      // Change in production
+define('DB_HOST', '127.0.0.1:3306');
+define('DB_NAME', 'u717011923_gettoknow_db');
+define('DB_USER', 'u717011923_gettoknow_db');  // Change in production
+define('DB_PASS', 'qwe12345+A');      // Change in production
 define('DB_CHARSET', 'utf8mb4');
 
 class Database {
