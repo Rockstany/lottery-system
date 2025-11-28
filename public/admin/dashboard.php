@@ -242,9 +242,8 @@ $recentActivity = $stmt->fetchAll();
         <nav class="nav-menu no-print">
             <ul>
                 <li><a href="/public/admin/dashboard.php" style="font-weight: 600;">Dashboard</a></li>
-                <li><a href="#users">Manage Users</a></li>
-                <li><a href="#communities">Manage Communities</a></li>
-                <li><a href="#activity">Activity Logs</a></li>
+                <li><a href="/public/admin/users.php">Manage Users</a></li>
+                <li><a href="/public/admin/communities.php">Manage Communities</a></li>
                 <li><a href="/public/logout.php">Logout</a></li>
             </ul>
         </nav>
@@ -280,21 +279,21 @@ $recentActivity = $stmt->fetchAll();
             </div>
             <div class="card-body">
                 <div class="quick-actions">
-                    <a href="#create-user" class="action-btn">
+                    <a href="/public/admin/user-add.php" class="action-btn">
                         <div class="action-icon">👤</div>
                         <div>Create Group Admin</div>
                     </a>
-                    <a href="#create-community" class="action-btn">
+                    <a href="/public/admin/communities.php" class="action-btn">
                         <div class="action-icon">🏘️</div>
-                        <div>Create Community</div>
+                        <div>Manage Communities</div>
                     </a>
-                    <a href="#view-users" class="action-btn">
+                    <a href="/public/admin/users.php" class="action-btn">
                         <div class="action-icon">👥</div>
                         <div>View All Users</div>
                     </a>
-                    <a href="#view-activity" class="action-btn">
-                        <div class="action-icon">📋</div>
-                        <div>View Activity Logs</div>
+                    <a href="/public/admin/dashboard.php" class="action-btn">
+                        <div class="action-icon">📊</div>
+                        <div>Dashboard Statistics</div>
                     </a>
                 </div>
             </div>
