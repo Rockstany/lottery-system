@@ -33,6 +33,7 @@ $success = $_GET['success'] ?? '';
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Transaction Collection - <?php echo APP_NAME; ?></title>
     <link rel="stylesheet" href="/public/css/main.css">
+    <link rel="stylesheet" href="/public/css/enhancements.css">
     <style>
         .header {
             background: linear-gradient(135deg, #ea580c 0%, #dc2626 100%);

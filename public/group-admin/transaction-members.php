@@ -60,6 +60,7 @@ $messageTemplate = "Hello {name},\n\nThis is a reminder for {campaign}.\n\nExpec
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Campaign Members - <?php echo APP_NAME; ?></title>
     <link rel="stylesheet" href="/public/css/main.css">
+    <link rel="stylesheet" href="/public/css/enhancements.css">
     <style>
         .header {
             background: linear-gradient(135deg, #ea580c 0%, #dc2626 100%);

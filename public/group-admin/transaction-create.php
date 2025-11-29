@@ -60,6 +60,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Create Campaign - <?php echo APP_NAME; ?></title>
     <link rel="stylesheet" href="/public/css/main.css">
+    <link rel="stylesheet" href="/public/css/enhancements.css">
     <style>
         .header {
             background: linear-gradient(135deg, #ea580c 0%, #dc2626 100%);

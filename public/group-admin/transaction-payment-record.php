@@ -87,6 +87,7 @@ $payments = $stmt->fetchAll();
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Record Payment - <?php echo APP_NAME; ?></title>
     <link rel="stylesheet" href="/public/css/main.css">
+    <link rel="stylesheet" href="/public/css/enhancements.css">
     <style>
         .header {
             background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);

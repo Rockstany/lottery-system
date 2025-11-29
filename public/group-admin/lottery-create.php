@@ -61,6 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Create Lottery Event - <?php echo APP_NAME; ?></title>
     <link rel="stylesheet" href="/public/css/main.css">
+    <link rel="stylesheet" href="/public/css/enhancements.css">
     <style>
         .header {
             background: linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%);
