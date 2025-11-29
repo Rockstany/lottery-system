@@ -256,6 +256,9 @@ $success = $_GET['success'] ?? '';
                     </div>
 
                     <div style="display: flex; gap: var(--spacing-sm); margin-top: var(--spacing-lg); flex-wrap: wrap;">
+                        <a href="/public/group-admin/lottery-edit.php?id=<?php echo $event['event_id']; ?>" class="btn btn-warning">
+                            ✏️ Edit
+                        </a>
                         <a href="/public/group-admin/lottery-books.php?id=<?php echo $event['event_id']; ?>" class="btn btn-primary">
                             Manage Books
                         </a>

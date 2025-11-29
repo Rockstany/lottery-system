@@ -39,13 +39,23 @@ $error = '';
 $success = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $paymentType = $_POST['payment_type'] ?? 'partial';
     $amount = Validator::sanitizeFloat($_POST['amount'] ?? 0);
     $paymentMethod = $_POST['payment_method'] ?? 'cash';
     $paymentDate = $_POST['payment_date'] ?? date('Y-m-d');
 
-    if ($amount <= 0) {
-        $error = 'Please enter a valid amount';
+    // Validate based on payment type
+    if ($paymentType === 'full') {
+        if ($amount != $outstanding) {
+            $error = 'Full payment amount must equal outstanding amount of ₹' . number_format($outstanding);
+        }
     } else {
+        if ($amount <= 0 || $amount > $outstanding) {
+            $error = 'Partial payment must be between ₹1 and ₹' . number_format($outstanding);
+        }
+    }
+
+    if (!$error) {
         $query = "INSERT INTO payment_collections (distribution_id, amount_paid, payment_method, payment_date, collected_by)
                   VALUES (:distribution_id, :amount, :payment_method, :payment_date, :collected_by)";
         $stmt = $db->prepare($query);
@@ -59,10 +69,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($stmt->execute()) {
             $success = 'Payment recorded successfully!';
             // Refresh data
-            $stmt = $db->prepare($query);
-            $stmt->bindParam(':book_id', $bookId);
-            $stmt->execute();
-            $book = $stmt->fetch();
+            $refreshQuery = "SELECT lb.*, bd.distribution_id, bd.member_name, bd.mobile_number,
+                            le.event_id, le.event_name, le.price_per_ticket, le.tickets_per_book,
+                            COALESCE(SUM(pc.amount_paid), 0) as total_paid
+                            FROM lottery_books lb
+                            JOIN book_distribution bd ON lb.book_id = bd.book_id
+                            JOIN lottery_events le ON lb.event_id = le.event_id
+                            LEFT JOIN payment_collections pc ON bd.distribution_id = pc.distribution_id
+                            WHERE lb.book_id = :book_id
+                            GROUP BY lb.book_id";
+            $refreshStmt = $db->prepare($refreshQuery);
+            $refreshStmt->bindParam(':book_id', $bookId);
+            $refreshStmt->execute();
+            $book = $refreshStmt->fetch();
             $outstanding = $expectedAmount - $book['total_paid'];
         } else {
             $error = 'Failed to record payment';
@@ -138,29 +157,58 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <h3 class="card-title">Record Payment</h3>
                     </div>
                     <div class="card-body">
-                        <form method="POST">
+                        <form method="POST" id="paymentForm">
+                            <div class="form-group">
+                                <label class="form-label form-label-required">Payment Type</label>
+                                <div style="display: flex; gap: var(--spacing-lg); margin-top: var(--spacing-sm);">
+                                    <label style="display: flex; align-items: center; cursor: pointer;">
+                                        <input type="radio" name="payment_type" value="full" <?php echo ($outstanding > 0) ? '' : 'checked'; ?> onchange="updateAmount()" style="margin-right: var(--spacing-sm);">
+                                        <span>Full Payment (₹<?php echo number_format($outstanding); ?>)</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; cursor: pointer;">
+                                        <input type="radio" name="payment_type" value="partial" checked onchange="updateAmount()" style="margin-right: var(--spacing-sm);">
+                                        <span>Partial Payment</span>
+                                    </label>
+                                </div>
+                            </div>
+
                             <div class="form-group">
                                 <label class="form-label form-label-required">Amount Received</label>
                                 <input
                                     type="number"
                                     name="amount"
+                                    id="amountInput"
                                     class="form-control"
                                     step="1"
                                     min="1"
                                     max="<?php echo $outstanding; ?>"
-                                    value="<?php echo $outstanding; ?>"
+                                    value=""
                                     required
                                     autofocus
                                 >
+                                <small class="form-text">Outstanding: ₹<?php echo number_format($outstanding); ?></small>
                             </div>
 
                             <div class="form-group">
                                 <label class="form-label form-label-required">Payment Method</label>
-                                <select name="payment_method" class="form-control" required>
-                                    <option value="cash">Cash</option>
-                                    <option value="upi" selected>UPI</option>
-                                    <option value="other">Other</option>
-                                </select>
+                                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--spacing-sm); margin-top: var(--spacing-sm);">
+                                    <label style="display: flex; align-items: center; cursor: pointer; padding: var(--spacing-sm); border: 2px solid var(--gray-200); border-radius: var(--radius-md);">
+                                        <input type="radio" name="payment_method" value="cash" style="margin-right: var(--spacing-sm);">
+                                        <span>💵 Cash</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; cursor: pointer; padding: var(--spacing-sm); border: 2px solid var(--gray-200); border-radius: var(--radius-md);">
+                                        <input type="radio" name="payment_method" value="upi" checked style="margin-right: var(--spacing-sm);">
+                                        <span>📱 UPI</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; cursor: pointer; padding: var(--spacing-sm); border: 2px solid var(--gray-200); border-radius: var(--radius-md);">
+                                        <input type="radio" name="payment_method" value="bank" style="margin-right: var(--spacing-sm);">
+                                        <span>🏦 Bank Transfer</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; cursor: pointer; padding: var(--spacing-sm); border: 2px solid var(--gray-200); border-radius: var(--radius-md);">
+                                        <input type="radio" name="payment_method" value="other" style="margin-right: var(--spacing-sm);">
+                                        <span>💳 Other</span>
+                                    </label>
+                                </div>
                             </div>
 
                             <div class="form-group">
@@ -197,5 +245,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
         </div>
     </div>
+
+    <script>
+        const outstanding = <?php echo $outstanding; ?>;
+        const amountInput = document.getElementById('amountInput');
+
+        function updateAmount() {
+            const paymentType = document.querySelector('input[name="payment_type"]:checked').value;
+
+            if (paymentType === 'full') {
+                amountInput.value = outstanding;
+                amountInput.readOnly = true;
+                amountInput.style.backgroundColor = '#f3f4f6';
+            } else {
+                amountInput.value = '';
+                amountInput.readOnly = false;
+                amountInput.style.backgroundColor = '';
+                amountInput.focus();
+            }
+        }
+
+        // Initialize on page load
+        updateAmount();
+
+        // Add visual feedback for selected payment method
+        document.querySelectorAll('input[name="payment_method"]').forEach(radio => {
+            radio.addEventListener('change', function() {
+                document.querySelectorAll('label:has(input[name="payment_method"])').forEach(label => {
+                    label.style.borderColor = '#e5e7eb';
+                    label.style.backgroundColor = '';
+                });
+                this.parentElement.style.borderColor = '#3b82f6';
+                this.parentElement.style.backgroundColor = '#eff6ff';
+            });
+        });
+
+        // Trigger initial selection
+        document.querySelector('input[name="payment_method"]:checked').dispatchEvent(new Event('change'));
+    </script>
 </body>
 </html>
