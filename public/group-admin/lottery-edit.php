@@ -34,6 +34,24 @@ if (!$event) {
 // Check if books have been generated (determines what can be edited)
 $booksGenerated = $event['total_books'] > 0;
 
+// Get distribution levels for this event
+$levelsQuery = "SELECT * FROM distribution_levels WHERE event_id = :event_id ORDER BY level_number";
+$stmt = $db->prepare($levelsQuery);
+$stmt->bindParam(':event_id', $eventId);
+$stmt->execute();
+$distributionLevels = $stmt->fetchAll();
+
+// Get count of values for each level
+$levelValueCounts = [];
+foreach ($distributionLevels as $level) {
+    $countQuery = "SELECT COUNT(*) as value_count FROM distribution_level_values WHERE level_id = :level_id";
+    $stmt = $db->prepare($countQuery);
+    $stmt->bindParam(':level_id', $level['level_id']);
+    $stmt->execute();
+    $result = $stmt->fetch();
+    $levelValueCounts[$level['level_id']] = $result['value_count'];
+}
+
 $error = '';
 $success = '';
 
@@ -357,6 +375,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </div>
                     </div>
                 </div>
+
+                <?php if (count($distributionLevels) > 0): ?>
+                    <div class="card">
+                        <div class="card-header">
+                            <h4 class="card-title">📍 Distribution Levels (Step 3)</h4>
+                        </div>
+                        <div class="card-body">
+                            <p style="margin-bottom: var(--spacing-md);"><strong>Configured Levels:</strong></p>
+                            <ul style="margin: 0; padding-left: var(--spacing-lg);">
+                                <?php foreach ($distributionLevels as $level): ?>
+                                    <li style="margin-bottom: var(--spacing-sm);">
+                                        <strong>Level <?php echo $level['level_number']; ?>:</strong>
+                                        <?php echo htmlspecialchars($level['level_name']); ?>
+                                        <span style="color: var(--gray-600); font-size: var(--font-size-sm);">
+                                            (<?php echo $levelValueCounts[$level['level_id']]; ?> values)
+                                        </span>
+                                    </li>
+                                <?php endforeach; ?>
+                            </ul>
+                            <p style="margin-top: var(--spacing-md); color: var(--info-color); font-size: var(--font-size-sm);">
+                                💡 New values can be added during book assignment
+                            </p>
+                        </div>
+                    </div>
+                <?php endif; ?>
 
                 <div class="card">
                     <div class="card-header">

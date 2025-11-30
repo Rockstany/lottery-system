@@ -40,14 +40,25 @@ $stmt->bindParam(':event_id', $eventId);
 $stmt->execute();
 $levels = $stmt->fetchAll();
 
-// Get all level values
+// Get all level values with parent relationships
 $levelValues = [];
+$allValues = []; // For JavaScript
 foreach ($levels as $level) {
     $valuesQuery = "SELECT * FROM distribution_level_values WHERE level_id = :level_id ORDER BY value_name";
     $stmt = $db->prepare($valuesQuery);
     $stmt->bindParam(':level_id', $level['level_id']);
     $stmt->execute();
-    $levelValues[$level['level_id']] = $stmt->fetchAll();
+    $values = $stmt->fetchAll();
+    $levelValues[$level['level_id']] = $values;
+
+    foreach ($values as $val) {
+        $allValues[] = [
+            'value_id' => $val['value_id'],
+            'level_id' => $level['level_id'],
+            'parent_value_id' => $val['parent_value_id'],
+            'value_name' => $val['value_name']
+        ];
+    }
 }
 
 $error = '';
@@ -58,19 +69,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Get distribution level selections
     $distributionData = [];
+    $lastValueId = null; // Track parent value ID for hierarchical relationship
+
     foreach ($levels as $level) {
+        $selectedValueId = $_POST["level_{$level['level_id']}_id"] ?? '';
         $selectedValue = $_POST["level_{$level['level_id']}"] ?? '';
         $newValue = trim($_POST["new_level_{$level['level_id']}"] ?? '');
 
         // If "Add New" is selected and new value is provided
         if ($selectedValue === '__new__' && !empty($newValue)) {
-            // Insert new value
-            $insertQuery = "INSERT INTO distribution_level_values (level_id, value_name) VALUES (:level_id, :value_name)";
+            // Insert new value with parent relationship
+            $insertQuery = "INSERT INTO distribution_level_values (level_id, value_name, parent_value_id) VALUES (:level_id, :value_name, :parent_value_id)";
             $insertStmt = $db->prepare($insertQuery);
             $insertStmt->bindParam(':level_id', $level['level_id']);
             $insertStmt->bindParam(':value_name', $newValue);
+            $insertStmt->bindValue(':parent_value_id', $lastValueId, PDO::PARAM_INT);
             $insertStmt->execute();
+            $lastValueId = $db->lastInsertId();
             $selectedValue = $newValue;
+        } elseif (!empty($selectedValueId)) {
+            // Use existing value ID as parent for next level
+            $lastValueId = $selectedValueId;
         }
 
         if (!empty($selectedValue) && $selectedValue !== '__new__') {
@@ -182,15 +201,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 <?php foreach ($levels as $index => $level): ?>
                                     <div class="form-group">
                                         <label class="form-label"><?php echo htmlspecialchars($level['level_name']); ?></label>
+                                        <input type="hidden" name="level_<?php echo $level['level_id']; ?>_id" id="level_<?php echo $level['level_id']; ?>_id">
                                         <select
                                             name="level_<?php echo $level['level_id']; ?>"
+                                            id="level_<?php echo $level['level_id']; ?>"
                                             class="form-control level-select"
                                             data-level-id="<?php echo $level['level_id']; ?>"
-                                            onchange="toggleAddNew(<?php echo $level['level_id']; ?>)"
+                                            data-level-number="<?php echo $level['level_number']; ?>"
+                                            onchange="handleLevelChange(<?php echo $level['level_id']; ?>, <?php echo $level['level_number']; ?>)"
                                         >
                                             <option value="">- Select <?php echo htmlspecialchars($level['level_name']); ?> -</option>
                                             <?php foreach ($levelValues[$level['level_id']] as $value): ?>
-                                                <option value="<?php echo htmlspecialchars($value['value_name']); ?>">
+                                                <option
+                                                    value="<?php echo htmlspecialchars($value['value_name']); ?>"
+                                                    data-value-id="<?php echo $value['value_id']; ?>"
+                                                    data-parent-id="<?php echo $value['parent_value_id'] ?? ''; ?>"
+                                                >
                                                     <?php echo htmlspecialchars($value['value_name']); ?>
                                                 </option>
                                             <?php endforeach; ?>
@@ -292,8 +318,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
 
     <script>
+        // Store all level data for cascading
+        const allLevels = <?php echo json_encode($levels); ?>;
+        const allLevelValues = <?php echo json_encode($allValues); ?>;
+
+        function handleLevelChange(levelId, levelNumber) {
+            const select = document.getElementById(`level_${levelId}`);
+            const selectedOption = select.options[select.selectedIndex];
+            const selectedValueId = selectedOption.getAttribute('data-value-id');
+            const hiddenInput = document.getElementById(`level_${levelId}_id`);
+
+            // Store the value_id in hidden field
+            if (selectedValueId) {
+                hiddenInput.value = selectedValueId;
+            } else {
+                hiddenInput.value = '';
+            }
+
+            // Handle "Add New" toggle
+            toggleAddNew(levelId);
+
+            // Filter next level dropdown (if exists)
+            filterNextLevel(levelId, levelNumber, selectedValueId);
+        }
+
         function toggleAddNew(levelId) {
-            const select = document.querySelector(`select[data-level-id="${levelId}"]`);
+            const select = document.getElementById(`level_${levelId}`);
             const addNewField = document.getElementById(`add_new_${levelId}`);
             const input = addNewField.querySelector('input');
 
@@ -307,6 +357,97 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 input.value = '';
             }
         }
+
+        function filterNextLevel(currentLevelId, currentLevelNumber, parentValueId) {
+            // Find next level
+            const nextLevel = allLevels.find(level => level.level_number === currentLevelNumber + 1);
+
+            if (!nextLevel) {
+                return; // No next level exists
+            }
+
+            const nextSelect = document.getElementById(`level_${nextLevel.level_id}`);
+            if (!nextSelect) {
+                return;
+            }
+
+            // Get all options for next level
+            const allOptions = nextSelect.querySelectorAll('option');
+
+            // Reset next level
+            nextSelect.value = '';
+            document.getElementById(`level_${nextLevel.level_id}_id`).value = '';
+
+            // Hide/show options based on parent
+            allOptions.forEach(option => {
+                const optionParentId = option.getAttribute('data-parent-id');
+                const optionValueId = option.getAttribute('data-value-id');
+
+                // Always show default option and "Add New" option
+                if (option.value === '' || option.value === '__new__') {
+                    option.style.display = '';
+                    return;
+                }
+
+                // Show option if:
+                // 1. No parent selected (show all)
+                // 2. Option's parent_id matches selected parent's value_id
+                // 3. Option has no parent (parent_value_id is null) for level 1 values
+                if (!parentValueId) {
+                    // No parent selected, hide all child options
+                    option.style.display = 'none';
+                } else if (optionParentId === parentValueId) {
+                    // Parent matches, show this option
+                    option.style.display = '';
+                } else {
+                    // No match, hide option
+                    option.style.display = 'none';
+                }
+            });
+
+            // Also reset all subsequent levels
+            resetSubsequentLevels(currentLevelNumber + 1);
+        }
+
+        function resetSubsequentLevels(fromLevelNumber) {
+            // Reset all levels after the changed level
+            allLevels.forEach(level => {
+                if (level.level_number > fromLevelNumber) {
+                    const select = document.getElementById(`level_${level.level_id}`);
+                    const hiddenInput = document.getElementById(`level_${level.level_id}_id`);
+                    if (select) {
+                        select.value = '';
+                        const allOptions = select.querySelectorAll('option');
+                        allOptions.forEach(option => {
+                            if (option.value !== '' && option.value !== '__new__') {
+                                option.style.display = 'none';
+                            }
+                        });
+                    }
+                    if (hiddenInput) {
+                        hiddenInput.value = '';
+                    }
+                }
+            });
+        }
+
+        // Initialize on page load - show only level 1 values initially
+        document.addEventListener('DOMContentLoaded', function() {
+            // For all levels except the first, hide all value options initially
+            allLevels.forEach((level, index) => {
+                if (index > 0) { // Not the first level
+                    const select = document.getElementById(`level_${level.level_id}`);
+                    if (select) {
+                        const allOptions = select.querySelectorAll('option');
+                        allOptions.forEach(option => {
+                            if (option.value !== '' && option.value !== '__new__') {
+                                option.style.display = 'none';
+                            }
+                        });
+                    }
+                }
+            });
+        });
     </script>
 </body>
 </html>

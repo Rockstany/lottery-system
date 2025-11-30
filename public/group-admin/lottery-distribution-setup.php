@@ -34,51 +34,22 @@ if (!$event) {
 $error = '';
 $success = '';
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $levels = $_POST['levels'] ?? [];
-
-    if (count($levels) > 0) {
-        // Save distribution levels
-        foreach ($levels as $levelNum => $levelData) {
-            if (!empty($levelData['name'])) {
-                $query = "INSERT INTO distribution_levels (event_id, level_number, level_name)
-                          VALUES (:event_id, :level_number, :level_name)
-                          ON DUPLICATE KEY UPDATE level_name = :level_name2";
-                $stmt = $db->prepare($query);
-                $stmt->bindParam(':event_id', $eventId);
-                $stmt->bindParam(':level_number', $levelNum);
-                $stmt->bindParam(':level_name', $levelData['name']);
-                $stmt->bindParam(':level_name2', $levelData['name']);
-                $stmt->execute();
-
-                $levelId = $db->lastInsertId() ?: $db->query("SELECT level_id FROM distribution_levels WHERE event_id = {$eventId} AND level_number = {$levelNum}")->fetchColumn();
-
-                // Save level values
-                if (!empty($levelData['values'])) {
-                    $values = array_filter(array_map('trim', explode(',', $levelData['values'])));
-                    foreach ($values as $value) {
-                        $query = "INSERT IGNORE INTO distribution_level_values (level_id, value_name)
-                                  VALUES (:level_id, :value_name)";
-                        $stmt = $db->prepare($query);
-                        $stmt->bindParam(':level_id', $levelId);
-                        $stmt->bindParam(':value_name', $value);
-                        $stmt->execute();
-                    }
-                }
-            }
-        }
-
-        header("Location: /public/group-admin/lottery-books.php?id={$eventId}");
-        exit;
-    }
-}
-
 // Get existing levels
 $query = "SELECT * FROM distribution_levels WHERE event_id = :event_id ORDER BY level_number";
 $stmt = $db->prepare($query);
 $stmt->bindParam(':event_id', $eventId);
 $stmt->execute();
 $existingLevels = $stmt->fetchAll();
+
+// Get existing values for each level
+$existingValues = [];
+foreach ($existingLevels as $level) {
+    $query = "SELECT * FROM distribution_level_values WHERE level_id = :level_id ORDER BY value_name";
+    $stmt = $db->prepare($query);
+    $stmt->bindParam(':level_id', $level['level_id']);
+    $stmt->execute();
+    $existingValues[$level['level_id']] = $stmt->fetchAll();
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -109,77 +80,92 @@ $existingLevels = $stmt->fetchAll();
             border-radius: var(--radius-md);
             margin-bottom: var(--spacing-md);
         }
+        .info-badge {
+            display: inline-block;
+            background: var(--primary-color);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-left: 8px;
+        }
     </style>
 </head>
 <body>
+    <?php include __DIR__ . '/includes/navigation.php'; ?>
+
     <div class="header">
         <div class="container">
             <h1><?php echo htmlspecialchars($event['event_name']); ?> - Distribution Setup</h1>
-            <p style="margin: 0; opacity: 0.9;">Part 3 of 6</p>
+            <p style="margin: 0; opacity: 0.9;">Part 3 of 6 - Configure Hierarchical Levels</p>
         </div>
     </div>
 
     <div class="container main-content">
         <div class="instructions">
             <h3 style="margin-top: 0;">🏢 Part 3: Distribution Levels (Optional)</h3>
-            <p>Set up hierarchy for book distribution. Common examples:</p>
+            <p><strong>Hierarchical Structure:</strong> Values depend on parent level selection</p>
             <ul>
-                <li><strong>Level 1:</strong> Wing (A, B, C)</li>
-                <li><strong>Level 2:</strong> Floor (1, 2, 3, 4)</li>
-                <li><strong>Level 3:</strong> Flat (101, 102, 103)</li>
+                <li><strong>Level 1:</strong> Add 1 value (e.g., Wing "A")</li>
+                <li><strong>Level 2:</strong> Add 2 values for each Level 1 (e.g., for Wing "A" → Floor "1", "2")</li>
+                <li><strong>Level 3:</strong> Add 3 values for each Level 2 (e.g., for Floor "1" → Flat "101", "102", "103")</li>
             </ul>
-            <p style="margin: 0;"><strong>Note:</strong> You can skip this and distribute books directly by member name.</p>
+            <p style="margin: 0; color: var(--warning-color);"><strong>Note:</strong> Values can be added during assignment with "Add New" option. This page just sets up the level names.</p>
         </div>
 
-        <div class="card">
-            <div class="card-header">
-                <h3 class="card-title">Configure Distribution Levels</h3>
+        <?php if (count($existingLevels) > 0): ?>
+            <div class="card">
+                <div class="card-header" style="background: var(--success-light);">
+                    <h3 class="card-title" style="color: var(--success-color); margin: 0;">
+                        ✅ Distribution Levels Configured
+                    </h3>
+                </div>
+                <div class="card-body">
+                    <p><strong>Your distribution structure:</strong></p>
+                    <ul>
+                        <?php foreach ($existingLevels as $level): ?>
+                            <li>
+                                <strong>Level <?php echo $level['level_number']; ?>:</strong>
+                                <?php echo htmlspecialchars($level['level_name']); ?>
+                                <span class="info-badge">
+                                    <?php echo count($existingValues[$level['level_id']] ?? []); ?> values
+                                </span>
+                            </li>
+                        <?php endforeach; ?>
+                    </ul>
+                    <p style="color: var(--gray-600); margin-top: var(--spacing-md);">
+                        You can add new values dynamically during book assignment using the "Add New" option in dropdowns.
+                    </p>
+                </div>
             </div>
-            <div class="card-body">
-                <form method="POST">
-                    <div class="level-box">
-                        <h4>Level 1 (e.g., Wing)</h4>
-                        <div class="form-group">
-                            <label class="form-label">Level Name</label>
-                            <input type="text" name="levels[1][name]" class="form-control" placeholder="Wing" value="Wing">
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Values (comma separated)</label>
-                            <input type="text" name="levels[1][values]" class="form-control" placeholder="A, B, C" value="A, B, C">
-                            <span class="form-help">Example: A, B, C</span>
-                        </div>
-                    </div>
-
-                    <div class="level-box">
-                        <h4>Level 2 (e.g., Floor) - Optional</h4>
-                        <div class="form-group">
-                            <label class="form-label">Level Name</label>
-                            <input type="text" name="levels[2][name]" class="form-control" placeholder="Floor">
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Values (comma separated)</label>
-                            <input type="text" name="levels[2][values]" class="form-control" placeholder="1, 2, 3, 4">
-                        </div>
-                    </div>
-
-                    <div class="level-box">
-                        <h4>Level 3 (e.g., Flat) - Optional</h4>
-                        <div class="form-group">
-                            <label class="form-label">Level Name</label>
-                            <input type="text" name="levels[3][name]" class="form-control" placeholder="Flat">
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Values (comma separated)</label>
-                            <input type="text" name="levels[3][values]" class="form-control" placeholder="01, 02, 03">
-                        </div>
-                    </div>
-
-                    <div style="display: flex; gap: var(--spacing-md);">
-                        <button type="submit" class="btn btn-primary btn-lg">Save & Continue →</button>
-                        <a href="/public/group-admin/lottery-books.php?id=<?php echo $eventId; ?>" class="btn btn-secondary">Skip This Step</a>
-                    </div>
-                </form>
+        <?php else: ?>
+            <div class="card">
+                <div class="card-header" style="background: #fef3c7;">
+                    <h3 class="card-title" style="color: #f59e0b; margin: 0;">
+                        ⚠️ No Distribution Levels Configured
+                    </h3>
+                </div>
+                <div class="card-body">
+                    <p>You haven't set up any distribution levels yet. You have two options:</p>
+                    <ol>
+                        <li><strong>Use the Manual Method (Recommended for First Time):</strong> Go to "Manage Books" and use the assignment page. When assigning books, you'll be prompted to create levels and add values on-the-fly with the "Add New" feature.</li>
+                        <li><strong>Pre-configure Levels Here:</strong> Contact your administrator to set up the distribution levels structure in the database directly.</li>
+                    </ol>
+                    <p style="margin-top: var(--spacing-lg); color: var(--info-color);">
+                        💡 <strong>Tip:</strong> The "Add New" feature during assignment is easier and more flexible. You can skip this page and configure everything during assignment.
+                    </p>
+                </div>
             </div>
+        <?php endif; ?>
+
+        <div style="margin-top: var(--spacing-lg); display: flex; gap: var(--spacing-md);">
+            <a href="/public/group-admin/lottery-books.php?id=<?php echo $eventId; ?>" class="btn btn-primary btn-lg">
+                Continue to Manage Books →
+            </a>
+            <a href="/public/group-admin/lottery.php" class="btn btn-secondary">
+                ← Back to Events
+            </a>
         </div>
     </div>
 </body>

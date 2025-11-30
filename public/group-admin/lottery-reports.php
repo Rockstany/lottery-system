@@ -44,9 +44,6 @@ $stats = $stmt->fetch();
 // Get payment statistics
 $paymentQuery = "SELECT
     COUNT(DISTINCT bd.distribution_id) as total_distributed,
-    SUM(CASE WHEN bd.payment_status = 'paid' THEN 1 ELSE 0 END) as paid_count,
-    SUM(CASE WHEN bd.payment_status = 'partial' THEN 1 ELSE 0 END) as partial_count,
-    SUM(CASE WHEN bd.payment_status = 'unpaid' THEN 1 ELSE 0 END) as unpaid_count,
     COALESCE(SUM(pc.amount_paid), 0) as total_collected,
     COUNT(pc.collection_id) as total_transactions
     FROM book_distribution bd
@@ -58,6 +55,42 @@ $stmt->bindParam(':event_id', $eventId);
 $stmt->execute();
 $paymentStats = $stmt->fetch();
 
+// Calculate payment status counts
+$statusQuery = "SELECT
+    SUM(CASE
+        WHEN COALESCE(paid_total, 0) >= expected
+        THEN 1 ELSE 0
+    END) as paid_count,
+    SUM(CASE
+        WHEN COALESCE(paid_total, 0) > 0 AND COALESCE(paid_total, 0) < expected
+        THEN 1 ELSE 0
+    END) as partial_count,
+    SUM(CASE
+        WHEN COALESCE(paid_total, 0) = 0
+        THEN 1 ELSE 0
+    END) as unpaid_count
+    FROM (
+        SELECT
+            bd.distribution_id,
+            (le.tickets_per_book * le.price_per_ticket) as expected,
+            COALESCE(SUM(pc.amount_paid), 0) as paid_total
+        FROM book_distribution bd
+        JOIN lottery_books lb ON bd.book_id = lb.book_id
+        JOIN lottery_events le ON lb.event_id = le.event_id
+        LEFT JOIN payment_collections pc ON bd.distribution_id = pc.distribution_id
+        WHERE le.event_id = :event_id
+        GROUP BY bd.distribution_id
+    ) as payment_breakdown";
+$stmt = $db->prepare($statusQuery);
+$stmt->bindParam(':event_id', $eventId);
+$stmt->execute();
+$statusCounts = $stmt->fetch();
+
+// Merge status counts into paymentStats
+$paymentStats['paid_count'] = $statusCounts['paid_count'];
+$paymentStats['partial_count'] = $statusCounts['partial_count'];
+$paymentStats['unpaid_count'] = $statusCounts['unpaid_count'];
+
 // Get member-wise report
 $memberQuery = "SELECT
     bd.member_name,
@@ -65,11 +98,15 @@ $memberQuery = "SELECT
     lb.book_number,
     lb.start_ticket_number,
     lb.end_ticket_number,
-    bd.payment_status,
     (le.tickets_per_book * le.price_per_ticket) as expected_amount,
     COALESCE(SUM(pc.amount_paid), 0) as total_paid,
     ((le.tickets_per_book * le.price_per_ticket) - COALESCE(SUM(pc.amount_paid), 0)) as outstanding,
-    bd.distributed_date
+    CASE
+        WHEN COALESCE(SUM(pc.amount_paid), 0) >= (le.tickets_per_book * le.price_per_ticket) THEN 'paid'
+        WHEN COALESCE(SUM(pc.amount_paid), 0) > 0 THEN 'partial'
+        ELSE 'unpaid'
+    END as payment_status,
+    bd.distributed_at
     FROM book_distribution bd
     JOIN lottery_books lb ON bd.book_id = lb.book_id
     JOIN lottery_events le ON lb.event_id = le.event_id
