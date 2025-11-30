@@ -25,7 +25,7 @@ if (!$event) {
 }
 
 // Get distributed books with payment info
-$query = "SELECT lb.*, bd.member_name, bd.mobile_number,
+$query = "SELECT lb.*, bd.notes, bd.mobile_number, bd.distribution_path, bd.distribution_id,
           COALESCE(SUM(pc.amount_paid), 0) as total_paid,
           (lb.end_ticket_number - lb.start_ticket_number + 1) * :price_per_ticket as expected_amount
           FROM lottery_books lb
@@ -33,7 +33,7 @@ $query = "SELECT lb.*, bd.member_name, bd.mobile_number,
           LEFT JOIN payment_collections pc ON bd.distribution_id = pc.distribution_id
           WHERE lb.event_id = :event_id
           GROUP BY lb.book_id
-          ORDER BY lb.book_number";
+          ORDER BY bd.distribution_path ASC, bd.notes ASC, lb.book_number";
 $stmt = $db->prepare($query);
 $stmt->bindParam(':event_id', $eventId);
 $stmt->bindParam(':price_per_ticket', $event['price_per_ticket']);
@@ -143,7 +143,8 @@ foreach ($distributions as $dist) {
                             <thead>
                                 <tr>
                                     <th>Book #</th>
-                                    <th>Member Name</th>
+                                    <th>Location</th>
+                                    <th>Notes</th>
                                     <th>Mobile</th>
                                     <th>Expected</th>
                                     <th>Paid</th>
@@ -162,7 +163,8 @@ foreach ($distributions as $dist) {
                                     ?>
                                     <tr>
                                         <td><strong>Book <?php echo $dist['book_number']; ?></strong></td>
-                                        <td><?php echo htmlspecialchars($dist['member_name']); ?></td>
+                                        <td><?php echo htmlspecialchars($dist['distribution_path'] ?? '-'); ?></td>
+                                        <td><?php echo htmlspecialchars($dist['notes'] ?? '-'); ?></td>
                                         <td><?php echo htmlspecialchars($dist['mobile_number'] ?? '-'); ?></td>
                                         <td>₹<?php echo number_format($dist['expected_amount']); ?></td>
                                         <td>₹<?php echo number_format($dist['total_paid']); ?></td>

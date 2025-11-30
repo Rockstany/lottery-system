@@ -13,7 +13,7 @@ $database = new Database();
 $db = $database->getConnection();
 
 // Get book & distribution details
-$query = "SELECT lb.*, bd.distribution_id, bd.member_name, bd.mobile_number,
+$query = "SELECT lb.*, bd.distribution_id, bd.notes, bd.mobile_number, bd.distribution_path,
           le.event_id, le.event_name, le.price_per_ticket, le.tickets_per_book,
           COALESCE(SUM(pc.amount_paid), 0) as total_paid
           FROM lottery_books lb
@@ -69,7 +69,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($stmt->execute()) {
             $success = 'Payment recorded successfully!';
             // Refresh data
-            $refreshQuery = "SELECT lb.*, bd.distribution_id, bd.member_name, bd.mobile_number,
+            $refreshQuery = "SELECT lb.*, bd.distribution_id, bd.notes, bd.mobile_number, bd.distribution_path,
                             le.event_id, le.event_name, le.price_per_ticket, le.tickets_per_book,
                             COALESCE(SUM(pc.amount_paid), 0) as total_paid
                             FROM lottery_books lb
@@ -143,7 +143,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <div class="info-box">
                             <div style="margin-bottom: var(--spacing-sm);"><strong>Event:</strong> <?php echo htmlspecialchars($book['event_name']); ?></div>
                             <div style="margin-bottom: var(--spacing-sm);"><strong>Book:</strong> #<?php echo $book['book_number']; ?></div>
-                            <div style="margin-bottom: var(--spacing-sm);"><strong>Member:</strong> <?php echo htmlspecialchars($book['member_name']); ?></div>
+                            <div style="margin-bottom: var(--spacing-sm);"><strong>Location:</strong> <?php echo htmlspecialchars($book['distribution_path'] ?? '-'); ?></div>
+                            <div style="margin-bottom: var(--spacing-sm);"><strong>Notes:</strong> <?php echo htmlspecialchars($book['notes'] ?? '-'); ?></div>
                             <div style="margin-bottom: var(--spacing-sm);"><strong>Mobile:</strong> <?php echo htmlspecialchars($book['mobile_number'] ?? '-'); ?></div>
                             <div style="margin-bottom: var(--spacing-sm);"><strong>Expected:</strong> ₹<?php echo number_format($expectedAmount); ?></div>
                             <div style="margin-bottom: var(--spacing-sm);"><strong>Already Paid:</strong> <span style="color: var(--success-color);">₹<?php echo number_format($book['total_paid']); ?></span></div>
