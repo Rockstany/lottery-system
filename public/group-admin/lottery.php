@@ -118,6 +118,8 @@ $success = $_GET['success'] ?? '';
     </style>
 </head>
 <body>
+    <?php include __DIR__ . '/includes/navigation.php'; ?>
+
     <div class="header">
         <div class="container">
             <h1>🎫 Lottery System</h1>
@@ -261,9 +263,6 @@ $success = $_GET['success'] ?? '';
                         </a>
                         <a href="/public/group-admin/lottery-books.php?id=<?php echo $event['event_id']; ?>" class="btn btn-primary">
                             Manage Books
-                        </a>
-                        <a href="/public/group-admin/lottery-distribution.php?id=<?php echo $event['event_id']; ?>" class="btn btn-success">
-                            Distribution
                         </a>
                         <a href="/public/group-admin/lottery-payments.php?id=<?php echo $event['event_id']; ?>" class="btn btn-info">
                             Payments

@@ -132,6 +132,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </style>
 </head>
 <body>
+    <?php include __DIR__ . '/includes/navigation.php'; ?>
+
     <div class="header">
         <div class="container">
             <h1>Edit Lottery Event</h1>

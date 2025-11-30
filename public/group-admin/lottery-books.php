@@ -194,6 +194,8 @@ $stats = $statsStmt->fetch();
     </style>
 </head>
 <body>
+    <?php include __DIR__ . '/includes/navigation.php'; ?>
+
     <div class="header">
         <div class="container">
             <h1><?php echo htmlspecialchars($event['event_name']); ?> - Books</h1>

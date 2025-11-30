@@ -200,6 +200,8 @@ $distributionPercent = $event['total_books'] > 0
     </style>
 </head>
 <body>
+    <?php include __DIR__ . '/includes/navigation.php'; ?>
+
     <div class="header">
         <div class="container">
             <h1>📊 Reports & Analytics</h1>
