@@ -362,13 +362,13 @@ $distributionPercent = $event['total_books'] > 0
                                                 <span class="badge badge-danger">Unpaid</span>
                                             <?php endif; ?>
                                         </td>
-                                        <td><?php echo date('M d, Y', strtotime($member['distributed_date'])); ?></td>
+                                        <td><?php echo date('M d, Y', strtotime($member['distributed_at'])); ?></td>
                                     </tr>
                                 <?php endforeach; ?>
                             </tbody>
                             <tfoot>
                                 <tr style="font-weight: 700; background: var(--gray-50);">
-                                    <td colspan="5" style="text-align: right;">TOTAL:</td>
+                                    <td colspan="6" style="text-align: right;">TOTAL:</td>
                                     <td>₹<?php echo number_format(array_sum(array_column($members, 'expected_amount')), 0); ?></td>
                                     <td>₹<?php echo number_format(array_sum(array_column($members, 'total_paid')), 0); ?></td>
                                     <td>₹<?php echo number_format(array_sum(array_column($members, 'outstanding')), 0); ?></td>

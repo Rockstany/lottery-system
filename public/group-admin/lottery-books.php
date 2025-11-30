@@ -31,6 +31,34 @@ if (!$event) {
     exit;
 }
 
+// Get distribution levels for this event
+$levelsQuery = "SELECT * FROM distribution_levels WHERE event_id = :event_id ORDER BY level_number";
+$stmt = $db->prepare($levelsQuery);
+$stmt->bindParam(':event_id', $eventId);
+$stmt->execute();
+$levels = $stmt->fetchAll();
+
+// Get all level values with parent relationships
+$levelValues = [];
+$allValues = []; // For JavaScript
+foreach ($levels as $level) {
+    $valuesQuery = "SELECT * FROM distribution_level_values WHERE level_id = :level_id ORDER BY value_name";
+    $stmt = $db->prepare($valuesQuery);
+    $stmt->bindParam(':level_id', $level['level_id']);
+    $stmt->execute();
+    $values = $stmt->fetchAll();
+    $levelValues[$level['level_id']] = $values;
+
+    foreach ($values as $val) {
+        $allValues[] = [
+            'value_id' => $val['value_id'],
+            'level_id' => $level['level_id'],
+            'parent_value_id' => $val['parent_value_id'],
+            'value_name' => $val['value_name']
+        ];
+    }
+}
+
 $error = '';
 $success = '';
 
@@ -43,42 +71,91 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['bulk_assign'])) {
     if (count($selectedBooks) === 0) {
         $error = 'Please select at least one book to assign';
     } else {
-        $assigned = 0;
-        $alreadyAssigned = 0;
+        // Get distribution level selections
+        $distributionData = [];
+        $lastValueId = null;
 
-        foreach ($selectedBooks as $bookId) {
-            // Check if book is available
-            $checkQuery = "SELECT book_status FROM lottery_books WHERE book_id = :book_id";
-            $checkStmt = $db->prepare($checkQuery);
-            $checkStmt->bindParam(':book_id', $bookId);
-            $checkStmt->execute();
-            $bookStatus = $checkStmt->fetch();
+        foreach ($levels as $level) {
+            $selectedValueId = $_POST["level_{$level['level_id']}_id"] ?? '';
+            $selectedValue = $_POST["level_{$level['level_id']}"] ?? '';
+            $newValue = trim($_POST["new_level_{$level['level_id']}"] ?? '');
 
-            if ($bookStatus && $bookStatus['book_status'] === 'available') {
-                // Assign book
-                $query = "INSERT INTO book_distribution (book_id, notes, mobile_number, distributed_by)
-                          VALUES (:book_id, :notes, :mobile, :distributed_by)";
-                $stmt = $db->prepare($query);
-                $stmt->bindParam(':book_id', $bookId);
-                $stmt->bindParam(':notes', $notes);
-                $stmt->bindParam(':mobile', $mobile);
-                $distributedBy = AuthMiddleware::getUserId();
-                $stmt->bindParam(':distributed_by', $distributedBy);
+            // If "Add New" is selected and new value is provided
+            if ($selectedValue === '__new__' && !empty($newValue)) {
+                // Insert new value with parent relationship
+                $insertQuery = "INSERT INTO distribution_level_values (level_id, value_name, parent_value_id) VALUES (:level_id, :value_name, :parent_value_id)";
+                $insertStmt = $db->prepare($insertQuery);
+                $insertStmt->bindParam(':level_id', $level['level_id']);
+                $insertStmt->bindParam(':value_name', $newValue);
+                $insertStmt->bindValue(':parent_value_id', $lastValueId, PDO::PARAM_INT);
+                $insertStmt->execute();
+                $lastValueId = $db->lastInsertId();
+                $selectedValue = $newValue;
+            } elseif (!empty($selectedValueId)) {
+                // Use existing value ID as parent for next level
+                $lastValueId = $selectedValueId;
+            }
 
-                if ($stmt->execute()) {
-                    $assigned++;
-                }
-            } else {
-                $alreadyAssigned++;
+            if (!empty($selectedValue) && $selectedValue !== '__new__') {
+                $distributionData[$level['level_name']] = $selectedValue;
             }
         }
 
-        $success = "Successfully assigned {$assigned} book(s)";
-        if (!empty($notes)) {
-            $success .= " - " . htmlspecialchars($notes);
+        // Validate distribution levels - all configured levels must be selected
+        $missingLevels = [];
+        foreach ($levels as $level) {
+            if (empty($distributionData[$level['level_name']])) {
+                $missingLevels[] = $level['level_name'];
+            }
         }
-        if ($alreadyAssigned > 0) {
-            $success .= " (Skipped {$alreadyAssigned} already assigned books)";
+
+        if (count($levels) > 0 && count($missingLevels) > 0) {
+            $error = 'Please select: ' . implode(', ', $missingLevels);
+        } else {
+            // Build distribution path
+            $distributionPath = !empty($distributionData) ? implode(' > ', $distributionData) : '';
+
+            $assigned = 0;
+            $alreadyAssigned = 0;
+
+            foreach ($selectedBooks as $bookId) {
+                // Check if book is available
+                $checkQuery = "SELECT book_status FROM lottery_books WHERE book_id = :book_id";
+                $checkStmt = $db->prepare($checkQuery);
+                $checkStmt->bindParam(':book_id', $bookId);
+                $checkStmt->execute();
+                $bookStatus = $checkStmt->fetch();
+
+                if ($bookStatus && $bookStatus['book_status'] === 'available') {
+                    // Assign book
+                    $query = "INSERT INTO book_distribution (book_id, notes, mobile_number, distribution_path, distributed_by)
+                              VALUES (:book_id, :notes, :mobile, :distribution_path, :distributed_by)";
+                    $stmt = $db->prepare($query);
+                    $stmt->bindParam(':book_id', $bookId);
+                    $stmt->bindParam(':notes', $notes);
+                    $stmt->bindParam(':mobile', $mobile);
+                    $stmt->bindParam(':distribution_path', $distributionPath);
+                    $distributedBy = AuthMiddleware::getUserId();
+                    $stmt->bindParam(':distributed_by', $distributedBy);
+
+                    if ($stmt->execute()) {
+                        $assigned++;
+                    }
+                } else {
+                    $alreadyAssigned++;
+                }
+            }
+
+            $success = "Successfully assigned {$assigned} book(s)";
+            if (!empty($distributionPath)) {
+                $success .= " to " . htmlspecialchars($distributionPath);
+            }
+            if (!empty($notes)) {
+                $success .= " - " . htmlspecialchars($notes);
+            }
+            if ($alreadyAssigned > 0) {
+                $success .= " (Skipped {$alreadyAssigned} already assigned books)";
+            }
         }
     }
 }
@@ -192,6 +269,13 @@ $stats = $statsStmt->fetch();
             width: 40px;
             text-align: center;
         }
+        .add-new-field {
+            display: none;
+            margin-top: var(--spacing-xs);
+        }
+        .add-new-field.show {
+            display: block;
+        }
     </style>
 </head>
 <body>
@@ -250,6 +334,56 @@ $stats = $statsStmt->fetch();
             <form method="POST" id="bulkForm">
                 <input type="hidden" name="bulk_assign" value="1">
                 <h4 style="margin-top: 0;">Bulk Assign Selected Books (<span id="selectedCount">0</span> selected)</h4>
+
+                <?php if (count($levels) > 0): ?>
+                    <div style="background: white; padding: var(--spacing-md); border-radius: var(--radius-md); margin-bottom: var(--spacing-md);">
+                        <p style="margin: 0 0 var(--spacing-md) 0; font-weight: 600; color: var(--primary-color);">
+                            📍 Distribution Levels (Required)
+                        </p>
+                        <div class="row">
+                            <?php foreach ($levels as $level): ?>
+                                <div class="col-<?php echo count($levels) <= 2 ? '6' : '4'; ?>">
+                                    <div class="form-group">
+                                        <label class="form-label"><?php echo htmlspecialchars($level['level_name']); ?> <span style="color: red;">*</span></label>
+                                        <input type="hidden" name="level_<?php echo $level['level_id']; ?>_id" id="bulk_level_<?php echo $level['level_id']; ?>_id">
+                                        <select
+                                            name="level_<?php echo $level['level_id']; ?>"
+                                            id="bulk_level_<?php echo $level['level_id']; ?>"
+                                            class="form-control bulk-level-select"
+                                            data-level-id="<?php echo $level['level_id']; ?>"
+                                            data-level-number="<?php echo $level['level_number']; ?>"
+                                            onchange="handleBulkLevelChange(<?php echo $level['level_id']; ?>, <?php echo $level['level_number']; ?>)"
+                                            required
+                                        >
+                                            <option value="">- Select <?php echo htmlspecialchars($level['level_name']); ?> -</option>
+                                            <?php foreach ($levelValues[$level['level_id']] as $value): ?>
+                                                <option
+                                                    value="<?php echo htmlspecialchars($value['value_name']); ?>"
+                                                    data-value-id="<?php echo $value['value_id']; ?>"
+                                                    data-parent-id="<?php echo $value['parent_value_id'] ?? ''; ?>"
+                                                >
+                                                    <?php echo htmlspecialchars($value['value_name']); ?>
+                                                </option>
+                                            <?php endforeach; ?>
+                                            <option value="__new__">➕ Add New</option>
+                                        </select>
+
+                                        <div class="add-new-field" id="bulk_add_new_<?php echo $level['level_id']; ?>">
+                                            <input
+                                                type="text"
+                                                name="new_level_<?php echo $level['level_id']; ?>"
+                                                class="form-control"
+                                                placeholder="Enter new <?php echo htmlspecialchars($level['level_name']); ?>"
+                                                style="margin-top: var(--spacing-xs);"
+                                            >
+                                        </div>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+                <?php endif; ?>
+
                 <div class="row">
                     <div class="col-4">
                         <div class="form-group">
@@ -258,7 +392,7 @@ $stats = $statsStmt->fetch();
                                 type="text"
                                 name="bulk_notes"
                                 class="form-control"
-                                placeholder="e.g., Member name or location"
+                                placeholder="e.g., Member name or any notes"
                             >
                             <small class="form-text">Optional: Add any notes for these books</small>
                         </div>
@@ -393,6 +527,10 @@ $stats = $statsStmt->fetch();
     </div>
 
     <script>
+        // Store all level data for cascading
+        const allLevels = <?php echo json_encode($levels); ?>;
+        const allLevelValues = <?php echo json_encode($allValues); ?>;
+
         function updateBulkActions() {
             const checkboxes = document.querySelectorAll('.book-checkbox:checked');
             const count = checkboxes.length;
@@ -444,8 +582,128 @@ $stats = $statsStmt->fetch();
             deselectAll();
         }
 
+        // Bulk level change handling
+        function handleBulkLevelChange(levelId, levelNumber) {
+            const select = document.getElementById(`bulk_level_${levelId}`);
+            const selectedOption = select.options[select.selectedIndex];
+            const selectedValueId = selectedOption.getAttribute('data-value-id');
+            const hiddenInput = document.getElementById(`bulk_level_${levelId}_id`);
+
+            // Store the value_id in hidden field
+            if (selectedValueId) {
+                hiddenInput.value = selectedValueId;
+            } else {
+                hiddenInput.value = '';
+            }
+
+            // Handle "Add New" toggle
+            toggleBulkAddNew(levelId);
+
+            // Filter next level dropdown (if exists)
+            filterBulkNextLevel(levelId, levelNumber, selectedValueId);
+        }
+
+        function toggleBulkAddNew(levelId) {
+            const select = document.getElementById(`bulk_level_${levelId}`);
+            const addNewField = document.getElementById(`bulk_add_new_${levelId}`);
+            const input = addNewField.querySelector('input');
+
+            if (select.value === '__new__') {
+                addNewField.classList.add('show');
+                input.required = true;
+                input.focus();
+            } else {
+                addNewField.classList.remove('show');
+                input.required = false;
+                input.value = '';
+            }
+        }
+
+        function filterBulkNextLevel(currentLevelId, currentLevelNumber, parentValueId) {
+            // Find next level
+            const nextLevel = allLevels.find(level => level.level_number === currentLevelNumber + 1);
+
+            if (!nextLevel) {
+                return; // No next level exists
+            }
+
+            const nextSelect = document.getElementById(`bulk_level_${nextLevel.level_id}`);
+            if (!nextSelect) {
+                return;
+            }
+
+            // Get all options for next level
+            const allOptions = nextSelect.querySelectorAll('option');
+
+            // Reset next level
+            nextSelect.value = '';
+            document.getElementById(`bulk_level_${nextLevel.level_id}_id`).value = '';
+
+            // Hide/show options based on parent
+            allOptions.forEach(option => {
+                const optionParentId = option.getAttribute('data-parent-id');
+
+                // Always show default option and "Add New" option
+                if (option.value === '' || option.value === '__new__') {
+                    option.style.display = '';
+                    return;
+                }
+
+                // Show option if parent matches
+                if (!parentValueId) {
+                    option.style.display = 'none';
+                } else if (optionParentId === parentValueId) {
+                    option.style.display = '';
+                } else {
+                    option.style.display = 'none';
+                }
+            });
+
+            // Also reset all subsequent levels
+            resetBulkSubsequentLevels(currentLevelNumber + 1);
+        }
+
+        function resetBulkSubsequentLevels(fromLevelNumber) {
+            // Reset all levels after the changed level
+            allLevels.forEach(level => {
+                if (level.level_number > fromLevelNumber) {
+                    const select = document.getElementById(`bulk_level_${level.level_id}`);
+                    const hiddenInput = document.getElementById(`bulk_level_${level.level_id}_id`);
+                    if (select) {
+                        select.value = '';
+                        const allOptions = select.querySelectorAll('option');
+                        allOptions.forEach(option => {
+                            if (option.value !== '' && option.value !== '__new__') {
+                                option.style.display = 'none';
+                            }
+                        });
+                    }
+                    if (hiddenInput) {
+                        hiddenInput.value = '';
+                    }
+                }
+            });
+        }
+
         // Initialize on page load
-        updateBulkActions();
+        document.addEventListener('DOMContentLoaded', function() {
+            updateBulkActions();
+
+            // For all levels except the first, hide all value options initially
+            allLevels.forEach((level, index) => {
+                if (index > 0) { // Not the first level
+                    const select = document.getElementById(`bulk_level_${level.level_id}`);
+                    if (select) {
+                        const allOptions = select.querySelectorAll('option');
+                        allOptions.forEach(option => {
+                            if (option.value !== '' && option.value !== '__new__') {
+                                option.style.display = 'none';
+                            }
+                        });
+                    }
+                }
+            });
+        });
     </script>
 </body>
 </html>
