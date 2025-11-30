@@ -155,22 +155,16 @@ CREATE TABLE distribution_level_values (
 CREATE TABLE book_distribution (
     distribution_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     book_id INT UNSIGNED NOT NULL,
-    member_name VARCHAR(100) NOT NULL,
+    notes VARCHAR(255),
     mobile_number VARCHAR(15),
-    level_1_value_id INT UNSIGNED,
-    level_2_value_id INT UNSIGNED,
-    level_3_value_id INT UNSIGNED,
+    distribution_path VARCHAR(255),
     distributed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     distributed_by INT UNSIGNED NOT NULL,
-    notes TEXT,
     FOREIGN KEY (book_id) REFERENCES lottery_books(book_id) ON DELETE RESTRICT,
-    FOREIGN KEY (level_1_value_id) REFERENCES distribution_level_values(value_id) ON DELETE SET NULL,
-    FOREIGN KEY (level_2_value_id) REFERENCES distribution_level_values(value_id) ON DELETE SET NULL,
-    FOREIGN KEY (level_3_value_id) REFERENCES distribution_level_values(value_id) ON DELETE SET NULL,
     FOREIGN KEY (distributed_by) REFERENCES users(user_id) ON DELETE RESTRICT,
     UNIQUE KEY unique_book_dist (book_id),
     INDEX idx_book (book_id),
-    INDEX idx_member (member_name),
+    INDEX idx_distribution_path (distribution_path),
     INDEX idx_mobile (mobile_number)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

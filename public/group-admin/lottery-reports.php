@@ -45,7 +45,7 @@ $stats = $stmt->fetch();
 $paymentQuery = "SELECT
     COUNT(DISTINCT bd.distribution_id) as total_distributed,
     COALESCE(SUM(pc.amount_paid), 0) as total_collected,
-    COUNT(pc.collection_id) as total_transactions
+    COUNT(pc.payment_id) as total_transactions
     FROM book_distribution bd
     JOIN lottery_books lb ON bd.book_id = lb.book_id
     LEFT JOIN payment_collections pc ON bd.distribution_id = pc.distribution_id
@@ -93,7 +93,8 @@ $paymentStats['unpaid_count'] = $statusCounts['unpaid_count'];
 
 // Get member-wise report
 $memberQuery = "SELECT
-    bd.member_name,
+    bd.notes,
+    bd.distribution_path,
     bd.mobile_number,
     lb.book_number,
     lb.start_ticket_number,
@@ -113,7 +114,7 @@ $memberQuery = "SELECT
     LEFT JOIN payment_collections pc ON bd.distribution_id = pc.distribution_id
     WHERE le.event_id = :event_id
     GROUP BY bd.distribution_id
-    ORDER BY bd.member_name ASC";
+    ORDER BY bd.distribution_path ASC, bd.notes ASC";
 $stmt = $db->prepare($memberQuery);
 $stmt->bindParam(':event_id', $eventId);
 $stmt->execute();
@@ -328,7 +329,8 @@ $distributionPercent = $event['total_books'] > 0
                             <thead>
                                 <tr>
                                     <th>#</th>
-                                    <th>Member Name</th>
+                                    <th>Location</th>
+                                    <th>Notes</th>
                                     <th>Mobile</th>
                                     <th>Book No.</th>
                                     <th>Ticket Range</th>
@@ -343,7 +345,8 @@ $distributionPercent = $event['total_books'] > 0
                                 <?php foreach ($members as $index => $member): ?>
                                     <tr>
                                         <td><?php echo $index + 1; ?></td>
-                                        <td><strong><?php echo htmlspecialchars($member['member_name']); ?></strong></td>
+                                        <td><?php echo htmlspecialchars($member['distribution_path'] ?? '-'); ?></td>
+                                        <td><?php echo htmlspecialchars($member['notes'] ?? '-'); ?></td>
                                         <td><?php echo htmlspecialchars($member['mobile_number'] ?? '-'); ?></td>
                                         <td>#<?php echo $member['book_number']; ?></td>
                                         <td><?php echo $member['start_ticket_number']; ?> - <?php echo $member['end_ticket_number']; ?></td>

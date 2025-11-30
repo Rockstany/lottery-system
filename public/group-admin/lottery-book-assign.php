@@ -64,7 +64,7 @@ foreach ($levels as $level) {
 $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $memberName = Validator::sanitizeString($_POST['member_name'] ?? '');
+    $notes = Validator::sanitizeString($_POST['notes'] ?? '');
     $mobile = Validator::sanitizeString($_POST['mobile'] ?? '');
 
     // Get distribution level selections
@@ -97,18 +97,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    if (empty($memberName)) {
-        $error = 'Member name is required';
+    // Validate distribution levels - all configured levels must be selected
+    $missingLevels = [];
+    foreach ($levels as $level) {
+        if (empty($distributionData[$level['level_name']])) {
+            $missingLevels[] = $level['level_name'];
+        }
+    }
+
+    if (count($levels) > 0 && count($missingLevels) > 0) {
+        $error = 'Please select: ' . implode(', ', $missingLevels);
     } else {
         // Build distribution path (e.g., "Wing A > Floor 2 > Flat 101")
         $distributionPath = !empty($distributionData) ? implode(' > ', $distributionData) : '';
 
         // Assign book
-        $query = "INSERT INTO book_distribution (book_id, member_name, mobile_number, distribution_path, distributed_by)
-                  VALUES (:book_id, :member_name, :mobile, :distribution_path, :distributed_by)";
+        $query = "INSERT INTO book_distribution (book_id, notes, mobile_number, distribution_path, distributed_by)
+                  VALUES (:book_id, :notes, :mobile, :distribution_path, :distributed_by)";
         $stmt = $db->prepare($query);
         $stmt->bindParam(':book_id', $bookId);
-        $stmt->bindParam(':member_name', $memberName);
+        $stmt->bindParam(':notes', $notes);
         $stmt->bindParam(':mobile', $mobile);
         $stmt->bindParam(':distribution_path', $distributionPath);
         $distributedBy = AuthMiddleware::getUserId();
@@ -239,15 +247,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <?php endif; ?>
 
                             <div class="form-group">
-                                <label class="form-label form-label-required">Member Name</label>
+                                <label class="form-label">Notes (Optional)</label>
                                 <input
                                     type="text"
-                                    name="member_name"
+                                    name="notes"
                                     class="form-control"
-                                    placeholder="Enter member name"
-                                    required
-                                    autofocus
+                                    placeholder="e.g., Member name, location, or any other notes"
                                 >
+                                <small class="form-text">Optional: Add any notes about this assignment</small>
                             </div>
 
                             <div class="form-group">
@@ -278,19 +285,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
                     <div class="card-body">
                         <?php if (count($levels) > 0): ?>
-                            <p><strong>Step 1: Select Distribution Levels</strong></p>
+                            <p><strong>Step 1: Select Distribution Levels (Required)</strong></p>
                             <ul>
                                 <?php foreach ($levels as $level): ?>
-                                    <li>Choose <?php echo htmlspecialchars($level['level_name']); ?> or add new</li>
+                                    <li><strong><?php echo htmlspecialchars($level['level_name']); ?>:</strong> Required - Select or add new</li>
                                 <?php endforeach; ?>
                             </ul>
-                            <p><strong>Step 2: Enter Member Details</strong></p>
+                            <p><strong>Step 2: Enter Additional Details (Optional)</strong></p>
                             <ul>
-                                <li>Enter member name (required)</li>
-                                <li>Add mobile number (optional)</li>
+                                <li>Notes (optional) - Member name or any notes</li>
+                                <li>Mobile number (optional)</li>
                             </ul>
                         <?php else: ?>
-                            <p>Enter the name of the member to whom you want to assign this lottery book.</p>
+                            <p>Add optional notes and mobile number for this book assignment.</p>
                             <p><strong>Note:</strong> No distribution levels configured. You can set these up in Distribution Setup.</p>
                         <?php endif; ?>
 

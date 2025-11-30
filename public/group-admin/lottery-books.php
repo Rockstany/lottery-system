@@ -37,13 +37,11 @@ $success = '';
 // Handle bulk assignment
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['bulk_assign'])) {
     $selectedBooks = $_POST['selected_books'] ?? [];
-    $memberName = Validator::sanitizeString($_POST['bulk_member_name'] ?? '');
+    $notes = Validator::sanitizeString($_POST['bulk_notes'] ?? '');
     $mobile = Validator::sanitizeString($_POST['bulk_mobile'] ?? '');
 
     if (count($selectedBooks) === 0) {
         $error = 'Please select at least one book to assign';
-    } elseif (empty($memberName)) {
-        $error = 'Member name is required';
     } else {
         $assigned = 0;
         $alreadyAssigned = 0;
@@ -58,11 +56,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['bulk_assign'])) {
 
             if ($bookStatus && $bookStatus['book_status'] === 'available') {
                 // Assign book
-                $query = "INSERT INTO book_distribution (book_id, member_name, mobile_number, distributed_by)
-                          VALUES (:book_id, :member_name, :mobile, :distributed_by)";
+                $query = "INSERT INTO book_distribution (book_id, notes, mobile_number, distributed_by)
+                          VALUES (:book_id, :notes, :mobile, :distributed_by)";
                 $stmt = $db->prepare($query);
                 $stmt->bindParam(':book_id', $bookId);
-                $stmt->bindParam(':member_name', $memberName);
+                $stmt->bindParam(':notes', $notes);
                 $stmt->bindParam(':mobile', $mobile);
                 $distributedBy = AuthMiddleware::getUserId();
                 $stmt->bindParam(':distributed_by', $distributedBy);
@@ -75,7 +73,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['bulk_assign'])) {
             }
         }
 
-        $success = "Successfully assigned {$assigned} book(s) to " . htmlspecialchars($memberName);
+        $success = "Successfully assigned {$assigned} book(s)";
+        if (!empty($notes)) {
+            $success .= " - " . htmlspecialchars($notes);
+        }
         if ($alreadyAssigned > 0) {
             $success .= " (Skipped {$alreadyAssigned} already assigned books)";
         }
@@ -93,7 +94,7 @@ if ($filter === 'available') {
     $whereClause .= " AND lb.book_status IN ('distributed', 'collected')";
 }
 
-$query = "SELECT lb.*, bd.member_name, bd.mobile_number
+$query = "SELECT lb.*, bd.notes, bd.mobile_number, bd.distribution_path
           FROM lottery_books lb
           LEFT JOIN book_distribution bd ON lb.book_id = bd.book_id
           WHERE {$whereClause}
@@ -252,14 +253,14 @@ $stats = $statsStmt->fetch();
                 <div class="row">
                     <div class="col-4">
                         <div class="form-group">
-                            <label class="form-label form-label-required">Member Name</label>
+                            <label class="form-label">Notes (Optional)</label>
                             <input
                                 type="text"
-                                name="bulk_member_name"
+                                name="bulk_notes"
                                 class="form-control"
-                                placeholder="Enter member name"
-                                required
+                                placeholder="e.g., Member name or location"
                             >
+                            <small class="form-text">Optional: Add any notes for these books</small>
                         </div>
                     </div>
                     <div class="col-4">
@@ -321,7 +322,8 @@ $stats = $statsStmt->fetch();
                                 <th>Book #</th>
                                 <th>Tickets</th>
                                 <th>Ticket Range</th>
-                                <th>Assigned To</th>
+                                <th>Location</th>
+                                <th>Notes</th>
                                 <th>Mobile</th>
                                 <th>Status</th>
                                 <th>Actions</th>
@@ -330,7 +332,7 @@ $stats = $statsStmt->fetch();
                         <tbody>
                             <?php if (count($books) === 0): ?>
                                 <tr>
-                                    <td colspan="8" style="text-align: center; padding: var(--spacing-2xl); color: var(--gray-500);">
+                                    <td colspan="9" style="text-align: center; padding: var(--spacing-2xl); color: var(--gray-500);">
                                         No books found in this category
                                     </td>
                                 </tr>
@@ -354,7 +356,8 @@ $stats = $statsStmt->fetch();
                                         <td><strong>Book <?php echo $book['book_number']; ?></strong></td>
                                         <td><?php echo $event['tickets_per_book']; ?></td>
                                         <td><?php echo $book['start_ticket_number']; ?> - <?php echo $book['end_ticket_number']; ?></td>
-                                        <td><?php echo htmlspecialchars($book['member_name'] ?? '-'); ?></td>
+                                        <td><?php echo htmlspecialchars($book['distribution_path'] ?? '-'); ?></td>
+                                        <td><?php echo htmlspecialchars($book['notes'] ?? '-'); ?></td>
                                         <td><?php echo htmlspecialchars($book['mobile_number'] ?? '-'); ?></td>
                                         <td>
                                             <?php if ($book['book_status'] === 'available'): ?>
