@@ -121,6 +121,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <title>Edit Lottery Event - <?php echo APP_NAME; ?></title>
     <link rel="stylesheet" href="/public/css/main.css">
     <link rel="stylesheet" href="/public/css/enhancements.css">
+    <link rel="stylesheet" href="/public/css/lottery-responsive.css">
     <style>
         .header {
             background: linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%);

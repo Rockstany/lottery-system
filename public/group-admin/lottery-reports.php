@@ -137,6 +137,7 @@ $distributionPercent = $event['total_books'] > 0
     <title>Reports - <?php echo APP_NAME; ?></title>
     <link rel="stylesheet" href="/public/css/main.css">
     <link rel="stylesheet" href="/public/css/enhancements.css">
+    <link rel="stylesheet" href="/public/css/lottery-responsive.css">
     <style>
         .header {
             background: linear-gradient(135deg, #0891b2 0%, #0e7490 100%);

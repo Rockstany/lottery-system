@@ -62,6 +62,7 @@ foreach ($distributions as $dist) {
     <title>Payment Tracking - <?php echo APP_NAME; ?></title>
     <link rel="stylesheet" href="/public/css/main.css">
     <link rel="stylesheet" href="/public/css/enhancements.css">
+    <link rel="stylesheet" href="/public/css/lottery-responsive.css">
     <style>
         .header {
             background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
@@ -123,6 +124,17 @@ foreach ($distributions as $dist) {
                 <div class="stat-value">₹<?php echo number_format($totalExpected, 0); ?></div>
                 <div class="stat-label">Expected</div>
             </div>
+        </div>
+
+        <!-- Help Box -->
+        <div class="help-box mb-3">
+            <h4>💰 Payment Tracking</h4>
+            <p>Track all payments for distributed lottery books. Click "Collect Payment" to record partial or full payments.</p>
+            <ul>
+                <li><strong>Paid:</strong> Full payment received (₹<?php echo number_format($event['price_per_ticket'] * $event['tickets_per_book']); ?> per book)</li>
+                <li><strong>Partial:</strong> Some payment received, but not complete</li>
+                <li><strong>Unpaid:</strong> No payment received yet</li>
+            </ul>
         </div>
 
         <div class="card">
@@ -196,8 +208,9 @@ foreach ($distributions as $dist) {
             </div>
         </div>
 
-        <div style="margin-top: var(--spacing-lg);">
+        <div class="button-group-mobile mt-3">
             <a href="/public/group-admin/lottery.php" class="btn btn-secondary">← Back to Events</a>
+            <a href="/public/group-admin/lottery-books.php?id=<?php echo $eventId; ?>" class="btn btn-primary">View Books</a>
         </div>
     </div>
 </body>

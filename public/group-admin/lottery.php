@@ -33,6 +33,7 @@ $success = $_GET['success'] ?? '';
     <title>Lottery System - <?php echo APP_NAME; ?></title>
     <link rel="stylesheet" href="/public/css/main.css">
     <link rel="stylesheet" href="/public/css/enhancements.css">
+    <link rel="stylesheet" href="/public/css/lottery-responsive.css">
     <style>
         .header {
             background: linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%);
@@ -257,18 +258,18 @@ $success = $_GET['success'] ?? '';
                         </div>
                     </div>
 
-                    <div style="display: flex; gap: var(--spacing-sm); margin-top: var(--spacing-lg); flex-wrap: wrap;">
-                        <a href="/public/group-admin/lottery-edit.php?id=<?php echo $event['event_id']; ?>" class="btn btn-warning">
+                    <div class="action-buttons-wrap">
+                        <a href="/public/group-admin/lottery-edit.php?id=<?php echo $event['event_id']; ?>" class="btn btn-warning btn-sm">
                             ✏️ Edit
                         </a>
-                        <a href="/public/group-admin/lottery-books.php?id=<?php echo $event['event_id']; ?>" class="btn btn-primary">
-                            Manage Books
+                        <a href="/public/group-admin/lottery-books.php?id=<?php echo $event['event_id']; ?>" class="btn btn-primary btn-sm">
+                            📚 Manage Books
                         </a>
-                        <a href="/public/group-admin/lottery-payments.php?id=<?php echo $event['event_id']; ?>" class="btn btn-info">
-                            Payments
+                        <a href="/public/group-admin/lottery-payments.php?id=<?php echo $event['event_id']; ?>" class="btn btn-success btn-sm">
+                            💰 Payments
                         </a>
-                        <a href="/public/group-admin/lottery-reports.php?id=<?php echo $event['event_id']; ?>" class="btn btn-secondary">
-                            Reports
+                        <a href="/public/group-admin/lottery-reports.php?id=<?php echo $event['event_id']; ?>" class="btn btn-secondary btn-sm">
+                            📊 Reports
                         </a>
                     </div>
                 </div>

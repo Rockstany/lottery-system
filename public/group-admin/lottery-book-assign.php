@@ -139,6 +139,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <title>Assign Book - <?php echo APP_NAME; ?></title>
     <link rel="stylesheet" href="/public/css/main.css">
     <link rel="stylesheet" href="/public/css/enhancements.css">
+    <link rel="stylesheet" href="/public/css/lottery-responsive.css">
     <style>
         .header {
             background: linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%);
@@ -176,8 +177,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="alert alert-danger"><?php echo $error; ?></div>
         <?php endif; ?>
 
-        <div class="row">
-            <div class="col-6">
+        <div class="responsive-grid-2">
+            <div>
                 <div class="card">
                     <div class="card-header">
                         <h3 class="card-title">Book Details</h3>
@@ -269,7 +270,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 >
                             </div>
 
-                            <div style="display: flex; gap: var(--spacing-md);">
+                            <div class="button-group-mobile">
                                 <button type="submit" class="btn btn-primary btn-lg">Assign Book</button>
                                 <a href="/public/group-admin/lottery-books.php?id=<?php echo $eventId; ?>" class="btn btn-secondary">Cancel</a>
                             </div>
@@ -278,7 +279,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
             </div>
 
-            <div class="col-6">
+            <div>
                 <div class="card">
                     <div class="card-header">
                         <h4 class="card-title">Instructions</h4>

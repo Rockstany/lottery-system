@@ -62,6 +62,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <title>Create Lottery Event - <?php echo APP_NAME; ?></title>
     <link rel="stylesheet" href="/public/css/main.css">
     <link rel="stylesheet" href="/public/css/enhancements.css">
+    <link rel="stylesheet" href="/public/css/lottery-responsive.css">
     <style>
         .header {
             background: linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%);
@@ -94,6 +95,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
 
     <div class="container main-content">
+        <!-- Step Indicator -->
+        <div class="step-indicator mb-4">
+            <div class="step active">
+                <div class="step-number">1</div>
+                <div class="step-label">Event Details</div>
+            </div>
+            <div class="step">
+                <div class="step-number">2</div>
+                <div class="step-label">Generate Books</div>
+            </div>
+            <div class="step">
+                <div class="step-number">3</div>
+                <div class="step-label">Distribution Setup</div>
+            </div>
+            <div class="step">
+                <div class="step-number">4</div>
+                <div class="step-label">Assign Books</div>
+            </div>
+            <div class="step">
+                <div class="step-number">5</div>
+                <div class="step-label">Track Payments</div>
+            </div>
+            <div class="step">
+                <div class="step-number">6</div>
+                <div class="step-label">Reports</div>
+            </div>
+        </div>
+
         <div class="instructions">
             <h3 style="margin-top: 0;">🎯 Part 1: Name Your Event</h3>
             <p>Give your lottery event a clear name that everyone will recognize.</p>
@@ -111,8 +140,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="alert alert-danger"><?php echo htmlspecialchars($error); ?></div>
         <?php endif; ?>
 
-        <div class="row">
-            <div class="col-8">
+        <div class="responsive-grid-2-1">
+            <div>
                 <div class="card">
                     <div class="card-header">
                         <h3 class="card-title">Event Details</h3>
@@ -147,7 +176,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                             <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
 
-                            <div style="display: flex; gap: var(--spacing-md);">
+                            <div class="button-group-mobile">
                                 <button type="submit" class="btn btn-primary btn-lg">
                                     Create & Continue to Generate Books →
                                 </button>
@@ -158,7 +187,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
             </div>
 
-            <div class="col-4">
+            <div>
                 <div class="card">
                     <div class="card-header">
                         <h4 class="card-title">What Happens Next?</h4>

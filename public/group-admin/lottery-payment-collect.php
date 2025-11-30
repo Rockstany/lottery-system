@@ -97,6 +97,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <title>Collect Payment - <?php echo APP_NAME; ?></title>
     <link rel="stylesheet" href="/public/css/main.css">
     <link rel="stylesheet" href="/public/css/enhancements.css">
+    <link rel="stylesheet" href="/public/css/lottery-responsive.css">
     <style>
         .header {
             background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
@@ -133,8 +134,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="alert alert-danger"><?php echo $error; ?></div>
         <?php endif; ?>
 
-        <div class="row">
-            <div class="col-6">
+        <!-- Outstanding Amount Alert -->
+        <div class="alert alert-warning" style="font-size: var(--font-size-lg); text-align: center;">
+            <strong>Outstanding Amount:</strong>
+            <span style="font-size: var(--font-size-3xl); font-weight: 700; color: var(--danger-color); display: block; margin-top: var(--spacing-sm);">
+                ₹<?php echo number_format($outstanding); ?>
+            </span>
+        </div>
+
+        <div class="responsive-grid-2">
+            <div>
                 <div class="card">
                     <div class="card-header">
                         <h3 class="card-title">Book & Member Details</h3>
@@ -192,21 +201,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                             <div class="form-group">
                                 <label class="form-label form-label-required">Payment Method</label>
-                                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--spacing-sm); margin-top: var(--spacing-sm);">
-                                    <label style="display: flex; align-items: center; cursor: pointer; padding: var(--spacing-sm); border: 2px solid var(--gray-200); border-radius: var(--radius-md);">
-                                        <input type="radio" name="payment_method" value="cash" style="margin-right: var(--spacing-sm);">
+                                <div class="payment-method-grid">
+                                    <label class="payment-method-option">
+                                        <input type="radio" name="payment_method" value="cash">
                                         <span>💵 Cash</span>
                                     </label>
-                                    <label style="display: flex; align-items: center; cursor: pointer; padding: var(--spacing-sm); border: 2px solid var(--gray-200); border-radius: var(--radius-md);">
-                                        <input type="radio" name="payment_method" value="upi" checked style="margin-right: var(--spacing-sm);">
+                                    <label class="payment-method-option">
+                                        <input type="radio" name="payment_method" value="upi" checked>
                                         <span>📱 UPI</span>
                                     </label>
-                                    <label style="display: flex; align-items: center; cursor: pointer; padding: var(--spacing-sm); border: 2px solid var(--gray-200); border-radius: var(--radius-md);">
-                                        <input type="radio" name="payment_method" value="bank" style="margin-right: var(--spacing-sm);">
+                                    <label class="payment-method-option">
+                                        <input type="radio" name="payment_method" value="bank">
                                         <span>🏦 Bank Transfer</span>
                                     </label>
-                                    <label style="display: flex; align-items: center; cursor: pointer; padding: var(--spacing-sm); border: 2px solid var(--gray-200); border-radius: var(--radius-md);">
-                                        <input type="radio" name="payment_method" value="other" style="margin-right: var(--spacing-sm);">
+                                    <label class="payment-method-option">
+                                        <input type="radio" name="payment_method" value="other">
                                         <span>💳 Other</span>
                                     </label>
                                 </div>
@@ -224,7 +233,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 >
                             </div>
 
-                            <div style="display: flex; gap: var(--spacing-md);">
+                            <div class="button-group-mobile">
                                 <button type="submit" class="btn btn-success btn-lg">Record Payment</button>
                                 <a href="/public/group-admin/lottery-payments.php?id=<?php echo $book['event_id']; ?>" class="btn btn-secondary">Cancel</a>
                             </div>
@@ -233,7 +242,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
             </div>
 
-            <div class="col-6">
+            <div>
                 <div class="card">
                     <div class="card-header">
                         <h4 class="card-title">💡 Tip</h4>
