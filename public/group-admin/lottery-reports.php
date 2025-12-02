@@ -289,6 +289,13 @@ $dateWisePayments = $stmt->fetchAll();
     </div>
 
     <div class="container main-content">
+        <!-- Back Button at Top -->
+        <div style="margin-bottom: var(--spacing-lg);">
+            <a href="/public/group-admin/lottery.php" class="btn btn-secondary">← Back to Events</a>
+            <a href="/public/group-admin/lottery-books.php?id=<?php echo $eventId; ?>" class="btn btn-primary">Manage Books</a>
+            <a href="/public/group-admin/lottery-payments.php?id=<?php echo $eventId; ?>" class="btn btn-success">Track Payments</a>
+        </div>
+
         <!-- Summary Statistics -->
         <div class="stats-grid">
             <div class="stat-card">
@@ -806,12 +813,6 @@ $dateWisePayments = $stmt->fetchAll();
                     </table>
                 </div>
             </div>
-        </div>
-
-        <div style="margin-top: var(--spacing-xl); display: flex; gap: var(--spacing-md);">
-            <a href="/public/group-admin/lottery.php" class="btn btn-secondary">← Back to Events</a>
-            <a href="/public/group-admin/lottery-books.php?id=<?php echo $eventId; ?>" class="btn btn-primary">Manage Books</a>
-            <a href="/public/group-admin/lottery-payments.php?id=<?php echo $eventId; ?>" class="btn btn-success">Track Payments</a>
         </div>
     </div>
 

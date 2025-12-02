@@ -309,13 +309,21 @@ foreach ($distributions as $dist) {
                                             <?php endif; ?>
                                         </td>
                                         <td>
-                                            <?php if ($status !== 'paid'): ?>
-                                                <a href="/public/group-admin/lottery-payment-collect.php?book_id=<?php echo $dist['book_id']; ?>" class="btn btn-sm btn-success">
-                                                    <span>💰</span> <span>Collect Payment</span>
-                                                </a>
-                                            <?php else: ?>
-                                                <span style="color: var(--success-color); font-weight: 600;">✓ Complete</span>
-                                            <?php endif; ?>
+                                            <div style="display: flex; gap: var(--spacing-xs); flex-wrap: wrap;">
+                                                <?php if ($status !== 'paid'): ?>
+                                                    <a href="/public/group-admin/lottery-payment-collect.php?book_id=<?php echo $dist['book_id']; ?>" class="btn btn-sm btn-success">
+                                                        <span>💰</span> <span>Collect</span>
+                                                    </a>
+                                                <?php endif; ?>
+                                                <?php if ($dist['total_paid'] > 0): ?>
+                                                    <a href="/public/group-admin/lottery-payment-transactions.php?dist_id=<?php echo $dist['distribution_id']; ?>" class="btn btn-sm btn-info">
+                                                        <span>📋</span> <span>View Transactions</span>
+                                                    </a>
+                                                <?php endif; ?>
+                                                <?php if ($status === 'paid'): ?>
+                                                    <span style="color: var(--success-color); font-weight: 600;">✓ Complete</span>
+                                                <?php endif; ?>
+                                            </div>
                                         </td>
                                     </tr>
                                 <?php endforeach; ?>
