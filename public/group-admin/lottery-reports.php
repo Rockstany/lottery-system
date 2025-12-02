@@ -354,8 +354,8 @@ $dateWisePayments = $stmt->fetchAll();
         <div class="tab-container">
             <div class="tabs">
                 <button class="tab active" onclick="switchTab(event, 'member-report')">Member-Wise Report</button>
-                <button class="tab" onclick="switchTab(event, 'payment-method')">💳 Payment Methods</button>
-                <button class="tab" onclick="switchTab(event, 'date-wise')">📅 Date-Wise Collection</button>
+                <button class="tab" onclick="switchTab(event, 'payment-method')">Payment Methods</button>
+                <button class="tab" onclick="switchTab(event, 'date-wise')">Date-Wise Collection</button>
                 <button class="tab" onclick="switchTab(event, 'payment-status')">Payment Status</button>
                 <button class="tab" onclick="switchTab(event, 'book-status')">Book Status</button>
                 <button class="tab" onclick="switchTab(event, 'summary')">Summary</button>
