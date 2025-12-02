@@ -24,6 +24,43 @@ if (!$event) {
     exit;
 }
 
+// Get distribution levels for this event
+$levelsQuery = "SELECT * FROM distribution_levels WHERE event_id = :event_id ORDER BY level_number";
+$stmt = $db->prepare($levelsQuery);
+$stmt->bindParam(':event_id', $eventId);
+$stmt->execute();
+$levels = $stmt->fetchAll();
+
+// Get search parameter
+$search = Validator::sanitizeString($_GET['search'] ?? '');
+$statusFilter = $_GET['status_filter'] ?? 'all';
+
+// Build where clause for search
+$whereClause = "lb.event_id = :event_id";
+$searchParams = [];
+
+if (!empty($search)) {
+    // Check if search is a range (e.g., 1000-1040)
+    if (preg_match('/^(\d+)-(\d+)$/', $search, $matches)) {
+        $rangeStart = (int)$matches[1];
+        $rangeEnd = (int)$matches[2];
+        $whereClause .= " AND (lb.start_ticket_number >= :range_start AND lb.start_ticket_number <= :range_end)";
+        $searchParams['range_start'] = $rangeStart;
+        $searchParams['range_end'] = $rangeEnd;
+    }
+    // Check if search is a single ticket number
+    elseif (is_numeric($search)) {
+        $ticketNum = (int)$search;
+        $whereClause .= " AND (lb.start_ticket_number = :ticket_num OR :ticket_num BETWEEN lb.start_ticket_number AND lb.end_ticket_number)";
+        $searchParams['ticket_num'] = $ticketNum;
+    }
+    // Otherwise search in distribution path, notes
+    else {
+        $whereClause .= " AND (bd.distribution_path LIKE :search_term OR bd.notes LIKE :search_term OR bd.mobile_number LIKE :search_term)";
+        $searchParams['search_term'] = '%' . $search . '%';
+    }
+}
+
 // Get distributed books with payment info
 $query = "SELECT lb.*, bd.notes, bd.mobile_number, bd.distribution_path, bd.distribution_id,
           COALESCE(SUM(pc.amount_paid), 0) as total_paid,
@@ -31,12 +68,30 @@ $query = "SELECT lb.*, bd.notes, bd.mobile_number, bd.distribution_path, bd.dist
           FROM lottery_books lb
           JOIN book_distribution bd ON lb.book_id = bd.book_id
           LEFT JOIN payment_collections pc ON bd.distribution_id = pc.distribution_id
-          WHERE lb.event_id = :event_id
+          WHERE {$whereClause}
           GROUP BY lb.book_id
-          ORDER BY bd.distribution_path ASC, bd.notes ASC, lb.book_number";
+          HAVING 1=1";
+
+// Add status filter
+if ($statusFilter === 'paid') {
+    $query .= " AND total_paid >= expected_amount";
+} elseif ($statusFilter === 'partial') {
+    $query .= " AND total_paid > 0 AND total_paid < expected_amount";
+} elseif ($statusFilter === 'unpaid') {
+    $query .= " AND total_paid = 0";
+}
+
+$query .= " ORDER BY lb.start_ticket_number, bd.distribution_path ASC, bd.notes ASC";
+
 $stmt = $db->prepare($query);
 $stmt->bindParam(':event_id', $eventId);
 $stmt->bindParam(':price_per_ticket', $event['price_per_ticket']);
+
+// Bind search parameters
+foreach ($searchParams as $key => $value) {
+    $stmt->bindValue(':' . $key, $value);
+}
+
 $stmt->execute();
 $distributions = $stmt->fetchAll();
 
@@ -126,10 +181,42 @@ foreach ($distributions as $dist) {
             </div>
         </div>
 
+        <!-- Search & Filter Box -->
+        <div class="card" style="margin-bottom: var(--spacing-md);">
+            <div class="card-body">
+                <form method="GET" action="" style="display: flex; gap: var(--spacing-sm); flex-wrap: wrap; align-items: end;">
+                    <input type="hidden" name="id" value="<?php echo $eventId; ?>">
+                    <div style="flex: 1; min-width: 250px;">
+                        <label class="form-label">🔍 Search Payments</label>
+                        <input
+                            type="text"
+                            name="search"
+                            class="form-control"
+                            placeholder="Ticket number, range, location, or member name"
+                            value="<?php echo htmlspecialchars($search); ?>"
+                        >
+                    </div>
+                    <div style="min-width: 150px;">
+                        <label class="form-label">Status Filter</label>
+                        <select name="status_filter" class="form-control">
+                            <option value="all" <?php echo $statusFilter === 'all' ? 'selected' : ''; ?>>All Status</option>
+                            <option value="paid" <?php echo $statusFilter === 'paid' ? 'selected' : ''; ?>>Paid Only</option>
+                            <option value="partial" <?php echo $statusFilter === 'partial' ? 'selected' : ''; ?>>Partial Only</option>
+                            <option value="unpaid" <?php echo $statusFilter === 'unpaid' ? 'selected' : ''; ?>>Unpaid Only</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Search</button>
+                    <?php if (!empty($search) || $statusFilter !== 'all'): ?>
+                        <a href="?id=<?php echo $eventId; ?>" class="btn btn-secondary">Clear</a>
+                    <?php endif; ?>
+                </form>
+            </div>
+        </div>
+
         <!-- Help Box -->
         <div class="help-box mb-3">
             <h4>💰 Payment Tracking</h4>
-            <p>Track all payments for distributed lottery books. Click "Collect Payment" to record partial or full payments.</p>
+            <p>Track all payments for distributed lottery books. Use search and filters above to find specific payments. Click "Collect Payment" to record partial or full payments.</p>
             <ul>
                 <li><strong>Paid:</strong> Full payment received (₹<?php echo number_format($event['price_per_ticket'] * $event['tickets_per_book']); ?> per book)</li>
                 <li><strong>Partial:</strong> Some payment received, but not complete</li>
@@ -139,7 +226,7 @@ foreach ($distributions as $dist) {
 
         <div class="card">
             <div class="card-header">
-                <h3 class="card-title">Payment Tracking (<?php echo count($distributions); ?>)</h3>
+                <h3 class="card-title">Payment Tracking (<?php echo count($distributions); ?> results)</h3>
             </div>
             <div class="card-body" style="padding: 0;">
                 <?php if (count($distributions) === 0): ?>
@@ -154,10 +241,13 @@ foreach ($distributions as $dist) {
                         <table class="table">
                             <thead>
                                 <tr>
-                                    <th>Book #</th>
-                                    <th>Location</th>
-                                    <th>Notes</th>
-                                    <th>Mobile</th>
+                                    <th>First Ticket No</th>
+                                    <?php foreach ($levels as $level): ?>
+                                        <th><?php echo htmlspecialchars($level['level_name']); ?></th>
+                                    <?php endforeach; ?>
+                                    <?php if (count($levels) === 0): ?>
+                                        <th>Location</th>
+                                    <?php endif; ?>
                                     <th>Expected</th>
                                     <th>Paid</th>
                                     <th>Outstanding</th>
@@ -166,21 +256,34 @@ foreach ($distributions as $dist) {
                                 </tr>
                             </thead>
                             <tbody>
-                                <?php foreach ($distributions as $dist): ?>
-                                    <?php
+                                <?php foreach ($distributions as $dist):
+                                    // Parse distribution_path into individual levels
+                                    $levelValues = [];
+                                    if (!empty($dist['distribution_path'])) {
+                                        $levelValues = explode(' > ', $dist['distribution_path']);
+                                    }
+
                                     $outstanding = $dist['expected_amount'] - $dist['total_paid'];
                                     $status = 'unpaid';
                                     if ($dist['total_paid'] >= $dist['expected_amount']) $status = 'paid';
                                     elseif ($dist['total_paid'] > 0) $status = 'partial';
-                                    ?>
+                                ?>
                                     <tr>
-                                        <td><strong>Book <?php echo $dist['book_number']; ?></strong></td>
-                                        <td><?php echo htmlspecialchars($dist['distribution_path'] ?? '-'); ?></td>
-                                        <td><?php echo htmlspecialchars($dist['notes'] ?? '-'); ?></td>
-                                        <td><?php echo htmlspecialchars($dist['mobile_number'] ?? '-'); ?></td>
+                                        <td><strong><?php echo $dist['start_ticket_number']; ?></strong></td>
+                                        <?php
+                                        // Display dynamic level columns
+                                        if (count($levels) > 0) {
+                                            for ($i = 0; $i < count($levels); $i++) {
+                                                echo '<td>' . htmlspecialchars($levelValues[$i] ?? '-') . '</td>';
+                                            }
+                                        } else {
+                                            // Fallback if no levels configured
+                                            echo '<td>' . htmlspecialchars($dist['distribution_path'] ?? '-') . '</td>';
+                                        }
+                                        ?>
                                         <td>₹<?php echo number_format($dist['expected_amount']); ?></td>
-                                        <td>₹<?php echo number_format($dist['total_paid']); ?></td>
-                                        <td>₹<?php echo number_format($outstanding); ?></td>
+                                        <td style="color: var(--success-color); font-weight: 600;">₹<?php echo number_format($dist['total_paid']); ?></td>
+                                        <td style="color: <?php echo $outstanding > 0 ? 'var(--danger-color)' : 'var(--success-color)'; ?>; font-weight: 600;">₹<?php echo number_format($outstanding); ?></td>
                                         <td>
                                             <?php if ($status === 'paid'): ?>
                                                 <span class="badge badge-success">Paid</span>
@@ -193,10 +296,10 @@ foreach ($distributions as $dist) {
                                         <td>
                                             <?php if ($status !== 'paid'): ?>
                                                 <a href="/public/group-admin/lottery-payment-collect.php?book_id=<?php echo $dist['book_id']; ?>" class="btn btn-sm btn-success">
-                                                    Collect Payment
+                                                    <span>💰</span> <span>Collect Payment</span>
                                                 </a>
                                             <?php else: ?>
-                                                <span style="color: var(--success-color);">✓ Complete</span>
+                                                <span style="color: var(--success-color); font-weight: 600;">✓ Complete</span>
                                             <?php endif; ?>
                                         </td>
                                     </tr>

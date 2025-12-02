@@ -1,0 +1,294 @@
+<?php
+/**
+ * Winners Management
+ * GetToKnow Community App
+ */
+
+require_once __DIR__ . '/../../config/config.php';
+AuthMiddleware::requireRole('group_admin');
+
+$eventId = Validator::sanitizeInt($_GET['id'] ?? 0);
+$communityId = AuthMiddleware::getCommunityId();
+
+if (!$eventId || !$communityId) {
+    header("Location: /public/group-admin/lottery.php");
+    exit;
+}
+
+$database = new Database();
+$db = $database->getConnection();
+
+// Get event
+$query = "SELECT * FROM lottery_events WHERE event_id = :id AND community_id = :community_id";
+$stmt = $db->prepare($query);
+$stmt->bindParam(':id', $eventId);
+$stmt->bindParam(':community_id', $communityId);
+$stmt->execute();
+$event = $stmt->fetch();
+
+if (!$event) {
+    header("Location: /public/group-admin/lottery.php");
+    exit;
+}
+
+$error = '';
+$success = '';
+
+// Handle form submission
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_winner'])) {
+    $ticketNumber = Validator::sanitizeInt($_POST['ticket_number'] ?? 0);
+    $prizePosition = $_POST['prize_position'] ?? '';
+    $winnerName = Validator::sanitizeString($_POST['winner_name'] ?? '');
+    $winnerContact = Validator::sanitizeString($_POST['winner_contact'] ?? '');
+
+    if (!$ticketNumber) {
+        $error = 'Please enter a valid ticket number';
+    } elseif (!in_array($prizePosition, ['1st', '2nd', '3rd', 'consolation'])) {
+        $error = 'Please select a prize position';
+    } else {
+        // Check if ticket exists in this event
+        $checkQuery = "SELECT lb.book_number, bd.distribution_path
+                       FROM lottery_books lb
+                       LEFT JOIN book_distribution bd ON lb.book_id = bd.book_id
+                       WHERE lb.event_id = :event_id
+                       AND :ticket_number BETWEEN lb.start_ticket_number AND lb.end_ticket_number
+                       LIMIT 1";
+        $checkStmt = $db->prepare($checkQuery);
+        $checkStmt->bindParam(':event_id', $eventId);
+        $checkStmt->bindParam(':ticket_number', $ticketNumber);
+        $checkStmt->execute();
+        $ticketInfo = $checkStmt->fetch();
+
+        if (!$ticketInfo) {
+            $error = 'Ticket number not found in this event';
+        } else {
+            // Check if already added
+            $dupQuery = "SELECT * FROM lottery_winners WHERE event_id = :event_id AND ticket_number = :ticket_number";
+            $dupStmt = $db->prepare($dupQuery);
+            $dupStmt->bindParam(':event_id', $eventId);
+            $dupStmt->bindParam(':ticket_number', $ticketNumber);
+            $dupStmt->execute();
+
+            if ($dupStmt->fetch()) {
+                $error = 'This ticket number is already added as a winner';
+            } else {
+                // Insert winner
+                $insertQuery = "INSERT INTO lottery_winners (event_id, ticket_number, prize_position, book_number, distribution_path, winner_name, winner_contact, added_by)
+                                VALUES (:event_id, :ticket_number, :prize_position, :book_number, :distribution_path, :winner_name, :winner_contact, :added_by)";
+                $insertStmt = $db->prepare($insertQuery);
+                $insertStmt->bindParam(':event_id', $eventId);
+                $insertStmt->bindParam(':ticket_number', $ticketNumber);
+                $insertStmt->bindParam(':prize_position', $prizePosition);
+                $insertStmt->bindParam(':book_number', $ticketInfo['book_number']);
+                $insertStmt->bindParam(':distribution_path', $ticketInfo['distribution_path']);
+                $insertStmt->bindParam(':winner_name', $winnerName);
+                $insertStmt->bindParam(':winner_contact', $winnerContact);
+                $addedBy = AuthMiddleware::getUserId();
+                $insertStmt->bindParam(':added_by', $addedBy);
+
+                if ($insertStmt->execute()) {
+                    $success = 'Winner added successfully!';
+                } else {
+                    $error = 'Failed to add winner';
+                }
+            }
+        }
+    }
+}
+
+// Handle delete
+if (isset($_GET['delete'])) {
+    $winnerId = Validator::sanitizeInt($_GET['delete']);
+    $deleteQuery = "DELETE FROM lottery_winners WHERE winner_id = :id AND event_id = :event_id";
+    $deleteStmt = $db->prepare($deleteQuery);
+    $deleteStmt->bindParam(':id', $winnerId);
+    $deleteStmt->bindParam(':event_id', $eventId);
+    if ($deleteStmt->execute()) {
+        header("Location: ?id=$eventId&success=deleted");
+        exit;
+    }
+}
+
+if (isset($_GET['success']) && $_GET['success'] === 'deleted') {
+    $success = 'Winner deleted successfully';
+}
+
+// Get all winners
+$winnersQuery = "SELECT * FROM lottery_winners WHERE event_id = :event_id ORDER BY
+                 CASE prize_position
+                     WHEN '1st' THEN 1
+                     WHEN '2nd' THEN 2
+                     WHEN '3rd' THEN 3
+                     WHEN 'consolation' THEN 4
+                 END, added_at";
+$stmt = $db->prepare($winnersQuery);
+$stmt->bindParam(':event_id', $eventId);
+$stmt->execute();
+$winners = $stmt->fetchAll();
+
+// Count by prize
+$prizeCounts = [
+    '1st' => count(array_filter($winners, fn($w) => $w['prize_position'] === '1st')),
+    '2nd' => count(array_filter($winners, fn($w) => $w['prize_position'] === '2nd')),
+    '3rd' => count(array_filter($winners, fn($w) => $w['prize_position'] === '3rd')),
+    'consolation' => count(array_filter($winners, fn($w) => $w['prize_position'] === 'consolation'))
+];
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Winners Management - <?php echo APP_NAME; ?></title>
+    <link rel="stylesheet" href="/public/css/main.css">
+    <link rel="stylesheet" href="/public/css/enhancements.css">
+    <link rel="stylesheet" href="/public/css/lottery-responsive.css">
+</head>
+<body>
+    <?php include __DIR__ . '/includes/navigation.php'; ?>
+
+    <div class="header" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; padding: var(--spacing-xl) 0; margin-bottom: var(--spacing-xl);">
+        <div class="container">
+            <h1>🏆 <?php echo htmlspecialchars($event['event_name']); ?> - Winners</h1>
+            <p style="margin: 0; opacity: 0.9;">Manage Lottery Winners</p>
+        </div>
+    </div>
+
+    <div class="container main-content">
+        <?php if ($error): ?>
+            <div class="alert alert-danger"><?php echo $error; ?></div>
+        <?php endif; ?>
+
+        <?php if ($success): ?>
+            <div class="alert alert-success"><?php echo $success; ?></div>
+        <?php endif; ?>
+
+        <!-- Stats -->
+        <div class="stats-bar" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--spacing-md); margin-bottom: var(--spacing-lg);">
+            <div class="stat-box" style="background: white; padding: var(--spacing-md); border-radius: var(--radius-md); text-align: center;">
+                <div style="font-size: var(--font-size-2xl); font-weight: 700; color: #FFD700;"><?php echo $prizeCounts['1st']; ?></div>
+                <div style="font-size: var(--font-size-sm); color: var(--gray-600);">1st Prize</div>
+            </div>
+            <div class="stat-box" style="background: white; padding: var(--spacing-md); border-radius: var(--radius-md); text-align: center;">
+                <div style="font-size: var(--font-size-2xl); font-weight: 700; color: #C0C0C0;"><?php echo $prizeCounts['2nd']; ?></div>
+                <div style="font-size: var(--font-size-sm); color: var(--gray-600);">2nd Prize</div>
+            </div>
+            <div class="stat-box" style="background: white; padding: var(--spacing-md); border-radius: var(--radius-md); text-align: center;">
+                <div style="font-size: var(--font-size-2xl); font-weight: 700; color: #CD7F32;"><?php echo $prizeCounts['3rd']; ?></div>
+                <div style="font-size: var(--font-size-sm); color: var(--gray-600);">3rd Prize</div>
+            </div>
+            <div class="stat-box" style="background: white; padding: var(--spacing-md); border-radius: var(--radius-md); text-align: center;">
+                <div style="font-size: var(--font-size-2xl); font-weight: 700; color: var(--info-color);"><?php echo $prizeCounts['consolation']; ?></div>
+                <div style="font-size: var(--font-size-sm); color: var(--gray-600);">Consolation</div>
+            </div>
+        </div>
+
+        <!-- Add Winner Form -->
+        <div class="card" style="margin-bottom: var(--spacing-lg);">
+            <div class="card-header">
+                <h3 class="card-title">Add New Winner</h3>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <input type="hidden" name="add_winner" value="1">
+                    <div class="form-row">
+                        <div class="form-col">
+                            <label class="form-label form-label-required">Ticket Number</label>
+                            <input type="number" name="ticket_number" class="form-control" required autofocus
+                                   placeholder="Enter winning ticket number">
+                            <small class="form-text">System will auto-fill book and location details</small>
+                        </div>
+                        <div class="form-col">
+                            <label class="form-label form-label-required">Prize Position</label>
+                            <select name="prize_position" class="form-control" required>
+                                <option value="">Select Prize</option>
+                                <option value="1st">🥇 1st Prize</option>
+                                <option value="2nd">🥈 2nd Prize</option>
+                                <option value="3rd">🥉 3rd Prize</option>
+                                <option value="consolation">🎖️ Consolation Prize</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-col">
+                            <label class="form-label">Winner Name (Optional)</label>
+                            <input type="text" name="winner_name" class="form-control" placeholder="Enter winner's name">
+                        </div>
+                        <div class="form-col">
+                            <label class="form-label">Contact Number (Optional)</label>
+                            <input type="tel" name="winner_contact" class="form-control" placeholder="10-digit mobile" maxlength="10">
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-success">Add Winner</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Winners List -->
+        <div class="card">
+            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                <h3 class="card-title">Winners List (<?php echo count($winners); ?>)</h3>
+                <?php if (count($winners) > 0): ?>
+                    <a href="/public/group-admin/lottery-winners-export.php?id=<?php echo $eventId; ?>" class="btn btn-primary btn-sm">
+                        📥 Export to CSV
+                    </a>
+                <?php endif; ?>
+            </div>
+            <div class="card-body" style="padding: 0;">
+                <?php if (count($winners) === 0): ?>
+                    <div style="text-align: center; padding: var(--spacing-2xl); color: var(--gray-500);">
+                        <div style="font-size: 64px; margin-bottom: var(--spacing-md);">🏆</div>
+                        <h3>No Winners Added Yet</h3>
+                        <p>Use the form above to add winners for this lottery event.</p>
+                    </div>
+                <?php else: ?>
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Prize</th>
+                                    <th>Ticket No</th>
+                                    <th>Book #</th>
+                                    <th>Location</th>
+                                    <th>Winner Name</th>
+                                    <th>Contact</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($winners as $winner): ?>
+                                    <tr>
+                                        <td>
+                                            <?php
+                                            $prizeIcons = ['1st' => '🥇', '2nd' => '🥈', '3rd' => '🥉', 'consolation' => '🎖️'];
+                                            echo $prizeIcons[$winner['prize_position']] . ' ' . ucfirst($winner['prize_position']);
+                                            ?>
+                                        </td>
+                                        <td><strong><?php echo $winner['ticket_number']; ?></strong></td>
+                                        <td><?php echo $winner['book_number']; ?></td>
+                                        <td><?php echo htmlspecialchars($winner['distribution_path'] ?? '-'); ?></td>
+                                        <td><?php echo htmlspecialchars($winner['winner_name'] ?? '-'); ?></td>
+                                        <td><?php echo htmlspecialchars($winner['winner_contact'] ?? '-'); ?></td>
+                                        <td>
+                                            <a href="?id=<?php echo $eventId; ?>&delete=<?php echo $winner['winner_id']; ?>"
+                                               class="btn btn-sm btn-danger"
+                                               onclick="return confirm('Delete this winner?')">
+                                                Delete
+                                            </a>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                <?php endif; ?>
+            </div>
+        </div>
+
+        <div class="button-group-mobile mt-3">
+            <a href="/public/group-admin/lottery.php" class="btn btn-secondary">← Back to Events</a>
+            <a href="/public/group-admin/lottery-reports.php?id=<?php echo $eventId; ?>" class="btn btn-primary">View Reports</a>
+        </div>
+    </div>
+</body>
+</html>

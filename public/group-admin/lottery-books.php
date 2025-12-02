@@ -160,24 +160,56 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['bulk_assign'])) {
     }
 }
 
-// Get filter
+// Get filter and search
 $filter = $_GET['filter'] ?? 'all';
+$search = Validator::sanitizeString($_GET['search'] ?? '');
 
-// Get all books with filter
+// Build where clause
 $whereClause = "lb.event_id = :event_id";
+$searchParams = [];
+
 if ($filter === 'available') {
     $whereClause .= " AND lb.book_status = 'available'";
 } elseif ($filter === 'assigned') {
     $whereClause .= " AND lb.book_status IN ('distributed', 'collected')";
 }
 
+// Add search conditions
+if (!empty($search)) {
+    // Check if search is a range (e.g., 1000-1040)
+    if (preg_match('/^(\d+)-(\d+)$/', $search, $matches)) {
+        $rangeStart = (int)$matches[1];
+        $rangeEnd = (int)$matches[2];
+        $whereClause .= " AND (lb.start_ticket_number >= :range_start AND lb.start_ticket_number <= :range_end)";
+        $searchParams['range_start'] = $rangeStart;
+        $searchParams['range_end'] = $rangeEnd;
+    }
+    // Check if search is a single ticket number
+    elseif (is_numeric($search)) {
+        $ticketNum = (int)$search;
+        $whereClause .= " AND (lb.start_ticket_number = :ticket_num OR :ticket_num BETWEEN lb.start_ticket_number AND lb.end_ticket_number)";
+        $searchParams['ticket_num'] = $ticketNum;
+    }
+    // Otherwise search in distribution path, notes
+    else {
+        $whereClause .= " AND (bd.distribution_path LIKE :search_term OR bd.notes LIKE :search_term OR bd.mobile_number LIKE :search_term)";
+        $searchParams['search_term'] = '%' . $search . '%';
+    }
+}
+
 $query = "SELECT lb.*, bd.notes, bd.mobile_number, bd.distribution_path
           FROM lottery_books lb
           LEFT JOIN book_distribution bd ON lb.book_id = bd.book_id
           WHERE {$whereClause}
-          ORDER BY lb.book_number";
+          ORDER BY lb.start_ticket_number, lb.book_number";
 $stmt = $db->prepare($query);
 $stmt->bindParam(':event_id', $eventId);
+
+// Bind search parameters
+foreach ($searchParams as $key => $value) {
+    $stmt->bindValue(':' . $key, $value);
+}
+
 $stmt->execute();
 $books = $stmt->fetchAll();
 
@@ -317,29 +349,55 @@ $stats = $statsStmt->fetch();
             </div>
         </div>
 
+        <!-- Search Box -->
+        <div class="card" style="margin-bottom: var(--spacing-md);">
+            <div class="card-body">
+                <form method="GET" action="" style="display: flex; gap: var(--spacing-sm); flex-wrap: wrap; align-items: end;">
+                    <input type="hidden" name="id" value="<?php echo $eventId; ?>">
+                    <input type="hidden" name="filter" value="<?php echo htmlspecialchars($filter); ?>">
+                    <div style="flex: 1; min-width: 250px;">
+                        <label class="form-label">🔍 Search Books</label>
+                        <input
+                            type="text"
+                            name="search"
+                            class="form-control"
+                            placeholder="Enter ticket number (1000) or range (1000-1040) or location"
+                            value="<?php echo htmlspecialchars($search); ?>"
+                        >
+                        <small class="form-text">Examples: 1000, 1000-1040, Wing A, Floor 1, or member name</small>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Search</button>
+                    <?php if (!empty($search)): ?>
+                        <a href="?id=<?php echo $eventId; ?>&filter=<?php echo $filter; ?>" class="btn btn-secondary">Clear</a>
+                    <?php endif; ?>
+                </form>
+            </div>
+        </div>
+
         <!-- Help Box -->
         <div class="help-box mb-3">
             <h4>💡 How to Assign Books</h4>
             <ul>
-                <li><strong>Step 1:</strong> Select books using checkboxes (only available books can be selected)</li>
+                <li><strong>Step 1:</strong> Use search above to find specific books by ticket number or range</li>
+                <li><strong>Step 2:</strong> Select books using checkboxes (only available books can be selected)</li>
                 <?php if (count($levels) > 0): ?>
-                    <li><strong>Step 2:</strong> Fill in required distribution levels: <?php echo implode(', ', array_column($levels, 'level_name')); ?></li>
+                    <li><strong>Step 3:</strong> Fill in required distribution levels: <?php echo implode(', ', array_column($levels, 'level_name')); ?></li>
                 <?php endif; ?>
-                <li><strong>Step 3:</strong> Optionally add notes and mobile number</li>
-                <li><strong>Step 4:</strong> Click "Assign Selected Books" to complete</li>
+                <li><strong>Step 4:</strong> Optionally add notes and mobile number</li>
+                <li><strong>Step 5:</strong> Click "Assign Selected Books" to complete</li>
             </ul>
             <p style="margin: 0;"><strong>Tip:</strong> Use filters below to view Available or Assigned books separately</p>
         </div>
 
         <!-- Filter Tabs -->
         <div class="tabs">
-            <a href="?id=<?php echo $eventId; ?>&filter=all" class="tab <?php echo $filter === 'all' ? 'active' : ''; ?>">
+            <a href="?id=<?php echo $eventId; ?>&filter=all<?php echo !empty($search) ? '&search=' . urlencode($search) : ''; ?>" class="tab <?php echo $filter === 'all' ? 'active' : ''; ?>">
                 📚 All Books (<?php echo $stats['total']; ?>)
             </a>
-            <a href="?id=<?php echo $eventId; ?>&filter=available" class="tab <?php echo $filter === 'available' ? 'active' : ''; ?>">
+            <a href="?id=<?php echo $eventId; ?>&filter=available<?php echo !empty($search) ? '&search=' . urlencode($search) : ''; ?>" class="tab <?php echo $filter === 'available' ? 'active' : ''; ?>">
                 ✅ Available (<?php echo $stats['available']; ?>)
             </a>
-            <a href="?id=<?php echo $eventId; ?>&filter=assigned" class="tab <?php echo $filter === 'assigned' ? 'active' : ''; ?>">
+            <a href="?id=<?php echo $eventId; ?>&filter=assigned<?php echo !empty($search) ? '&search=' . urlencode($search) : ''; ?>" class="tab <?php echo $filter === 'assigned' ? 'active' : ''; ?>">
                 📝 Assigned (<?php echo $stats['distributed'] + $stats['collected']; ?>)
             </a>
         </div>
@@ -464,12 +522,13 @@ $stats = $statsStmt->fetch();
                                 <th class="checkbox-cell">
                                     <input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll()">
                                 </th>
-                                <th>Book #</th>
-                                <th>Tickets</th>
-                                <th>Ticket Range</th>
-                                <th>Location</th>
-                                <th>Notes</th>
-                                <th>Mobile</th>
+                                <th>First Ticket No</th>
+                                <?php foreach ($levels as $level): ?>
+                                    <th><?php echo htmlspecialchars($level['level_name']); ?></th>
+                                <?php endforeach; ?>
+                                <?php if (count($levels) === 0): ?>
+                                    <th>Location</th>
+                                <?php endif; ?>
                                 <th>Status</th>
                                 <th>Actions</th>
                             </tr>
@@ -477,12 +536,18 @@ $stats = $statsStmt->fetch();
                         <tbody>
                             <?php if (count($books) === 0): ?>
                                 <tr>
-                                    <td colspan="9" style="text-align: center; padding: var(--spacing-2xl); color: var(--gray-500);">
+                                    <td colspan="<?php echo 3 + count($levels); ?>" style="text-align: center; padding: var(--spacing-2xl); color: var(--gray-500);">
                                         No books found in this category
                                     </td>
                                 </tr>
                             <?php else: ?>
-                                <?php foreach ($books as $book): ?>
+                                <?php foreach ($books as $book):
+                                    // Parse distribution_path into individual levels
+                                    $levelValues = [];
+                                    if (!empty($book['distribution_path'])) {
+                                        $levelValues = explode(' > ', $book['distribution_path']);
+                                    }
+                                ?>
                                     <tr class="<?php echo $book['book_status'] !== 'available' ? 'assigned-row' : ''; ?>">
                                         <td class="checkbox-cell">
                                             <?php if ($book['book_status'] === 'available'): ?>
@@ -498,12 +563,18 @@ $stats = $statsStmt->fetch();
                                                 <input type="checkbox" disabled>
                                             <?php endif; ?>
                                         </td>
-                                        <td><strong>Book <?php echo $book['book_number']; ?></strong></td>
-                                        <td><?php echo $event['tickets_per_book']; ?></td>
-                                        <td><?php echo $book['start_ticket_number']; ?> - <?php echo $book['end_ticket_number']; ?></td>
-                                        <td><?php echo htmlspecialchars($book['distribution_path'] ?? '-'); ?></td>
-                                        <td><?php echo htmlspecialchars($book['notes'] ?? '-'); ?></td>
-                                        <td><?php echo htmlspecialchars($book['mobile_number'] ?? '-'); ?></td>
+                                        <td><strong><?php echo $book['start_ticket_number']; ?></strong></td>
+                                        <?php
+                                        // Display dynamic level columns
+                                        if (count($levels) > 0) {
+                                            for ($i = 0; $i < count($levels); $i++) {
+                                                echo '<td>' . htmlspecialchars($levelValues[$i] ?? '-') . '</td>';
+                                            }
+                                        } else {
+                                            // Fallback if no levels configured
+                                            echo '<td>' . htmlspecialchars($book['distribution_path'] ?? '-') . '</td>';
+                                        }
+                                        ?>
                                         <td>
                                             <?php if ($book['book_status'] === 'available'): ?>
                                                 <span class="badge badge-success">Available</span>
@@ -518,8 +589,8 @@ $stats = $statsStmt->fetch();
                                                 <a href="/public/group-admin/lottery-book-assign.php?book_id=<?php echo $book['book_id']; ?>&event_id=<?php echo $eventId; ?>"
                                                    class="btn btn-sm btn-primary">Assign</a>
                                             <?php else: ?>
-                                                <a href="/public/group-admin/lottery-payment-collect.php?book_id=<?php echo $book['book_id']; ?>"
-                                                   class="btn btn-sm btn-success">Collect Payment</a>
+                                                <a href="/public/group-admin/lottery-payments.php?id=<?php echo $eventId; ?>"
+                                                   class="btn btn-sm btn-success">View Payments</a>
                                             <?php endif; ?>
                                         </td>
                                     </tr>

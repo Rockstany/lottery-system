@@ -10,8 +10,8 @@ AuthMiddleware::requireRole('admin');
 $database = new Database();
 $db = $database->getConnection();
 
-// Get all users
-$query = "SELECT u.user_id, u.mobile_number, u.full_name, u.email, u.role, u.status, u.created_at, u.last_login,
+// Get all users with password
+$query = "SELECT u.user_id, u.mobile_number, u.password_hash, u.full_name, u.email, u.role, u.status, u.created_at, u.last_login,
           (SELECT community_name FROM communities c
            JOIN group_admin_assignments ga ON c.community_id = ga.community_id
            WHERE ga.user_id = u.user_id LIMIT 1) as community_name
@@ -97,7 +97,9 @@ $error = $_GET['error'] ?? '';
         <?php elseif ($success === 'updated'): ?>
             <div class="alert alert-success">User updated successfully!</div>
         <?php elseif ($success === 'deleted'): ?>
-            <div class="alert alert-success">User deactivated successfully!</div>
+            <div class="alert alert-success">User deleted successfully!</div>
+        <?php elseif ($success === 'password_reset'): ?>
+            <div class="alert alert-success">Password reset successfully!</div>
         <?php endif; ?>
 
         <?php if ($error): ?>
@@ -119,11 +121,11 @@ $error = $_GET['error'] ?? '';
                                 <th>ID</th>
                                 <th>Name</th>
                                 <th>Mobile</th>
+                                <th>Password</th>
                                 <th>Email</th>
                                 <th>Role</th>
                                 <th>Community</th>
                                 <th>Status</th>
-                                <th>Last Login</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
@@ -134,6 +136,17 @@ $error = $_GET['error'] ?? '';
                                         <td><?php echo $user['user_id']; ?></td>
                                         <td><strong><?php echo htmlspecialchars($user['full_name']); ?></strong></td>
                                         <td><?php echo htmlspecialchars($user['mobile_number']); ?></td>
+                                        <td>
+                                            <div style="display: flex; align-items: center; gap: 8px;">
+                                                <input type="password" id="pwd_<?php echo $user['user_id']; ?>"
+                                                       value="••••••••" readonly
+                                                       style="width: 80px; border: none; background: transparent; font-size: 14px;">
+                                                <button type="button" onclick="togglePassword(<?php echo $user['user_id']; ?>)"
+                                                        class="btn btn-sm btn-secondary" style="padding: 4px 8px;">
+                                                    <span id="eye_<?php echo $user['user_id']; ?>">👁️</span>
+                                                </button>
+                                            </div>
+                                        </td>
                                         <td><?php echo htmlspecialchars($user['email'] ?? '-'); ?></td>
                                         <td>
                                             <?php if ($user['role'] === 'admin'): ?>
@@ -151,29 +164,26 @@ $error = $_GET['error'] ?? '';
                                             <?php endif; ?>
                                         </td>
                                         <td>
-                                            <?php
-                                            if ($user['last_login']) {
-                                                echo date('M d, Y H:i', strtotime($user['last_login']));
-                                            } else {
-                                                echo 'Never';
-                                            }
-                                            ?>
-                                        </td>
-                                        <td>
-                                            <div class="actions">
+                                            <div class="actions" style="flex-wrap: wrap; gap: 4px;">
                                                 <a href="/public/admin/user-edit.php?id=<?php echo $user['user_id']; ?>"
                                                    class="btn btn-sm btn-primary">Edit</a>
-                                                <?php if ($user['status'] === 'active'): ?>
-                                                    <a href="/public/admin/user-toggle.php?id=<?php echo $user['user_id']; ?>&action=deactivate"
-                                                       class="btn btn-sm btn-warning"
-                                                       onclick="return confirm('Deactivate this user?')">Deactivate</a>
-                                                <?php else: ?>
-                                                    <a href="/public/admin/user-toggle.php?id=<?php echo $user['user_id']; ?>&action=activate"
-                                                       class="btn btn-sm btn-success">Activate</a>
+                                                <a href="/public/admin/user-reset-password.php?id=<?php echo $user['user_id']; ?>"
+                                                   class="btn btn-sm btn-warning">Reset Pwd</a>
+                                                <?php
+                                                // Don't allow deleting the last admin or yourself
+                                                $adminCount = count(array_filter($users, fn($u) => $u['role'] === 'admin'));
+                                                $canDelete = !($user['role'] === 'admin' && $adminCount <= 1) && $user['user_id'] != AuthMiddleware::getUserId();
+                                                if ($canDelete):
+                                                ?>
+                                                    <button onclick="confirmDeleteUser(<?php echo $user['user_id']; ?>, '<?php echo htmlspecialchars($user['full_name'], ENT_QUOTES); ?>')"
+                                                            class="btn btn-sm btn-danger">Delete</button>
                                                 <?php endif; ?>
                                             </div>
                                         </td>
                                     </tr>
+                                    <script>
+                                    window['pwdData_<?php echo $user['user_id']; ?>'] = <?php echo json_encode(substr($user['password_hash'], 0, 20) . '...'); ?>;
+                                    </script>
                                 <?php endforeach; ?>
                             <?php else: ?>
                                 <tr>
@@ -188,5 +198,70 @@ $error = $_GET['error'] ?? '';
             </div>
         </div>
     </div>
+
+    <!-- Delete User Modal -->
+    <div id="deleteUserModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999; align-items: center; justify-content: center;">
+        <div style="background: white; padding: var(--spacing-xl); border-radius: var(--radius-lg); max-width: 500px; margin: var(--spacing-md);">
+            <h3 style="margin-top: 0; color: var(--danger-color);">⚠️ Delete User</h3>
+            <p>Are you sure you want to delete <strong id="userName"></strong>?</p>
+            <p style="color: var(--danger-color); font-weight: 600;">This will permanently delete:</p>
+            <ul style="color: var(--gray-700);">
+                <li>User account and login access</li>
+                <li>All community assignments</li>
+                <li>Activity logs will be preserved</li>
+            </ul>
+            <p style="color: var(--danger-color); font-weight: 700;">This action cannot be undone!</p>
+            <div style="display: flex; gap: var(--spacing-md); margin-top: var(--spacing-lg);">
+                <button onclick="closeDeleteUserModal()" class="btn btn-secondary" style="flex: 1;">Cancel</button>
+                <button onclick="deleteUser()" class="btn btn-danger" style="flex: 1;">Delete User</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let deleteUserId = null;
+        const passwordVisible = {};
+
+        function togglePassword(userId) {
+            const input = document.getElementById('pwd_' + userId);
+            const eye = document.getElementById('eye_' + userId);
+
+            if (passwordVisible[userId]) {
+                input.type = 'password';
+                input.value = '••••••••';
+                eye.textContent = '👁️';
+                passwordVisible[userId] = false;
+            } else {
+                input.type = 'text';
+                input.value = window['pwdData_' + userId];
+                eye.textContent = '🙈';
+                passwordVisible[userId] = true;
+            }
+        }
+
+        function confirmDeleteUser(userId, userName) {
+            deleteUserId = userId;
+            document.getElementById('userName').textContent = userName;
+            document.getElementById('deleteUserModal').style.display = 'flex';
+        }
+
+        function closeDeleteUserModal() {
+            document.getElementById('deleteUserModal').style.display = 'none';
+            deleteUserId = null;
+        }
+
+        function deleteUser() {
+            if (!deleteUserId) return;
+            const modal = document.getElementById('deleteUserModal');
+            modal.innerHTML = '<div style="background: white; padding: var(--spacing-xl); border-radius: var(--radius-lg); text-align: center;"><h3>Deleting...</h3><p>Please wait...</p></div>';
+            window.location.href = '/public/admin/user-delete.php?id=' + deleteUserId;
+        }
+
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeDeleteUserModal();
+            }
+        });
+    </script>
 </body>
 </html>

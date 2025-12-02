@@ -24,6 +24,7 @@ $stmt->execute();
 $events = $stmt->fetchAll();
 
 $success = $_GET['success'] ?? '';
+$error = $_GET['error'] ?? '';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -116,6 +117,19 @@ $success = $_GET['success'] ?? '';
             font-size: 64px;
             margin-bottom: var(--spacing-md);
         }
+        .action-buttons-wrap {
+            display: flex;
+            flex-wrap: wrap;
+            gap: var(--spacing-sm);
+            margin-top: var(--spacing-md);
+        }
+        @media (max-width: 768px) {
+            .action-buttons-wrap {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: var(--spacing-xs);
+            }
+        }
     </style>
 </head>
 <body>
@@ -131,6 +145,16 @@ $success = $_GET['success'] ?? '';
     <div class="container main-content">
         <?php if ($success === 'created'): ?>
             <div class="alert alert-success">Event created successfully! Now generate books.</div>
+        <?php elseif ($success === 'deleted'): ?>
+            <div class="alert alert-success">Lottery event deleted successfully.</div>
+        <?php endif; ?>
+
+        <?php if ($error === 'deletefailed'): ?>
+            <div class="alert alert-danger">Failed to delete lottery event. Please try again.</div>
+        <?php elseif ($error === 'notfound'): ?>
+            <div class="alert alert-danger">Lottery event not found.</div>
+        <?php elseif ($error === 'invalid'): ?>
+            <div class="alert alert-danger">Invalid request.</div>
         <?php endif; ?>
 
         <!-- Instructions -->
@@ -260,21 +284,86 @@ $success = $_GET['success'] ?? '';
 
                     <div class="action-buttons-wrap">
                         <a href="/public/group-admin/lottery-edit.php?id=<?php echo $event['event_id']; ?>" class="btn btn-warning btn-sm">
-                            ✏️ Edit
+                            <span>✏️</span> <span>Edit</span>
                         </a>
                         <a href="/public/group-admin/lottery-books.php?id=<?php echo $event['event_id']; ?>" class="btn btn-primary btn-sm">
-                            📚 Manage Books
+                            <span>📚</span> <span>Books</span>
                         </a>
                         <a href="/public/group-admin/lottery-payments.php?id=<?php echo $event['event_id']; ?>" class="btn btn-success btn-sm">
-                            💰 Payments
+                            <span>💰</span> <span>Payments</span>
+                        </a>
+                        <a href="/public/group-admin/lottery-winners.php?id=<?php echo $event['event_id']; ?>" class="btn btn-sm" style="background: #f59e0b; color: white;">
+                            <span>🏆</span> <span>Winners</span>
+                        </a>
+                        <a href="/public/group-admin/lottery-commission-setup.php?id=<?php echo $event['event_id']; ?>" class="btn btn-sm" style="background: #8b5cf6; color: white;">
+                            <span>💰</span> <span>Commission</span>
                         </a>
                         <a href="/public/group-admin/lottery-reports.php?id=<?php echo $event['event_id']; ?>" class="btn btn-secondary btn-sm">
-                            📊 Reports
+                            <span>📊</span> <span>Reports</span>
                         </a>
+                        <?php if ($_SESSION['role'] === 'admin'): ?>
+                        <button onclick="confirmDeleteEvent(<?php echo $event['event_id']; ?>, '<?php echo htmlspecialchars($event['event_name'], ENT_QUOTES); ?>')" class="btn btn-danger btn-sm">
+                            <span>🗑️</span> <span>Delete</span>
+                        </button>
+                        <?php endif; ?>
                     </div>
                 </div>
             <?php endforeach; ?>
         <?php endif; ?>
     </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div id="deleteModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999; align-items: center; justify-content: center;">
+        <div style="background: white; padding: var(--spacing-xl); border-radius: var(--radius-lg); max-width: 500px; margin: var(--spacing-md);">
+            <h3 style="margin-top: 0; color: var(--danger-color);">⚠️ Delete Lottery Event</h3>
+            <p>Are you sure you want to delete <strong id="eventName"></strong>?</p>
+            <p style="color: var(--danger-color); font-weight: 600;">This will permanently delete:</p>
+            <ul style="color: var(--gray-700);">
+                <li>All lottery books</li>
+                <li>All book distributions</li>
+                <li>All payment collections</li>
+                <li>All related data</li>
+            </ul>
+            <p style="color: var(--danger-color); font-weight: 700;">This action cannot be undone!</p>
+            <div style="display: flex; gap: var(--spacing-md); margin-top: var(--spacing-lg);">
+                <button onclick="closeDeleteModal()" class="btn btn-secondary" style="flex: 1;">Cancel</button>
+                <button onclick="deleteEvent()" class="btn btn-danger" style="flex: 1;">Delete Event</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let deleteEventId = null;
+
+        function confirmDeleteEvent(eventId, eventName) {
+            deleteEventId = eventId;
+            document.getElementById('eventName').textContent = eventName;
+            const modal = document.getElementById('deleteModal');
+            modal.style.display = 'flex';
+        }
+
+        function closeDeleteModal() {
+            document.getElementById('deleteModal').style.display = 'none';
+            deleteEventId = null;
+        }
+
+        function deleteEvent() {
+            if (!deleteEventId) return;
+
+            // Show loading state
+            const modal = document.getElementById('deleteModal');
+            modal.innerHTML = '<div style="background: white; padding: var(--spacing-xl); border-radius: var(--radius-lg); text-align: center;"><h3>Deleting...</h3><p>Please wait...</p></div>';
+
+            // Submit delete request
+            window.location.href = '/public/group-admin/lottery-delete.php?id=' + deleteEventId;
+        }
+
+        // Close modal on escape key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeDeleteModal();
+            }
+        });
+    </script>
 </body>
 </html>

@@ -67,6 +67,69 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->bindParam(':collected_by', $collectedBy);
 
         if ($stmt->execute()) {
+            // Calculate and save commission if enabled
+            $commissionQuery = "SELECT * FROM commission_settings WHERE event_id = :event_id AND commission_enabled = 1";
+            $commStmt = $db->prepare($commissionQuery);
+            $commStmt->bindParam(':event_id', $book['event_id']);
+            $commStmt->execute();
+            $commSettings = $commStmt->fetch();
+
+            if ($commSettings) {
+                // Determine commission type and percentage based on payment date
+                $commissionType = null;
+                $commissionPercent = 0;
+
+                if ($paymentDate <= $commSettings['early_payment_date']) {
+                    $commissionType = 'early';
+                    $commissionPercent = $commSettings['early_commission_percent'];
+                } elseif ($paymentDate <= $commSettings['standard_payment_date']) {
+                    $commissionType = 'standard';
+                    $commissionPercent = $commSettings['standard_commission_percent'];
+                }
+
+                // Check if book was assigned after extra_books_date
+                $bookAssignedQuery = "SELECT assigned_at FROM book_distribution WHERE distribution_id = :dist_id";
+                $bookAssignedStmt = $db->prepare($bookAssignedQuery);
+                $bookAssignedStmt->bindParam(':dist_id', $book['distribution_id']);
+                $bookAssignedStmt->execute();
+                $bookAssigned = $bookAssignedStmt->fetch();
+
+                if ($bookAssigned && date('Y-m-d', strtotime($bookAssigned['assigned_at'])) > $commSettings['extra_books_date']) {
+                    $commissionType = 'extra_books';
+                    $commissionPercent = $commSettings['extra_books_commission_percent'];
+                }
+
+                // If commission applies, calculate and save
+                if ($commissionType && $commissionPercent > 0) {
+                    // Extract Level 1 value from distribution_path (first element)
+                    $level1Value = '';
+                    if (!empty($book['distribution_path'])) {
+                        $pathParts = explode(' > ', $book['distribution_path']);
+                        $level1Value = $pathParts[0] ?? '';
+                    }
+
+                    if ($level1Value) {
+                        $commissionAmount = ($amount * $commissionPercent) / 100;
+
+                        $insertCommQuery = "INSERT INTO commission_earned
+                                           (event_id, level_1_value, commission_type, commission_percent,
+                                            payment_amount, commission_amount, payment_date, book_id)
+                                           VALUES (:event_id, :level_1, :comm_type, :comm_percent,
+                                                   :payment_amt, :comm_amt, :payment_date, :book_id)";
+                        $insertCommStmt = $db->prepare($insertCommQuery);
+                        $insertCommStmt->bindParam(':event_id', $book['event_id']);
+                        $insertCommStmt->bindParam(':level_1', $level1Value);
+                        $insertCommStmt->bindParam(':comm_type', $commissionType);
+                        $insertCommStmt->bindParam(':comm_percent', $commissionPercent);
+                        $insertCommStmt->bindParam(':payment_amt', $amount);
+                        $insertCommStmt->bindParam(':comm_amt', $commissionAmount);
+                        $insertCommStmt->bindParam(':payment_date', $paymentDate);
+                        $insertCommStmt->bindParam(':book_id', $bookId);
+                        $insertCommStmt->execute();
+                    }
+                }
+            }
+
             $success = 'Payment recorded successfully!';
             // Refresh data
             $refreshQuery = "SELECT lb.*, bd.distribution_id, bd.notes, bd.mobile_number, bd.distribution_path,

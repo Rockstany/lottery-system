@@ -38,6 +38,9 @@ $currentPage = basename($_SERVER['PHP_SELF']);
         border-bottom: 3px solid transparent;
         font-weight: 500;
         white-space: nowrap;
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-xs);
     }
     .nav-link:hover {
         color: var(--primary-color);
@@ -47,8 +50,7 @@ $currentPage = basename($_SERVER['PHP_SELF']);
     .nav-link.active {
         color: var(--primary-color);
         border-bottom-color: var(--primary-color);
-        background: var(--primary-color);
-        background-opacity: 0.05;
+        background: rgba(124, 58, 237, 0.05);
     }
     .nav-right {
         display: flex;
@@ -78,25 +80,25 @@ $currentPage = basename($_SERVER['PHP_SELF']);
             <li>
                 <a href="/public/group-admin/dashboard.php"
                    class="nav-link <?php echo $currentPage === 'dashboard.php' ? 'active' : ''; ?>">
-                    🏠 Dashboard
+                    <span>🏠</span><span>Dashboard</span>
                 </a>
             </li>
             <li>
                 <a href="/public/group-admin/transactions.php"
                    class="nav-link <?php echo in_array($currentPage, ['transactions.php', 'transaction-create.php', 'transaction-upload.php', 'transaction-members.php', 'transaction-payment-record.php']) ? 'active' : ''; ?>">
-                    💰 Transactions
+                    <span>💰</span><span>Transactions</span>
                 </a>
             </li>
             <li>
                 <a href="/public/group-admin/lottery.php"
-                   class="nav-link <?php echo in_array($currentPage, ['lottery.php', 'lottery-create.php', 'lottery-edit.php', 'lottery-books.php', 'lottery-books-generate.php', 'lottery-book-assign.php', 'lottery-distribution-setup.php', 'lottery-payments.php', 'lottery-payment-collect.php', 'lottery-reports.php']) ? 'active' : ''; ?>">
-                    🎫 Lottery
+                   class="nav-link <?php echo in_array($currentPage, ['lottery.php', 'lottery-create.php', 'lottery-edit.php', 'lottery-books.php', 'lottery-books-generate.php', 'lottery-book-assign.php', 'lottery-distribution-setup.php', 'lottery-payments.php', 'lottery-payment-collect.php', 'lottery-reports.php', 'lottery-winners.php', 'lottery-commission-setup.php']) ? 'active' : ''; ?>">
+                    <span>🎫</span><span>Lottery</span>
                 </a>
             </li>
             <li>
                 <a href="/public/group-admin/change-password.php"
                    class="nav-link <?php echo $currentPage === 'change-password.php' ? 'active' : ''; ?>">
-                    🔐 Password
+                    <span>🔐</span><span>Password</span>
                 </a>
             </li>
         </ul>
