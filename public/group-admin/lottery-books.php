@@ -310,6 +310,7 @@ $stats = $statsStmt->fetch();
             display: block;
         }
     </style>
+    <script src="/public/js/toast.js"></script>
 </head>
 <body>
     <?php include __DIR__ . '/includes/navigation.php'; ?>
@@ -322,13 +323,13 @@ $stats = $statsStmt->fetch();
     </div>
 
     <div class="container main-content">
-        <?php if ($error): ?>
-            <div class="alert alert-danger"><?php echo $error; ?></div>
-        <?php endif; ?>
+        <!-- Back Button at Top -->
+        <div style="margin-bottom: var(--spacing-lg);">
+            <a href="/public/group-admin/lottery.php" class="btn btn-secondary">← Back to Events</a>
+            <a href="/public/group-admin/lottery-payments.php?id=<?php echo $eventId; ?>" class="btn btn-success">View Payments</a>
+        </div>
 
-        <?php if ($success): ?>
-            <div class="alert alert-success"><?php echo $success; ?></div>
-        <?php endif; ?>
+        <?php include __DIR__ . '/includes/toast-handler.php'; ?>
 
         <div class="stats-bar">
             <div class="stat-box">
@@ -602,10 +603,6 @@ $stats = $statsStmt->fetch();
             </div>
         </div>
 
-        <div class="button-group-mobile mt-3">
-            <a href="/public/group-admin/lottery.php" class="btn btn-secondary">← Back to Events</a>
-            <a href="/public/group-admin/lottery-payments.php?id=<?php echo $eventId; ?>" class="btn btn-success">Track Payments →</a>
-        </div>
     </div>
 
     <script>

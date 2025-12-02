@@ -118,6 +118,7 @@ foreach ($distributions as $dist) {
     <link rel="stylesheet" href="/public/css/main.css">
     <link rel="stylesheet" href="/public/css/enhancements.css">
     <link rel="stylesheet" href="/public/css/lottery-responsive.css">
+    <script src="/public/js/toast.js"></script>
     <style>
         .header {
             background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
@@ -154,6 +155,18 @@ foreach ($distributions as $dist) {
     </div>
 
     <div class="container main-content">
+        <!-- Back Button at Top -->
+        <div style="margin-bottom: var(--spacing-lg);">
+            <a href="/public/group-admin/lottery.php" class="btn btn-secondary">← Back to Events</a>
+            <a href="/public/group-admin/lottery-books.php?id=<?php echo $eventId; ?>" class="btn btn-primary">View Books</a>
+        </div>
+
+        <?php
+        $error = '';
+        $success = '';
+        include __DIR__ . '/includes/toast-handler.php';
+        ?>
+
         <div class="stats-bar">
             <div class="stat-box">
                 <div class="stat-value"><?php echo count($distributions); ?></div>
