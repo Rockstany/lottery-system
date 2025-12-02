@@ -187,8 +187,9 @@ if (!empty($search)) {
     // Check if search is a single ticket number
     elseif (is_numeric($search)) {
         $ticketNum = (int)$search;
-        $whereClause .= " AND (lb.start_ticket_number = :ticket_num OR :ticket_num BETWEEN lb.start_ticket_number AND lb.end_ticket_number)";
-        $searchParams['ticket_num'] = $ticketNum;
+        // Find book where the ticket falls in the range (start to end)
+        $whereClause .= " AND (:ticket_num_start BETWEEN lb.start_ticket_number AND lb.end_ticket_number)";
+        $searchParams['ticket_num_start'] = $ticketNum;
     }
     // Otherwise search in distribution path, notes
     else {
