@@ -135,6 +135,39 @@ $collectionPercent = $event['total_predicted_amount'] > 0
 $distributionPercent = $event['total_books'] > 0
     ? ($stats['distributed_books'] / $event['total_books']) * 100
     : 0;
+
+// Get payment method-wise collection
+$paymentMethodQuery = "SELECT
+    pc.payment_method,
+    COUNT(pc.payment_id) as transaction_count,
+    SUM(pc.amount_paid) as total_amount
+    FROM payment_collections pc
+    JOIN book_distribution bd ON pc.distribution_id = bd.distribution_id
+    JOIN lottery_books lb ON bd.book_id = lb.book_id
+    WHERE lb.event_id = :event_id
+    GROUP BY pc.payment_method
+    ORDER BY total_amount DESC";
+$stmt = $db->prepare($paymentMethodQuery);
+$stmt->bindParam(':event_id', $eventId);
+$stmt->execute();
+$paymentMethods = $stmt->fetchAll();
+
+// Get date-wise collection by payment method
+$dateWiseQuery = "SELECT
+    DATE(pc.payment_date) as payment_date,
+    pc.payment_method,
+    COUNT(pc.payment_id) as transaction_count,
+    SUM(pc.amount_paid) as daily_amount
+    FROM payment_collections pc
+    JOIN book_distribution bd ON pc.distribution_id = bd.distribution_id
+    JOIN lottery_books lb ON bd.book_id = lb.book_id
+    WHERE lb.event_id = :event_id
+    GROUP BY DATE(pc.payment_date), pc.payment_method
+    ORDER BY payment_date DESC, payment_method";
+$stmt = $db->prepare($dateWiseQuery);
+$stmt->bindParam(':event_id', $eventId);
+$stmt->execute();
+$dateWisePayments = $stmt->fetchAll();
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -321,6 +354,8 @@ $distributionPercent = $event['total_books'] > 0
         <div class="tab-container">
             <div class="tabs">
                 <button class="tab active" onclick="switchTab(event, 'member-report')">Member-Wise Report</button>
+                <button class="tab" onclick="switchTab(event, 'payment-method')">💳 Payment Methods</button>
+                <button class="tab" onclick="switchTab(event, 'date-wise')">📅 Date-Wise Collection</button>
                 <button class="tab" onclick="switchTab(event, 'payment-status')">Payment Status</button>
                 <button class="tab" onclick="switchTab(event, 'book-status')">Book Status</button>
                 <button class="tab" onclick="switchTab(event, 'summary')">Summary</button>
@@ -400,7 +435,260 @@ $distributionPercent = $event['total_books'] > 0
                 <?php endif; ?>
             </div>
 
-            <!-- Tab 2: Payment Status -->
+            <!-- Tab 2: Payment Method Report -->
+            <div id="payment-method" class="tab-content">
+                <h3>💳 Payment Method-Wise Collection Report</h3>
+                <p style="color: var(--gray-600); margin-bottom: var(--spacing-lg);">Shows total collections and percentages by payment method</p>
+
+                <?php if (count($paymentMethods) === 0): ?>
+                    <p style="text-align: center; color: var(--gray-500); padding: var(--spacing-xl);">No payments collected yet</p>
+                <?php else: ?>
+                    <!-- Summary Cards -->
+                    <div class="stats-grid" style="margin-bottom: var(--spacing-xl);">
+                        <?php foreach ($paymentMethods as $method): ?>
+                            <?php
+                                $percentage = $paymentStats['total_collected'] > 0
+                                    ? ($method['total_amount'] / $paymentStats['total_collected']) * 100
+                                    : 0;
+                                $icon = match($method['payment_method']) {
+                                    'cash' => '💵',
+                                    'upi' => '📱',
+                                    'bank' => '🏦',
+                                    default => '💳'
+                                };
+                            ?>
+                            <div class="stat-card" style="border-left: 4px solid var(--primary-color);">
+                                <div style="font-size: var(--font-size-2xl); margin-bottom: var(--spacing-xs);"><?php echo $icon; ?></div>
+                                <div class="stat-label" style="text-transform: uppercase; font-weight: 600; margin-bottom: var(--spacing-sm);">
+                                    <?php echo htmlspecialchars($method['payment_method']); ?>
+                                </div>
+                                <div class="stat-value" style="color: var(--success-color);">
+                                    ₹<?php echo number_format($method['total_amount'], 0); ?>
+                                </div>
+                                <div style="margin-top: var(--spacing-xs); color: var(--gray-600); font-size: var(--font-size-sm);">
+                                    <?php echo number_format($percentage, 2); ?>% of total
+                                </div>
+                                <div style="margin-top: var(--spacing-xs); color: var(--gray-500); font-size: var(--font-size-xs);">
+                                    <?php echo $method['transaction_count']; ?> transactions
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+
+                    <!-- Detailed Table -->
+                    <div class="table-responsive">
+                        <table class="table" id="paymentMethodTable">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Payment Method</th>
+                                    <th>Number of Transactions</th>
+                                    <th>Total Amount Collected</th>
+                                    <th>Percentage of Total</th>
+                                    <th>Average Transaction</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($paymentMethods as $index => $method):
+                                    $percentage = $paymentStats['total_collected'] > 0
+                                        ? ($method['total_amount'] / $paymentStats['total_collected']) * 100
+                                        : 0;
+                                    $avgTransaction = $method['transaction_count'] > 0
+                                        ? $method['total_amount'] / $method['transaction_count']
+                                        : 0;
+                                    $icon = match($method['payment_method']) {
+                                        'cash' => '💵',
+                                        'upi' => '📱',
+                                        'bank' => '🏦',
+                                        default => '💳'
+                                    };
+                                ?>
+                                    <tr>
+                                        <td><?php echo $index + 1; ?></td>
+                                        <td><strong><?php echo $icon; ?> <?php echo strtoupper(htmlspecialchars($method['payment_method'])); ?></strong></td>
+                                        <td><?php echo $method['transaction_count']; ?></td>
+                                        <td><strong>₹<?php echo number_format($method['total_amount'], 0); ?></strong></td>
+                                        <td>
+                                            <div style="display: flex; align-items: center; gap: var(--spacing-sm);">
+                                                <div style="flex: 1; height: 20px; background: var(--gray-200); border-radius: 10px; overflow: hidden;">
+                                                    <div style="width: <?php echo min($percentage, 100); ?>%; height: 100%; background: var(--success-color);"></div>
+                                                </div>
+                                                <span style="min-width: 60px; font-weight: 600;"><?php echo number_format($percentage, 2); ?>%</span>
+                                            </div>
+                                        </td>
+                                        <td>₹<?php echo number_format($avgTransaction, 0); ?></td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                            <tfoot>
+                                <tr style="font-weight: 700; background: var(--gray-50);">
+                                    <td colspan="2" style="text-align: right;">TOTAL:</td>
+                                    <td><?php echo array_sum(array_column($paymentMethods, 'transaction_count')); ?></td>
+                                    <td>₹<?php echo number_format($paymentStats['total_collected'], 0); ?></td>
+                                    <td>100%</td>
+                                    <td>-</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+
+                    <!-- Visual Chart -->
+                    <div style="margin-top: var(--spacing-xl);">
+                        <h4>Visual Breakdown</h4>
+                        <div style="background: white; padding: var(--spacing-xl); border-radius: var(--radius-md); box-shadow: var(--shadow-sm);">
+                            <?php foreach ($paymentMethods as $method):
+                                $percentage = $paymentStats['total_collected'] > 0
+                                    ? ($method['total_amount'] / $paymentStats['total_collected']) * 100
+                                    : 0;
+                            ?>
+                                <div style="margin-bottom: var(--spacing-lg);">
+                                    <div style="display: flex; justify-content: space-between; margin-bottom: var(--spacing-xs);">
+                                        <span style="font-weight: 600; text-transform: uppercase;"><?php echo htmlspecialchars($method['payment_method']); ?></span>
+                                        <span style="font-weight: 600; color: var(--success-color);">₹<?php echo number_format($method['total_amount'], 0); ?> (<?php echo number_format($percentage, 1); ?>%)</span>
+                                    </div>
+                                    <div style="height: 30px; background: var(--gray-100); border-radius: 15px; overflow: hidden;">
+                                        <div style="width: <?php echo min($percentage, 100); ?>%; height: 100%; background: linear-gradient(90deg, var(--primary-color), var(--success-color)); display: flex; align-items: center; justify-content: flex-end; padding-right: 10px; color: white; font-size: var(--font-size-xs); font-weight: 600;">
+                                            <?php if ($percentage > 15): ?>
+                                                <?php echo number_format($percentage, 1); ?>%
+                                            <?php endif; ?>
+                                        </div>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+                <?php endif; ?>
+            </div>
+
+            <!-- Tab 3: Date-Wise Collection -->
+            <div id="date-wise" class="tab-content">
+                <h3>📅 Date-Wise Payment Collection Report</h3>
+                <p style="color: var(--gray-600); margin-bottom: var(--spacing-lg);">Shows daily collection breakdown by payment method</p>
+
+                <?php if (count($dateWisePayments) === 0): ?>
+                    <p style="text-align: center; color: var(--gray-500); padding: var(--spacing-xl);">No payments collected yet</p>
+                <?php else: ?>
+                    <div class="table-responsive">
+                        <table class="table" id="dateWiseTable">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Payment Date</th>
+                                    <th>Payment Method</th>
+                                    <th>Number of Transactions</th>
+                                    <th>Amount Collected</th>
+                                    <th>Percentage of Total</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php
+                                $currentDate = null;
+                                $dateTotal = 0;
+                                $dateRowStart = 0;
+                                foreach ($dateWisePayments as $index => $payment):
+                                    $percentage = $paymentStats['total_collected'] > 0
+                                        ? ($payment['daily_amount'] / $paymentStats['total_collected']) * 100
+                                        : 0;
+                                    $icon = match($payment['payment_method']) {
+                                        'cash' => '💵',
+                                        'upi' => '📱',
+                                        'bank' => '🏦',
+                                        default => '💳'
+                                    };
+
+                                    // Check if date changed
+                                    if ($currentDate !== null && $currentDate !== $payment['payment_date']) {
+                                        // Output date subtotal
+                                        ?>
+                                        <tr style="background: var(--gray-100); font-weight: 600;">
+                                            <td colspan="4" style="text-align: right;">Subtotal for <?php echo date('M d, Y', strtotime($currentDate)); ?>:</td>
+                                            <td>₹<?php echo number_format($dateTotal, 0); ?></td>
+                                            <td><?php echo number_format(($dateTotal / $paymentStats['total_collected']) * 100, 2); ?>%</td>
+                                        </tr>
+                                        <?php
+                                        $dateTotal = 0;
+                                    }
+
+                                    $currentDate = $payment['payment_date'];
+                                    $dateTotal += $payment['daily_amount'];
+                                ?>
+                                    <tr>
+                                        <td><?php echo $index + 1; ?></td>
+                                        <td><strong><?php echo date('M d, Y', strtotime($payment['payment_date'])); ?></strong> <small style="color: var(--gray-500);">(<?php echo date('D', strtotime($payment['payment_date'])); ?>)</small></td>
+                                        <td><?php echo $icon; ?> <?php echo strtoupper(htmlspecialchars($payment['payment_method'])); ?></td>
+                                        <td><?php echo $payment['transaction_count']; ?></td>
+                                        <td><strong>₹<?php echo number_format($payment['daily_amount'], 0); ?></strong></td>
+                                        <td>
+                                            <div style="display: flex; align-items: center; gap: var(--spacing-sm);">
+                                                <div style="flex: 1; max-width: 100px; height: 15px; background: var(--gray-200); border-radius: 8px; overflow: hidden;">
+                                                    <div style="width: <?php echo min($percentage, 100); ?>%; height: 100%; background: var(--primary-color);"></div>
+                                                </div>
+                                                <span style="min-width: 50px; font-size: var(--font-size-sm);"><?php echo number_format($percentage, 2); ?>%</span>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                <?php
+                                endforeach;
+
+                                // Output final date subtotal
+                                if ($currentDate !== null):
+                                ?>
+                                    <tr style="background: var(--gray-100); font-weight: 600;">
+                                        <td colspan="4" style="text-align: right;">Subtotal for <?php echo date('M d, Y', strtotime($currentDate)); ?>:</td>
+                                        <td>₹<?php echo number_format($dateTotal, 0); ?></td>
+                                        <td><?php echo number_format(($dateTotal / $paymentStats['total_collected']) * 100, 2); ?>%</td>
+                                    </tr>
+                                <?php endif; ?>
+                            </tbody>
+                            <tfoot>
+                                <tr style="font-weight: 700; background: var(--success-light);">
+                                    <td colspan="3" style="text-align: right;">GRAND TOTAL:</td>
+                                    <td><?php echo array_sum(array_column($dateWisePayments, 'transaction_count')); ?></td>
+                                    <td>₹<?php echo number_format($paymentStats['total_collected'], 0); ?></td>
+                                    <td>100%</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+
+                    <!-- Daily Summary -->
+                    <div style="margin-top: var(--spacing-xl);">
+                        <h4>Daily Collection Summary</h4>
+                        <div class="stats-grid">
+                            <?php
+                            // Get unique dates and calculate daily totals
+                            $dailyTotals = [];
+                            foreach ($dateWisePayments as $payment) {
+                                $date = $payment['payment_date'];
+                                if (!isset($dailyTotals[$date])) {
+                                    $dailyTotals[$date] = 0;
+                                }
+                                $dailyTotals[$date] += $payment['daily_amount'];
+                            }
+
+                            // Sort by date descending and show top days
+                            arsort($dailyTotals);
+                            $topDays = array_slice($dailyTotals, 0, 4, true);
+
+                            foreach ($topDays as $date => $total):
+                                $percentage = $paymentStats['total_collected'] > 0
+                                    ? ($total / $paymentStats['total_collected']) * 100
+                                    : 0;
+                            ?>
+                                <div class="stat-card">
+                                    <div class="stat-label"><?php echo date('M d, Y', strtotime($date)); ?></div>
+                                    <div class="stat-value" style="color: var(--primary-color);">₹<?php echo number_format($total, 0); ?></div>
+                                    <div style="margin-top: var(--spacing-xs); font-size: var(--font-size-sm); color: var(--gray-600);">
+                                        <?php echo number_format($percentage, 2); ?>% of total
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+                <?php endif; ?>
+            </div>
+
+            <!-- Tab 4: Payment Status -->
             <div id="payment-status" class="tab-content">
                 <h3>Payment Status Breakdown</h3>
                 <div class="stats-grid" style="margin-top: var(--spacing-lg);">
