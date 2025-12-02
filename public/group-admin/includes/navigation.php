@@ -22,6 +22,18 @@ $currentPage = basename($_SERVER['PHP_SELF']);
         align-items: center;
         padding: 0;
     }
+
+    /* Hamburger Button */
+    .nav-toggle {
+        display: none;
+        background: none;
+        border: none;
+        font-size: 24px;
+        padding: var(--spacing-md);
+        cursor: pointer;
+        color: var(--gray-700);
+    }
+
     .nav-links {
         display: flex;
         gap: 0;
@@ -58,25 +70,59 @@ $currentPage = basename($_SERVER['PHP_SELF']);
         align-items: center;
         padding: var(--spacing-md);
     }
+
+    /* Mobile Styles */
     @media (max-width: 768px) {
-        .nav-links {
-            flex-direction: column;
-            width: 100%;
+        .nav-toggle {
+            display: block;
         }
+
         .main-nav .container {
-            flex-direction: column;
+            flex-wrap: wrap;
         }
-        .nav-right {
+
+        .nav-links {
+            display: none;
+            flex-direction: column;
             width: 100%;
-            justify-content: center;
-            border-top: 1px solid var(--gray-200);
+            order: 3;
+        }
+
+        .nav-links.active {
+            display: flex;
+        }
+
+        .nav-link {
+            border-bottom: none;
+            border-left: 3px solid transparent;
+            padding: var(--spacing-md) var(--spacing-lg);
+        }
+
+        .nav-link.active {
+            border-left-color: var(--primary-color);
+            border-bottom-color: transparent;
+        }
+
+        .nav-right {
+            order: 2;
+            padding: var(--spacing-sm) var(--spacing-md);
+        }
+
+        .nav-right .btn {
+            padding: 8px 16px;
+            font-size: 14px;
         }
     }
 </style>
 
 <nav class="main-nav">
     <div class="container">
-        <ul class="nav-links">
+        <!-- Hamburger Button (Mobile Only) -->
+        <button class="nav-toggle" id="navToggle" aria-label="Toggle navigation">
+            ☰
+        </button>
+
+        <ul class="nav-links" id="navLinks">
             <li>
                 <a href="/public/group-admin/dashboard.php"
                    class="nav-link <?php echo $currentPage === 'dashboard.php' ? 'active' : ''; ?>">
@@ -109,3 +155,40 @@ $currentPage = basename($_SERVER['PHP_SELF']);
         </div>
     </div>
 </nav>
+
+<script>
+// Hamburger menu toggle
+(function() {
+    const navToggle = document.getElementById('navToggle');
+    const navLinks = document.getElementById('navLinks');
+
+    if (navToggle && navLinks) {
+        navToggle.addEventListener('click', function() {
+            navLinks.classList.toggle('active');
+            // Change icon
+            this.textContent = navLinks.classList.contains('active') ? '✕' : '☰';
+        });
+
+        // Close menu when clicking on a link (mobile)
+        const links = navLinks.querySelectorAll('.nav-link');
+        links.forEach(link => {
+            link.addEventListener('click', function() {
+                if (window.innerWidth <= 768) {
+                    navLinks.classList.remove('active');
+                    navToggle.textContent = '☰';
+                }
+            });
+        });
+
+        // Close menu when clicking outside
+        document.addEventListener('click', function(event) {
+            if (window.innerWidth <= 768) {
+                if (!navToggle.contains(event.target) && !navLinks.contains(event.target)) {
+                    navLinks.classList.remove('active');
+                    navToggle.textContent = '☰';
+                }
+            }
+        });
+    }
+})();
+</script>
