@@ -160,6 +160,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['bulk_assign'])) {
     }
 }
 
+// Handle success messages
+if (isset($_GET['success'])) {
+    $success = match($_GET['success']) {
+        'reassigned' => 'Book reassigned successfully to new location',
+        default => ''
+    };
+}
+
 // Get filter and search
 $filter = $_GET['filter'] ?? 'all';
 $search = Validator::sanitizeString($_GET['search'] ?? '');
@@ -198,7 +206,7 @@ if (!empty($search)) {
     }
 }
 
-$query = "SELECT lb.*, bd.notes, bd.mobile_number, bd.distribution_path
+$query = "SELECT lb.*, bd.notes, bd.mobile_number, bd.distribution_path, bd.distribution_id
           FROM lottery_books lb
           LEFT JOIN book_distribution bd ON lb.book_id = bd.book_id
           WHERE {$whereClause}
@@ -378,17 +386,30 @@ $stats = $statsStmt->fetch();
 
         <!-- Help Box -->
         <div class="help-box mb-3">
-            <h4>💡 How to Assign Books</h4>
+            <h4>💡 How to Assign & Reassign Books</h4>
             <ul>
-                <li><strong>Step 1:</strong> Use search above to find specific books by ticket number or range</li>
-                <li><strong>Step 2:</strong> Select books using checkboxes (only available books can be selected)</li>
-                <?php if (count($levels) > 0): ?>
-                    <li><strong>Step 3:</strong> Fill in required distribution levels: <?php echo implode(', ', array_column($levels, 'level_name')); ?></li>
-                <?php endif; ?>
-                <li><strong>Step 4:</strong> Optionally add notes and mobile number</li>
-                <li><strong>Step 5:</strong> Click "Assign Selected Books" to complete</li>
+                <li><strong>Assign Books (First Time):</strong>
+                    <ol style="margin: var(--spacing-xs) 0;">
+                        <li>Use search above to find specific books by ticket number or range</li>
+                        <li>Select available books using checkboxes</li>
+                        <?php if (count($levels) > 0): ?>
+                            <li>Fill in required distribution levels: <?php echo implode(', ', array_column($levels, 'level_name')); ?></li>
+                        <?php endif; ?>
+                        <li>Optionally add notes and mobile number</li>
+                        <li>Click "Assign Selected Books" to complete</li>
+                    </ol>
+                </li>
+                <li><strong>Reassign Books (Fix Wrong Assignment):</strong>
+                    <ol style="margin: var(--spacing-xs) 0;">
+                        <li>Find the incorrectly assigned book in the table</li>
+                        <li>Click the <span class="badge badge-warning" style="display: inline-block; padding: 4px 8px;">🔄 Reassign</span> button in the Actions column</li>
+                        <li>Select the correct distribution location</li>
+                        <li>Update mobile number and notes if needed</li>
+                        <li>Click "Reassign Book" to save changes</li>
+                    </ol>
+                </li>
             </ul>
-            <p style="margin: 0;"><strong>Tip:</strong> Use filters below to view Available or Assigned books separately</p>
+            <p style="margin: 0;"><strong>Tip:</strong> Use filters below to view Available or Assigned books separately. Reassigning does NOT affect existing payment records.</p>
         </div>
 
         <!-- Filter Tabs -->
@@ -591,8 +612,13 @@ $stats = $statsStmt->fetch();
                                                 <a href="/public/group-admin/lottery-book-assign.php?book_id=<?php echo $book['book_id']; ?>&event_id=<?php echo $eventId; ?>"
                                                    class="btn btn-sm btn-primary">Assign</a>
                                             <?php else: ?>
-                                                <a href="/public/group-admin/lottery-payments.php?id=<?php echo $eventId; ?>"
-                                                   class="btn btn-sm btn-success">View Payments</a>
+                                                <div style="display: flex; gap: var(--spacing-xs); flex-wrap: wrap;">
+                                                    <a href="/public/group-admin/lottery-payments.php?id=<?php echo $eventId; ?>"
+                                                       class="btn btn-sm btn-success">View Payments</a>
+                                                    <a href="/public/group-admin/lottery-book-reassign.php?dist_id=<?php echo $book['distribution_id']; ?>"
+                                                       class="btn btn-sm btn-warning"
+                                                       title="Change assignment to different unit">🔄 Reassign</a>
+                                                </div>
                                             <?php endif; ?>
                                         </td>
                                     </tr>
