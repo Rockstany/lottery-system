@@ -141,7 +141,7 @@ $success = $_GET['success'] ?? '';
             <ul>
                 <li><a href="/public/group-admin/dashboard.php">Dashboard</a></li>
                 <li><a href="/public/group-admin/transactions.php" style="font-weight: 600;">Transaction Collection</a></li>
-                <li><a href="#lottery">Lottery System</a></li>
+                <li><a href="/public/group-admin/lottery.php">Lottery System</a></li>
                 <li><a href="/public/logout.php">Logout</a></li>
             </ul>
         </nav>
