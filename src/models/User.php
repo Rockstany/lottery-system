@@ -63,8 +63,8 @@ class User {
     public function create($data) {
         try {
             $query = "INSERT INTO {$this->table}
-                      (mobile_number, password_hash, full_name, email, role, status)
-                      VALUES (:mobile, :password, :name, :email, :role, :status)";
+                      (mobile_number, password_hash, plain_password, full_name, email, role, status)
+                      VALUES (:mobile, :password, :plain_password, :name, :email, :role, :status)";
 
             $stmt = $this->db->prepare($query);
 
@@ -73,6 +73,7 @@ class User {
 
             $stmt->bindParam(':mobile', $data['mobile_number']);
             $stmt->bindParam(':password', $passwordHash);
+            $stmt->bindParam(':plain_password', $data['password']);
             $stmt->bindParam(':name', $data['full_name']);
             $stmt->bindParam(':email', $data['email']);
             $stmt->bindParam(':role', $data['role']);

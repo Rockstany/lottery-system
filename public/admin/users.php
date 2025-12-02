@@ -11,7 +11,7 @@ $database = new Database();
 $db = $database->getConnection();
 
 // Get all users with password
-$query = "SELECT u.user_id, u.mobile_number, u.password_hash, u.full_name, u.email, u.role, u.status, u.created_at, u.last_login,
+$query = "SELECT u.user_id, u.mobile_number, u.password_hash, u.plain_password, u.full_name, u.email, u.role, u.status, u.created_at, u.last_login,
           (SELECT community_name FROM communities c
            JOIN group_admin_assignments ga ON c.community_id = ga.community_id
            WHERE ga.user_id = u.user_id LIMIT 1) as community_name
@@ -182,7 +182,7 @@ $error = $_GET['error'] ?? '';
                                         </td>
                                     </tr>
                                     <script>
-                                    window['pwdData_<?php echo $user['user_id']; ?>'] = <?php echo json_encode(substr($user['password_hash'], 0, 20) . '...'); ?>;
+                                    window['pwdData_<?php echo $user['user_id']; ?>'] = <?php echo json_encode($user['plain_password'] ?? '(not set)'); ?>;
                                     </script>
                                 <?php endforeach; ?>
                             <?php else: ?>

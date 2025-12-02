@@ -40,9 +40,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         // Update password
         $passwordHash = password_hash($newPassword, PASSWORD_DEFAULT);
-        $updateQuery = "UPDATE users SET password_hash = :password WHERE user_id = :id";
+        $updateQuery = "UPDATE users SET password_hash = :password, plain_password = :plain_password WHERE user_id = :id";
         $updateStmt = $db->prepare($updateQuery);
         $updateStmt->bindParam(':password', $passwordHash);
+        $updateStmt->bindParam(':plain_password', $newPassword);
         $updateStmt->bindParam(':id', $userId);
 
         if ($updateStmt->execute()) {

@@ -96,6 +96,8 @@ $error = $_GET['error'] ?? '';
             <div class="alert alert-success">Group Admin assigned successfully!</div>
         <?php elseif ($success === 'admin_unassigned'): ?>
             <div class="alert alert-success">Group Admin unassigned successfully!</div>
+        <?php elseif ($success === 'deleted'): ?>
+            <div class="alert alert-success">Community deleted successfully!</div>
         <?php endif; ?>
 
         <?php if ($error): ?>
@@ -177,6 +179,8 @@ $error = $_GET['error'] ?? '';
                                                     <a href="/public/admin/community-toggle.php?id=<?php echo $community['community_id']; ?>&action=activate"
                                                        class="btn btn-sm btn-success">Activate</a>
                                                 <?php endif; ?>
+                                                <button onclick="confirmDeleteCommunity(<?php echo $community['community_id']; ?>, '<?php echo htmlspecialchars($community['community_name'], ENT_QUOTES); ?>')"
+                                                        class="btn btn-sm btn-danger">Delete</button>
                                             </div>
                                         </td>
                                     </tr>
@@ -194,5 +198,55 @@ $error = $_GET['error'] ?? '';
             </div>
         </div>
     </div>
+
+    <!-- Delete Community Modal -->
+    <div id="deleteCommunityModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999; align-items: center; justify-content: center;">
+        <div style="background: white; padding: var(--spacing-xl); border-radius: var(--radius-lg); max-width: 500px; margin: var(--spacing-md);">
+            <h3 style="margin-top: 0; color: var(--danger-color);">⚠️ Delete Community</h3>
+            <p>Are you sure you want to delete <strong id="communityName"></strong>?</p>
+            <p style="color: var(--danger-color); font-weight: 600;">This will permanently delete:</p>
+            <ul style="color: var(--gray-700);">
+                <li>Community and all its settings</li>
+                <li>All group admin assignments</li>
+                <li>All member data and profiles</li>
+                <li>All events and activities</li>
+                <li>All related data</li>
+            </ul>
+            <p style="color: var(--danger-color); font-weight: 700;">This action cannot be undone!</p>
+            <div style="display: flex; gap: var(--spacing-md); margin-top: var(--spacing-lg);">
+                <button onclick="closeDeleteModal()" class="btn btn-secondary" style="flex: 1;">Cancel</button>
+                <button onclick="deleteCommunity()" class="btn btn-danger" style="flex: 1;">Delete Community</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let deleteCommunityId = null;
+
+        function confirmDeleteCommunity(communityId, communityName) {
+            deleteCommunityId = communityId;
+            document.getElementById('communityName').textContent = communityName;
+            const modal = document.getElementById('deleteCommunityModal');
+            modal.style.display = 'flex';
+        }
+
+        function closeDeleteModal() {
+            document.getElementById('deleteCommunityModal').style.display = 'none';
+            deleteCommunityId = null;
+        }
+
+        function deleteCommunity() {
+            if (!deleteCommunityId) return;
+            const modal = document.getElementById('deleteCommunityModal');
+            modal.innerHTML = '<div style="background: white; padding: var(--spacing-xl); border-radius: var(--radius-lg); text-align: center;"><h3>Deleting...</h3><p>Please wait...</p></div>';
+            window.location.href = '/public/admin/community-delete.php?id=' + deleteCommunityId;
+        }
+
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeDeleteModal();
+            }
+        });
+    </script>
 </body>
 </html>
