@@ -107,6 +107,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <link rel="stylesheet" href="/public/css/main.css">
     <link rel="stylesheet" href="/public/css/enhancements.css">
     <link rel="stylesheet" href="/public/css/lottery-responsive.css">
+    <script src="/public/js/toast.js"></script>
 </head>
 <body>
     <?php include __DIR__ . '/includes/navigation.php'; ?>
@@ -119,13 +120,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
 
     <div class="container main-content">
-        <?php if ($error): ?>
-            <div class="alert alert-danger"><?php echo $error; ?></div>
-        <?php endif; ?>
+        <!-- Back Button at Top -->
+        <div style="margin-bottom: var(--spacing-lg);">
+            <a href="/public/group-admin/lottery.php" class="btn btn-secondary">← Back to Events</a>
+            <?php if ($settings && $settings['commission_enabled']): ?>
+                <a href="/public/group-admin/lottery-commission-report.php?id=<?php echo $eventId; ?>" class="btn btn-success">View Commission Report →</a>
+            <?php endif; ?>
+        </div>
 
-        <?php if ($success): ?>
-            <div class="alert alert-success"><?php echo $success; ?></div>
-        <?php endif; ?>
+        <?php include __DIR__ . '/includes/toast-handler.php'; ?>
 
         <!-- Help Box -->
         <div class="help-box mb-3" style="background: var(--info-light); border-left: 4px solid var(--info-color); padding: var(--spacing-lg); border-radius: var(--radius-md);">
@@ -219,13 +222,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
                 </form>
             </div>
-        </div>
-
-        <div class="button-group-mobile mt-3">
-            <a href="/public/group-admin/lottery.php" class="btn btn-secondary">← Back to Events</a>
-            <?php if ($settings && $settings['commission_enabled']): ?>
-                <a href="/public/group-admin/lottery-commission-report.php?id=<?php echo $eventId; ?>" class="btn btn-success">View Commission Report →</a>
-            <?php endif; ?>
         </div>
     </div>
 </body>

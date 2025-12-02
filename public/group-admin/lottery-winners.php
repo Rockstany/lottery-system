@@ -150,6 +150,7 @@ $prizeCounts = [
     <link rel="stylesheet" href="/public/css/main.css">
     <link rel="stylesheet" href="/public/css/enhancements.css">
     <link rel="stylesheet" href="/public/css/lottery-responsive.css">
+    <script src="/public/js/toast.js"></script>
 </head>
 <body>
     <?php include __DIR__ . '/includes/navigation.php'; ?>
@@ -162,12 +163,26 @@ $prizeCounts = [
     </div>
 
     <div class="container main-content">
+        <!-- Back Button at Top -->
+        <div style="margin-bottom: var(--spacing-lg);">
+            <a href="/public/group-admin/lottery.php" class="btn btn-secondary">← Back to Events</a>
+            <a href="/public/group-admin/lottery-reports.php?id=<?php echo $eventId; ?>" class="btn btn-primary">View Reports</a>
+        </div>
+
         <?php if ($error): ?>
-            <div class="alert alert-danger"><?php echo $error; ?></div>
+            <script>
+                document.addEventListener('DOMContentLoaded', function() {
+                    Toast.error(<?php echo json_encode($error); ?>);
+                });
+            </script>
         <?php endif; ?>
 
         <?php if ($success): ?>
-            <div class="alert alert-success"><?php echo $success; ?></div>
+            <script>
+                document.addEventListener('DOMContentLoaded', function() {
+                    Toast.success(<?php echo json_encode($success); ?>);
+                });
+            </script>
         <?php endif; ?>
 
         <!-- Stats -->
@@ -302,11 +317,6 @@ $prizeCounts = [
                     </div>
                 <?php endif; ?>
             </div>
-        </div>
-
-        <div class="button-group-mobile mt-3">
-            <a href="/public/group-admin/lottery.php" class="btn btn-secondary">← Back to Events</a>
-            <a href="/public/group-admin/lottery-reports.php?id=<?php echo $eventId; ?>" class="btn btn-primary">View Reports</a>
         </div>
     </div>
 </body>
