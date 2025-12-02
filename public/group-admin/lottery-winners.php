@@ -31,6 +31,13 @@ if (!$event) {
     exit;
 }
 
+// Get distribution levels for dynamic columns
+$levelsQuery = "SELECT * FROM distribution_levels WHERE event_id = :event_id ORDER BY level_number";
+$stmt = $db->prepare($levelsQuery);
+$stmt->bindParam(':event_id', $eventId);
+$stmt->execute();
+$levels = $stmt->fetchAll();
+
 $error = '';
 $success = '';
 
@@ -249,7 +256,9 @@ $prizeCounts = [
                                     <th>Prize</th>
                                     <th>Ticket No</th>
                                     <th>Book #</th>
-                                    <th>Location</th>
+                                    <?php foreach ($levels as $level): ?>
+                                        <th><?php echo htmlspecialchars($level['level_name']); ?></th>
+                                    <?php endforeach; ?>
                                     <th>Winner Name</th>
                                     <th>Contact</th>
                                     <th>Actions</th>
@@ -266,7 +275,17 @@ $prizeCounts = [
                                         </td>
                                         <td><strong><?php echo $winner['ticket_number']; ?></strong></td>
                                         <td><?php echo $winner['book_number']; ?></td>
-                                        <td><?php echo htmlspecialchars($winner['distribution_path'] ?? '-'); ?></td>
+                                        <?php
+                                        // Parse distribution path into level values
+                                        $levelValues = [];
+                                        if (!empty($winner['distribution_path'])) {
+                                            $levelValues = explode(' > ', $winner['distribution_path']);
+                                        }
+                                        // Display each level value
+                                        for ($i = 0; $i < count($levels); $i++) {
+                                            echo '<td>' . htmlspecialchars($levelValues[$i] ?? '-') . '</td>';
+                                        }
+                                        ?>
                                         <td><?php echo htmlspecialchars($winner['winner_name'] ?? '-'); ?></td>
                                         <td><?php echo htmlspecialchars($winner['winner_contact'] ?? '-'); ?></td>
                                         <td>

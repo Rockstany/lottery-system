@@ -35,6 +35,13 @@ if (!$book) {
 $expectedAmount = $book['tickets_per_book'] * $book['price_per_ticket'];
 $outstanding = $expectedAmount - $book['total_paid'];
 
+// Get distribution levels for dynamic display
+$levelsQuery = "SELECT * FROM distribution_levels WHERE event_id = :event_id ORDER BY level_number";
+$levelsStmt = $db->prepare($levelsQuery);
+$levelsStmt->bindParam(':event_id', $book['event_id']);
+$levelsStmt->execute();
+$levels = $levelsStmt->fetchAll();
+
 $error = '';
 $success = '';
 
@@ -215,7 +222,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <div class="info-box">
                             <div style="margin-bottom: var(--spacing-sm);"><strong>Event:</strong> <?php echo htmlspecialchars($book['event_name']); ?></div>
                             <div style="margin-bottom: var(--spacing-sm);"><strong>Book:</strong> #<?php echo $book['book_number']; ?></div>
-                            <div style="margin-bottom: var(--spacing-sm);"><strong>Location:</strong> <?php echo htmlspecialchars($book['distribution_path'] ?? '-'); ?></div>
+                            <?php
+                            // Display dynamic level values
+                            if (!empty($book['distribution_path'])) {
+                                $levelValues = explode(' > ', $book['distribution_path']);
+                                foreach ($levels as $index => $level) {
+                                    $value = $levelValues[$index] ?? '-';
+                                    echo '<div style="margin-bottom: var(--spacing-sm);"><strong>' . htmlspecialchars($level['level_name']) . ':</strong> ' . htmlspecialchars($value) . '</div>';
+                                }
+                            }
+                            ?>
                             <div style="margin-bottom: var(--spacing-sm);"><strong>Notes:</strong> <?php echo htmlspecialchars($book['notes'] ?? '-'); ?></div>
                             <div style="margin-bottom: var(--spacing-sm);"><strong>Mobile:</strong> <?php echo htmlspecialchars($book['mobile_number'] ?? '-'); ?></div>
                             <div style="margin-bottom: var(--spacing-sm);"><strong>Expected:</strong> ₹<?php echo number_format($expectedAmount); ?></div>

@@ -29,6 +29,13 @@ if (!$event) {
     exit;
 }
 
+// Get distribution levels for dynamic columns
+$levelsQuery = "SELECT * FROM distribution_levels WHERE event_id = :event_id ORDER BY level_number";
+$stmt = $db->prepare($levelsQuery);
+$stmt->bindParam(':event_id', $eventId);
+$stmt->execute();
+$levels = $stmt->fetchAll();
+
 // Get comprehensive statistics
 $statsQuery = "SELECT
     COUNT(*) as total_books,
@@ -330,7 +337,9 @@ $distributionPercent = $event['total_books'] > 0
                             <thead>
                                 <tr>
                                     <th>#</th>
-                                    <th>Location</th>
+                                    <?php foreach ($levels as $level): ?>
+                                        <th><?php echo htmlspecialchars($level['level_name']); ?></th>
+                                    <?php endforeach; ?>
                                     <th>Notes</th>
                                     <th>Mobile</th>
                                     <th>Book No.</th>
@@ -346,7 +355,17 @@ $distributionPercent = $event['total_books'] > 0
                                 <?php foreach ($members as $index => $member): ?>
                                     <tr>
                                         <td><?php echo $index + 1; ?></td>
-                                        <td><?php echo htmlspecialchars($member['distribution_path'] ?? '-'); ?></td>
+                                        <?php
+                                        // Parse distribution path into level values
+                                        $levelValues = [];
+                                        if (!empty($member['distribution_path'])) {
+                                            $levelValues = explode(' > ', $member['distribution_path']);
+                                        }
+                                        // Display each level value
+                                        for ($i = 0; $i < count($levels); $i++) {
+                                            echo '<td>' . htmlspecialchars($levelValues[$i] ?? '-') . '</td>';
+                                        }
+                                        ?>
                                         <td><?php echo htmlspecialchars($member['notes'] ?? '-'); ?></td>
                                         <td><?php echo htmlspecialchars($member['mobile_number'] ?? '-'); ?></td>
                                         <td>#<?php echo $member['book_number']; ?></td>
