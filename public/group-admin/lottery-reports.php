@@ -414,6 +414,9 @@ $commissionEnabled = $commissionSettings && (
                 <button class="tab" onclick="switchTab(event, 'date-wise')">Date-Wise Collection</button>
                 <button class="tab" onclick="switchTab(event, 'payment-status')">Payment Status</button>
                 <button class="tab" onclick="switchTab(event, 'book-status')">Book Status</button>
+                <?php if ($commissionEnabled): ?>
+                    <button class="tab" onclick="switchTab(event, 'commission')">💰 Commission</button>
+                <?php endif; ?>
                 <button class="tab" onclick="switchTab(event, 'summary')">Summary</button>
             </div>
 
@@ -863,6 +866,235 @@ $commissionEnabled = $commissionSettings && (
                 </div>
             </div>
         </div>
+
+        <!-- Tab 5: Commission Summary -->
+        <?php if ($commissionEnabled): ?>
+            <div id="commission" class="tab-content">
+                <h3>💰 Commission Summary Report</h3>
+                <p style="color: var(--gray-600); margin-bottom: var(--spacing-lg);">Breakdown of commission earned by type and distribution level</p>
+
+                <?php if (count($commissionStats) === 0): ?>
+                    <p style="text-align: center; color: var(--gray-500); padding: var(--spacing-xl);">No commission data available yet</p>
+                <?php else: ?>
+                    <!-- Total Commission Card -->
+                    <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: var(--spacing-xl); border-radius: var(--radius-lg); margin-bottom: var(--spacing-xl); box-shadow: var(--shadow-lg);">
+                        <div style="text-align: center;">
+                            <div style="font-size: var(--font-size-sm); opacity: 0.9; margin-bottom: var(--spacing-xs);">TOTAL COMMISSION EARNED</div>
+                            <div style="font-size: 3rem; font-weight: 700;">₹<?php echo number_format($totalCommission, 2); ?></div>
+                        </div>
+                    </div>
+
+                    <!-- Commission by Type - Summary Cards -->
+                    <h4 style="margin-bottom: var(--spacing-md);">Commission by Type</h4>
+                    <div class="stats-grid" style="margin-bottom: var(--spacing-xl);">
+                        <?php foreach ($commissionStats as $comm): ?>
+                            <?php
+                                $percentage = $totalCommission > 0
+                                    ? ($comm['total_commission_earned'] / $totalCommission) * 100
+                                    : 0;
+                                $icon = match($comm['commission_type']) {
+                                    'early' => '🏃',
+                                    'standard' => '💼',
+                                    'extra_books' => '📚',
+                                    default => '💰'
+                                };
+                                $label = match($comm['commission_type']) {
+                                    'early' => 'Early Payment',
+                                    'standard' => 'Standard Payment',
+                                    'extra_books' => 'Extra Books',
+                                    default => ucfirst($comm['commission_type'])
+                                };
+                                $color = match($comm['commission_type']) {
+                                    'early' => '#10b981',
+                                    'standard' => '#3b82f6',
+                                    'extra_books' => '#f59e0b',
+                                    default => '#6366f1'
+                                };
+                            ?>
+                            <div class="stat-card" style="border-left: 4px solid <?php echo $color; ?>;">
+                                <div style="font-size: var(--font-size-2xl); margin-bottom: var(--spacing-xs);"><?php echo $icon; ?></div>
+                                <div class="stat-label" style="font-weight: 600; margin-bottom: var(--spacing-sm);">
+                                    <?php echo htmlspecialchars($label); ?>
+                                </div>
+                                <div class="stat-value" style="color: <?php echo $color; ?>;">
+                                    ₹<?php echo number_format($comm['total_commission_earned'], 2); ?>
+                                </div>
+                                <div style="margin-top: var(--spacing-xs); color: var(--gray-600); font-size: var(--font-size-sm);">
+                                    <?php echo number_format($percentage, 2); ?>% of total
+                                </div>
+                                <div style="margin-top: var(--spacing-xs); color: var(--gray-500); font-size: var(--font-size-xs);">
+                                    <?php echo $comm['payment_count']; ?> payments • Avg: <?php echo number_format($comm['avg_commission_percent'], 2); ?>%
+                                </div>
+                                <div style="margin-top: var(--spacing-xs); padding-top: var(--spacing-xs); border-top: 1px solid var(--gray-200); color: var(--gray-600); font-size: var(--font-size-xs);">
+                                    Payment Total: ₹<?php echo number_format($comm['total_payment_amount'], 2); ?>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+
+                    <!-- Detailed Table by Type -->
+                    <div class="table-responsive" style="margin-bottom: var(--spacing-xl);">
+                        <table class="table" id="commissionTypeTable">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Commission Type</th>
+                                    <th>Number of Payments</th>
+                                    <th>Total Payment Amount</th>
+                                    <th>Avg Commission %</th>
+                                    <th>Total Commission Earned</th>
+                                    <th>% of Total Commission</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($commissionStats as $index => $comm):
+                                    $percentage = $totalCommission > 0
+                                        ? ($comm['total_commission_earned'] / $totalCommission) * 100
+                                        : 0;
+                                    $icon = match($comm['commission_type']) {
+                                        'early' => '🏃',
+                                        'standard' => '💼',
+                                        'extra_books' => '📚',
+                                        default => '💰'
+                                    };
+                                    $label = match($comm['commission_type']) {
+                                        'early' => 'Early Payment',
+                                        'standard' => 'Standard Payment',
+                                        'extra_books' => 'Extra Books',
+                                        default => ucfirst($comm['commission_type'])
+                                    };
+                                ?>
+                                    <tr>
+                                        <td><?php echo $index + 1; ?></td>
+                                        <td><strong><?php echo $icon; ?> <?php echo htmlspecialchars($label); ?></strong></td>
+                                        <td><?php echo $comm['payment_count']; ?></td>
+                                        <td>₹<?php echo number_format($comm['total_payment_amount'], 2); ?></td>
+                                        <td><?php echo number_format($comm['avg_commission_percent'], 2); ?>%</td>
+                                        <td><strong style="color: var(--success-color);">₹<?php echo number_format($comm['total_commission_earned'], 2); ?></strong></td>
+                                        <td>
+                                            <div style="display: flex; align-items: center; gap: var(--spacing-sm);">
+                                                <div style="flex: 1; height: 20px; background: var(--gray-200); border-radius: 10px; overflow: hidden;">
+                                                    <div style="width: <?php echo min($percentage, 100); ?>%; height: 100%; background: var(--success-color);"></div>
+                                                </div>
+                                                <span style="min-width: 60px; font-weight: 600;"><?php echo number_format($percentage, 2); ?>%</span>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                            <tfoot>
+                                <tr style="font-weight: 700; background: var(--gray-50);">
+                                    <td colspan="2" style="text-align: right;">TOTAL:</td>
+                                    <td><?php echo array_sum(array_column($commissionStats, 'payment_count')); ?></td>
+                                    <td>₹<?php echo number_format(array_sum(array_column($commissionStats, 'total_payment_amount')), 2); ?></td>
+                                    <td>-</td>
+                                    <td>₹<?php echo number_format($totalCommission, 2); ?></td>
+                                    <td>100%</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+
+                    <!-- Commission by Level 1 -->
+                    <h4 style="margin-bottom: var(--spacing-md);">Commission Breakdown by Distribution Level (Level 1)</h4>
+                    <div class="table-responsive">
+                        <table class="table" id="commissionLevelTable">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Level 1 Name</th>
+                                    <th>Commission Type</th>
+                                    <th>Number of Payments</th>
+                                    <th>Total Payment Amount</th>
+                                    <th>Commission Earned</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php
+                                $rowNum = 1;
+                                $currentLevel = null;
+                                $levelTotal = 0;
+                                $levelPaymentTotal = 0;
+                                $levelCount = 0;
+                                $levelRowStart = 0;
+
+                                foreach ($commissionByLevel as $index => $comm):
+                                    // Calculate level totals when level changes
+                                    if ($currentLevel !== null && $currentLevel !== $comm['level_1_value']) {
+                                        ?>
+                                        <tr style="background: var(--gray-100); font-weight: 600;">
+                                            <td colspan="3" style="text-align: right;">Subtotal for <?php echo htmlspecialchars($currentLevel); ?>:</td>
+                                            <td><?php echo $levelCount; ?></td>
+                                            <td>₹<?php echo number_format($levelPaymentTotal, 2); ?></td>
+                                            <td style="color: var(--success-color);">₹<?php echo number_format($levelTotal, 2); ?></td>
+                                        </tr>
+                                        <?php
+                                        $levelTotal = 0;
+                                        $levelPaymentTotal = 0;
+                                        $levelCount = 0;
+                                    }
+
+                                    $currentLevel = $comm['level_1_value'];
+                                    $levelTotal += $comm['total_commission'];
+                                    $levelPaymentTotal += $comm['total_payment'];
+                                    $levelCount += $comm['payment_count'];
+
+                                    $icon = match($comm['commission_type']) {
+                                        'early' => '🏃',
+                                        'standard' => '💼',
+                                        'extra_books' => '📚',
+                                        default => '💰'
+                                    };
+                                    $label = match($comm['commission_type']) {
+                                        'early' => 'Early Payment',
+                                        'standard' => 'Standard Payment',
+                                        'extra_books' => 'Extra Books',
+                                        default => ucfirst($comm['commission_type'])
+                                    };
+                                ?>
+                                    <tr>
+                                        <td><?php echo $rowNum++; ?></td>
+                                        <td><strong><?php echo htmlspecialchars($comm['level_1_value']); ?></strong></td>
+                                        <td><?php echo $icon; ?> <?php echo htmlspecialchars($label); ?></td>
+                                        <td><?php echo $comm['payment_count']; ?></td>
+                                        <td>₹<?php echo number_format($comm['total_payment'], 2); ?></td>
+                                        <td style="color: var(--success-color);"><strong>₹<?php echo number_format($comm['total_commission'], 2); ?></strong></td>
+                                    </tr>
+                                <?php endforeach; ?>
+
+                                <?php if ($currentLevel !== null): ?>
+                                    <tr style="background: var(--gray-100); font-weight: 600;">
+                                        <td colspan="3" style="text-align: right;">Subtotal for <?php echo htmlspecialchars($currentLevel); ?>:</td>
+                                        <td><?php echo $levelCount; ?></td>
+                                        <td>₹<?php echo number_format($levelPaymentTotal, 2); ?></td>
+                                        <td style="color: var(--success-color);">₹<?php echo number_format($levelTotal, 2); ?></td>
+                                    </tr>
+                                <?php endif; ?>
+                            </tbody>
+                            <tfoot>
+                                <tr style="font-weight: 700; background: var(--gray-50);">
+                                    <td colspan="3" style="text-align: right;">GRAND TOTAL:</td>
+                                    <td><?php echo array_sum(array_column($commissionByLevel, 'payment_count')); ?></td>
+                                    <td>₹<?php echo number_format(array_sum(array_column($commissionByLevel, 'total_payment')), 2); ?></td>
+                                    <td style="color: var(--success-color);">₹<?php echo number_format(array_sum(array_column($commissionByLevel, 'total_commission')), 2); ?></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+
+                    <!-- Export Button -->
+                    <div style="margin-top: var(--spacing-xl); text-align: center;">
+                        <button class="btn btn-primary" onclick="exportTableToExcel('commissionTypeTable', 'Commission_by_Type')">
+                            📥 Export Commission by Type
+                        </button>
+                        <button class="btn btn-primary" onclick="exportTableToExcel('commissionLevelTable', 'Commission_by_Level')">
+                            📥 Export Commission by Level
+                        </button>
+                    </div>
+                <?php endif; ?>
+            </div>
+        <?php endif; ?>
+
     </div>
 
     <script>
