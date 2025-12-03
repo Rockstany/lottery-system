@@ -5,6 +5,7 @@
  */
 
 require_once __DIR__ . '/../config/config.php';
+require_once __DIR__ . '/../classes/SystemLogger.php';
 
 // Redirect if already logged in
 if (AuthMiddleware::isAuthenticated()) {
@@ -52,6 +53,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         } else {
             $error = 'Invalid mobile number or password';
+
+            // Log failed login attempt
+            $logger = new SystemLogger();
+            $logger->logFailedLogin($mobile);
         }
     } else {
         $errors = $validator->getErrors();

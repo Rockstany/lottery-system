@@ -131,11 +131,20 @@ Two ways to assign:
 ### Step 6: View Reports
 **File:** `lottery-reports.php`
 
-See complete analytics:
-- Total books distributed
-- Total payments collected
-- Who paid, who didn't
-- Export to CSV/PDF (if needed)
+See complete analytics with 6 different report tabs:
+- **Member-Wise Report:** Detailed breakdown by member/location
+- **Payment Methods:** Collection breakdown by Cash/UPI/Bank with percentages
+- **Date-Wise Collection:** Daily collection grouped by payment method with subtotals
+- **Payment Status:** Paid/Partial/Unpaid statistics
+- **Book Status:** Distribution statistics
+- **Summary:** Overall event summary
+
+**What's New:**
+- Payment method percentages out of 100%
+- Visual charts and progress bars
+- Date-wise subtotals
+- Top collection days
+- Print and copy functionality
 
 ---
 
@@ -153,8 +162,11 @@ See complete analytics:
 | `lottery-book-assign.php` | Step 4 | Assign single book form |
 | `lottery-payments.php` | Step 5 | Payment tracking table |
 | `lottery-payment-collect.php` | Step 5 | Record payment form |
-| `lottery-reports.php` | Step 6 | Analytics and reports |
+| `lottery-payment-transactions.php` | Step 5 | View & delete payment transactions |
+| `lottery-reports.php` | Step 6 | Analytics and reports (6 tabs) |
+| `lottery-book-reassign.php` | Step 4 | Reassign book to different unit |
 | `lottery-edit.php` | Settings | Edit event details |
+| `lottery-delete.php` | Admin Only | Delete lottery event |
 
 ### 📁 CSS Files (in `public/css/`)
 
@@ -168,7 +180,75 @@ See complete analytics:
 
 | File | Purpose |
 |------|---------|
-| `includes/navigation.php` | Top navigation bar (appears on all pages) |
+| `includes/navigation.php` | Top navigation bar with hamburger menu (mobile responsive) |
+| `includes/toast-handler.php` | Success/error message display handler |
+
+---
+
+## Recent Feature Additions (December 2025)
+
+### ✨ What's New
+
+#### 1. Smart Search System
+- **Search by ticket number:** Enter `1031` to find book with range 1030-1050
+- **Search by range:** Enter `1000-1040` to find all books in range
+- **Search by location:** Enter `Wing A` to find all Wing A assignments
+- **Search by mobile:** Enter phone number to find member's books
+- **Fixed:** SQL parameter binding error (BETWEEN clause implementation)
+- **Files updated:** `lottery-books.php`, `lottery-payments.php`
+
+#### 2. Book Reassignment System
+- **Purpose:** Fix incorrect book assignments
+- **Safety:** Payment records remain intact during reassignment
+- **Warning:** Shows alert if payments already collected
+- **Audit:** Logs old and new assignments with timestamp
+- **Access:** Group admin and admin roles only
+- **New file:** `lottery-book-reassign.php`
+
+#### 3. Payment Analytics & Reports
+- **6 Report Tabs:** Member-wise, Payment Methods, Date-wise, Payment Status, Book Status, Summary
+- **Payment Method Analysis:**
+  - Breakdown by Cash/UPI/Bank
+  - Percentages out of 100%
+  - Transaction counts
+  - Average transaction amounts
+  - Visual charts and progress bars
+- **Date-Wise Collection:**
+  - Daily collection breakdown
+  - Payment method per day
+  - Daily subtotals
+  - Top collection days
+  - Percentage contributions
+- **File updated:** `lottery-reports.php`
+
+#### 4. Transaction Management
+- **View Transactions:** See all payments for a specific book
+- **Delete Transactions:** Remove incorrect payment records
+- **Permission System:**
+  - Admin can delete any transaction
+  - Group admin can delete only their own collections
+- **Real-time Updates:** Outstanding amounts recalculate automatically
+- **New file:** `lottery-payment-transactions.php`
+
+#### 5. Mobile Navigation Enhancement
+- **Hamburger Menu:** Saves screen space on mobile
+- **Auto-close:** Closes when clicking links or outside menu
+- **Icon Animation:** Changes from ☰ to ✕
+- **Touch-friendly:** Large tap targets
+- **Global Implementation:** Applied via `includes/navigation.php`
+
+#### 6. Distribution Level Management
+- **Full CRUD:** Create, Read, Update, Delete levels and values
+- **Hierarchical Support:** Parent-child relationships maintained
+- **Delete Cascading:** Deleting level removes all its values
+- **Add on Fly:** Can add new values during book assignment
+- **File updated:** `lottery-distribution-setup.php`
+
+#### 7. Admin Delete Controls
+- **Delete Events:** Admin-only event deletion (existing feature verified)
+- **Delete Transactions:** Admin/collector can remove payment records
+- **Activity Logging:** All deletions logged for audit
+- **Files:** `lottery-delete.php`, `lottery-payment-transactions.php`
 
 ---
 
@@ -272,7 +352,140 @@ Wing B (value_id: 2, parent_value_id: NULL)
 
 ## Key Features
 
-### 1. Hierarchical Location System
+### 1. Smart Search Functionality
+
+**The Problem:** Finding a specific book by ticket number was difficult
+
+**The Solution:** Intelligent search that finds books containing any ticket number
+
+**How it works:**
+```php
+// User searches for ticket "1031"
+// System finds book with range 1030-1050
+// Uses SQL BETWEEN clause for range checking
+
+WHERE :ticket_num BETWEEN lb.start_ticket_number AND lb.end_ticket_number
+```
+
+**Search Capabilities:**
+- Single ticket number: `1031` → finds book containing this ticket
+- Ticket range: `1000-1040` → finds all books in this range
+- Location: `Wing A` → finds all books assigned to Wing A
+- Mobile number: `9876543210` → finds books assigned to this number
+- Notes: `Sharma` → finds books with "Sharma" in notes
+
+---
+
+### 2. Book Reassignment
+
+**The Problem:** Books were incorrectly assigned and needed to be moved to different units
+
+**The Solution:** Reassign functionality with payment protection
+
+**File:** `lottery-book-reassign.php`
+
+**How it works:**
+1. Find incorrectly assigned book in books table
+2. Click "🔄 Reassign" button
+3. See current assignment and payment history
+4. Select new distribution location
+5. Update mobile number and notes if needed
+6. Reassign without affecting payment records
+
+**Key Features:**
+- Shows warning if payments already collected
+- Logs reassignment for audit trail
+- Updates `book_distribution` table
+- Maintains payment history integrity
+- Activity logging with old and new locations
+
+**Safety:**
+- Only group_admin and admin roles can reassign
+- Cannot delete payments (only change location)
+- All transactions remain linked to book
+
+---
+
+### 3. Payment Transaction Management
+
+**The Problem:** No way to view or correct individual payment records
+
+**The Solution:** Transaction view with delete capability
+
+**File:** `lottery-payment-transactions.php`
+
+**How it works:**
+- View all payment transactions for a specific book
+- See payment method, amount, date, collector
+- Delete incorrect transactions (admin or collector only)
+- Real-time outstanding amount calculation
+
+**Permissions:**
+- Admin can delete any transaction
+- Group admin can delete only their own collected payments
+
+---
+
+### 4. Comprehensive Payment Reports
+
+**The Problem:** No visibility into payment collection patterns
+
+**The Solution:** Multiple report views with analytics
+
+**New Report Tabs:**
+
+**A. Payment Method Report:**
+- Total collected per method (Cash, UPI, Bank)
+- Percentage of total (out of 100%)
+- Transaction count per method
+- Average transaction amount
+- Visual progress bars and charts
+
+**B. Date-Wise Collection Report:**
+- Daily collection breakdown
+- Payment method per day
+- Daily subtotals
+- Top collection days highlighted
+- Percentage contribution per day
+
+**Example Output:**
+```
+Dec 01, 2025:
+  Cash: ₹5,000 (5 transactions)
+  UPI: ₹10,000 (8 transactions)
+  Subtotal: ₹15,000
+
+Dec 02, 2025:
+  UPI: ₹8,000 (6 transactions)
+  Bank: ₹2,000 (1 transaction)
+  Subtotal: ₹10,000
+```
+
+---
+
+### 5. Mobile-Responsive Navigation
+
+**The Problem:** Navigation took too much space on mobile devices
+
+**The Solution:** Hamburger menu for mobile/tablet views
+
+**How it works:**
+- Desktop (>768px): Full horizontal navigation
+- Mobile (≤768px): Hamburger menu (☰)
+- Auto-close on link click or outside click
+- Icon changes from ☰ to ✕ when open
+- Smooth animations
+
+**Features:**
+- Toggle button: Click ☰ to show/hide menu
+- Auto-close: Menu closes when clicking links or outside
+- Visual feedback: Active page highlighted
+- Touch-friendly: Large tap targets
+- Applied globally via `includes/navigation.php`
+
+---
+
+### 6. Hierarchical Location System
 
 **The Problem:** How do you organize 100+ flats?
 
@@ -640,6 +853,79 @@ INSERT INTO payment_collections (
 
 ---
 
+### Workflow 4: Reassigning Incorrectly Assigned Book (1 min)
+
+```
+1. Open lottery-books.php
+   Find: Book 5 - Assigned to Wing A > Floor 1 > Flat 101 (WRONG!)
+   ↓
+2. Click "🔄 Reassign" button
+   lottery-book-reassign.php
+   ↓
+3. See current assignment:
+   - Current: Wing A > Floor 1 > Flat 101
+   - Mobile: 9876543210
+   - Warning: 2 payments collected (₹600)
+   ↓
+4. Select correct location:
+   - Wing: B
+   - Floor: 2
+   - Flat: 205
+   - Update notes/mobile if needed
+   ↓
+5. Click "Reassign Book"
+   ↓
+6. Success! Book now shows:
+   - New: Wing B > Floor 2 > Flat 205
+   - Payments: Still ₹600 (unchanged)
+   - Activity log: Records reassignment
+```
+
+---
+
+### Workflow 5: Viewing Payment Transactions (30 sec)
+
+```
+1. Open lottery-payments.php
+   See: Book 5 - Partial payment (₹600 of ₹1000)
+   ↓
+2. Click "📋 View Transactions"
+   lottery-payment-transactions.php
+   ↓
+3. See all payments:
+   - Dec 01: ₹300 - UPI - Collected by John
+   - Dec 05: ₹300 - Cash - Collected by Mary
+   ↓
+4. (Optional) Delete incorrect payment
+   Click "🗑️ Delete" next to wrong transaction
+   ↓
+5. Outstanding updates automatically
+```
+
+---
+
+### Workflow 6: Checking Payment Reports (2 min)
+
+```
+1. Open lottery-reports.php
+   ↓
+2. Click "Payment Methods" tab
+   See:
+   - Cash: ₹25,000 (35%)
+   - UPI: ₹40,000 (55%)
+   - Bank: ₹7,000 (10%)
+   ↓
+3. Click "Date-Wise Collection" tab
+   See daily breakdown:
+   - Dec 01: ₹15,000
+   - Dec 02: ₹10,000
+   - Dec 03: ₹8,000
+   ↓
+4. (Optional) Print report or copy data
+```
+
+---
+
 ## Technical Concepts (Simplified)
 
 ### 1. Cascading Dropdowns
@@ -795,21 +1081,37 @@ A complete lottery management system with:
 - 6-step workflow (Create → Generate → Setup → Assign → Pay → Report)
 - Hierarchical location system (Wing → Floor → Flat)
 - Flexible payment tracking (partial payments supported)
-- Mobile-first responsive design
+- Mobile-first responsive design with hamburger menu
 - User-friendly with help boxes and clear guidance
+- **NEW:** Smart search with ticket number range detection
+- **NEW:** Book reassignment for fixing incorrect assignments
+- **NEW:** Payment transaction management with delete capability
+- **NEW:** Comprehensive analytics with 6 report tabs
+- **NEW:** Payment method and date-wise collection reports
+- **NEW:** Admin delete functionality for events and transactions
 
 **Technologies Used:**
 - PHP (backend logic)
-- MySQL (database)
-- JavaScript (cascading dropdowns)
+- MySQL (database with BETWEEN queries)
+- JavaScript (cascading dropdowns, hamburger menu)
 - CSS (responsive mobile-first design)
 
 **Main Achievement:**
-Transformed complex lottery management from paper-based to digital, making it easy to use on any device (mobile, tablet, desktop).
+Transformed complex lottery management from paper-based to digital, making it easy to use on any device (mobile, tablet, desktop) with complete analytics and error correction capabilities.
+
+**Recent Enhancements (Latest Update):**
+1. **Smart Search:** Find books by any ticket number in range
+2. **Book Reassignment:** Fix wrong assignments without losing payment data
+3. **Payment Reports:** Method-wise and date-wise analytics with percentages
+4. **Transaction Management:** View and delete individual payment records
+5. **Mobile Navigation:** Hamburger menu for better mobile experience
+6. **Distribution Setup:** Full CRUD for levels and values
 
 ---
 
-**Last Updated:** January 2025
-**Total Files:** 10 main pages + 1 responsive CSS framework
-**Mobile Optimized:** ✓ Yes
+**Last Updated:** December 2025
+**Total Files:** 13 main pages + 1 responsive CSS framework
+**Mobile Optimized:** ✓ Yes (with hamburger menu)
 **User Guidance:** ✓ Help boxes on all pages
+**Admin Controls:** ✓ Delete events, reassign books, manage transactions
+**Analytics:** ✓ 6 different report views with charts
