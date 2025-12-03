@@ -356,20 +356,28 @@ class SystemLogger {
     }
 
     /**
-     * Clean old logs (keep last 30 days only)
+     * Clean old logs (keep last 7 days only - lightweight)
      */
     public function cleanOldLogs() {
         try {
-            // Delete logs older than 30 days
-            $query = "DELETE FROM system_logs WHERE created_at < DATE_SUB(NOW(), INTERVAL 30 DAY)";
+            // Delete logs older than 7 days (keep minimal data)
+            $query = "DELETE FROM system_logs WHERE created_at < DATE_SUB(NOW(), INTERVAL 7 DAY)";
             $this->db->exec($query);
 
-            // Delete failed login attempts older than 30 days
-            $query = "DELETE FROM failed_login_attempts WHERE attempted_at < DATE_SUB(NOW(), INTERVAL 30 DAY)";
+            // Delete failed login attempts older than 7 days
+            $query = "DELETE FROM failed_login_attempts WHERE attempted_at < DATE_SUB(NOW(), INTERVAL 7 DAY)";
             $this->db->exec($query);
 
-            // Delete database connection logs older than 7 days
-            $query = "DELETE FROM database_connection_logs WHERE checked_at < DATE_SUB(NOW(), INTERVAL 7 DAY)";
+            // Delete database connection logs older than 2 days
+            $query = "DELETE FROM database_connection_logs WHERE checked_at < DATE_SUB(NOW(), INTERVAL 2 DAY)";
+            $this->db->exec($query);
+
+            // Delete health metrics older than 7 days
+            $query = "DELETE FROM system_health_metrics WHERE recorded_at < DATE_SUB(NOW(), INTERVAL 7 DAY)";
+            $this->db->exec($query);
+
+            // Delete resolved alerts older than 7 days
+            $query = "DELETE FROM alert_notifications WHERE is_resolved = 1 AND resolved_at < DATE_SUB(NOW(), INTERVAL 7 DAY)";
             $this->db->exec($query);
 
             return true;
