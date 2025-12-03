@@ -24,8 +24,8 @@ if (!in_array($filterStatus, $allowedStatuses)) {
 $whereClause = $filterStatus === 'all' ? '1=1' : 'dr.status = :status';
 
 // Get all deletion requests
-$query = "SELECT dr.*, u.name as requester_name, u.mobile_number as requester_mobile,
-                 a.name as reviewer_name
+$query = "SELECT dr.*, u.full_name as requester_name, u.mobile_number as requester_mobile,
+                 a.full_name as reviewer_name
           FROM deletion_requests dr
           LEFT JOIN users u ON dr.requested_by = u.user_id
           LEFT JOIN users a ON dr.reviewed_by = a.user_id
