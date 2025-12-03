@@ -29,7 +29,7 @@ $logger->recordHealthMetric('disk_space_used', $diskUsagePercent, 'percentage');
 $memoryUsage = 0;
 if (function_exists('memory_get_usage')) {
     $memoryLimit = ini_get('memory_limit');
-    $memoryLimitBytes = $this->convertToBytes($memoryLimit);
+    $memoryLimitBytes = convertToBytes($memoryLimit);
     $memoryUsed = memory_get_usage(true);
     $memoryUsage = round(($memoryUsed / $memoryLimitBytes) * 100, 2);
 }
