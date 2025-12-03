@@ -245,6 +245,7 @@ $recentActivity = $stmt->fetchAll();
                 <li><a href="/public/admin/dashboard.php" style="font-weight: 600;">Dashboard</a></li>
                 <li><a href="/public/admin/users.php">Manage Users</a></li>
                 <li><a href="/public/admin/communities.php">Manage Communities</a></li>
+                <li><a href="/public/admin/system-health.php">🖥️ System Health</a></li>
                 <li><a href="/public/admin/change-password.php">Change Password</a></li>
                 <li><a href="/public/logout.php">Logout</a></li>
             </ul>
@@ -293,9 +294,9 @@ $recentActivity = $stmt->fetchAll();
                         <div class="action-icon">👥</div>
                         <div>View All Users</div>
                     </a>
-                    <a href="/public/admin/dashboard.php" class="action-btn">
-                        <div class="action-icon">📊</div>
-                        <div>Dashboard Statistics</div>
+                    <a href="/public/admin/system-health.php" class="action-btn">
+                        <div class="action-icon">🖥️</div>
+                        <div>System Health</div>
                     </a>
                 </div>
             </div>
