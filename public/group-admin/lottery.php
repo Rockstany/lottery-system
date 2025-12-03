@@ -147,6 +147,8 @@ $error = $_GET['error'] ?? '';
             <div class="alert alert-success">Event created successfully! Now generate books.</div>
         <?php elseif ($success === 'deleted'): ?>
             <div class="alert alert-success">Lottery event deleted successfully.</div>
+        <?php elseif ($success === 'delete_requested'): ?>
+            <div class="alert alert-success">Deletion request submitted successfully! Super Admin will review your request.</div>
         <?php endif; ?>
 
         <?php if ($error === 'deletefailed'): ?>
@@ -155,6 +157,10 @@ $error = $_GET['error'] ?? '';
             <div class="alert alert-danger">Lottery event not found.</div>
         <?php elseif ($error === 'invalid'): ?>
             <div class="alert alert-danger">Invalid request.</div>
+        <?php elseif ($error === 'duplicate_request'): ?>
+            <div class="alert alert-warning">A deletion request for this event is already pending review.</div>
+        <?php elseif ($error === 'request_failed'): ?>
+            <div class="alert alert-danger">Failed to submit deletion request. Please try again.</div>
         <?php endif; ?>
 
         <!-- Instructions -->
@@ -305,6 +311,10 @@ $error = $_GET['error'] ?? '';
                         <button onclick="confirmDeleteEvent(<?php echo $event['event_id']; ?>, '<?php echo htmlspecialchars($event['event_name'], ENT_QUOTES); ?>')" class="btn btn-danger btn-sm">
                             <span>🗑️</span> <span>Delete</span>
                         </button>
+                        <?php elseif ($_SESSION['role'] === 'group_admin'): ?>
+                        <button onclick="requestDeleteEvent(<?php echo $event['event_id']; ?>, '<?php echo htmlspecialchars($event['event_name'], ENT_QUOTES); ?>')" class="btn btn-danger btn-sm">
+                            <span>🗑️</span> <span>Request Delete</span>
+                        </button>
                         <?php endif; ?>
                     </div>
                 </div>
@@ -312,7 +322,7 @@ $error = $_GET['error'] ?? '';
         <?php endif; ?>
     </div>
 
-    <!-- Delete Confirmation Modal -->
+    <!-- Delete Confirmation Modal (Super Admin Only) -->
     <div id="deleteModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999; align-items: center; justify-content: center;">
         <div style="background: white; padding: var(--spacing-xl); border-radius: var(--radius-lg); max-width: 500px; margin: var(--spacing-md);">
             <h3 style="margin-top: 0; color: var(--danger-color);">⚠️ Delete Lottery Event</h3>
@@ -332,9 +342,45 @@ $error = $_GET['error'] ?? '';
         </div>
     </div>
 
+    <!-- Request Delete Modal (Group Admin) -->
+    <div id="requestDeleteModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999; align-items: center; justify-content: center;">
+        <div style="background: white; padding: var(--spacing-xl); border-radius: var(--radius-lg); max-width: 500px; margin: var(--spacing-md);">
+            <h3 style="margin-top: 0; color: var(--warning-color);">🗑️ Request Event Deletion</h3>
+            <p>You are requesting to delete <strong id="requestEventName"></strong></p>
+            <p style="color: var(--gray-600); font-size: var(--font-size-sm);">
+                This request will be sent to the Super Admin for approval. The event will not be deleted until approved.
+            </p>
+            <form id="deleteRequestForm">
+                <div class="form-group">
+                    <label for="deleteReason" class="form-label" style="font-weight: 600;">
+                        Reason for deletion <span style="color: var(--danger-color);">*</span>
+                    </label>
+                    <textarea
+                        id="deleteReason"
+                        name="reason"
+                        class="form-control"
+                        rows="4"
+                        required
+                        placeholder="Please provide a detailed reason for requesting this deletion..."
+                        style="resize: vertical;"
+                    ></textarea>
+                    <small style="color: var(--gray-600); font-size: var(--font-size-xs); display: block; margin-top: var(--spacing-xs);">
+                        Be specific about why this event needs to be deleted (e.g., created by mistake, duplicate entry, etc.)
+                    </small>
+                </div>
+                <div style="display: flex; gap: var(--spacing-md); margin-top: var(--spacing-lg);">
+                    <button type="button" onclick="closeRequestDeleteModal()" class="btn btn-secondary" style="flex: 1;">Cancel</button>
+                    <button type="submit" class="btn btn-warning" style="flex: 1;">Submit Request</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script>
         let deleteEventId = null;
+        let requestDeleteEventId = null;
 
+        // Super Admin - Direct Delete
         function confirmDeleteEvent(eventId, eventName) {
             deleteEventId = eventId;
             document.getElementById('eventName').textContent = eventName;
@@ -358,10 +404,62 @@ $error = $_GET['error'] ?? '';
             window.location.href = '/public/group-admin/lottery-delete.php?id=' + deleteEventId;
         }
 
+        // Group Admin - Request Delete
+        function requestDeleteEvent(eventId, eventName) {
+            requestDeleteEventId = eventId;
+            document.getElementById('requestEventName').textContent = eventName;
+            const modal = document.getElementById('requestDeleteModal');
+            modal.style.display = 'flex';
+        }
+
+        function closeRequestDeleteModal() {
+            document.getElementById('requestDeleteModal').style.display = 'none';
+            requestDeleteEventId = null;
+            document.getElementById('deleteReason').value = '';
+        }
+
+        // Handle deletion request form submission
+        document.getElementById('deleteRequestForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            if (!requestDeleteEventId) return;
+
+            const reason = document.getElementById('deleteReason').value.trim();
+            if (!reason) {
+                alert('Please provide a reason for deletion');
+                return;
+            }
+
+            // Show loading state
+            const modal = document.getElementById('requestDeleteModal');
+            modal.innerHTML = '<div style="background: white; padding: var(--spacing-xl); border-radius: var(--radius-lg); text-align: center;"><h3>Submitting Request...</h3><p>Please wait...</p></div>';
+
+            // Create form and submit
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = '/public/group-admin/lottery-delete-request.php';
+
+            const eventIdInput = document.createElement('input');
+            eventIdInput.type = 'hidden';
+            eventIdInput.name = 'event_id';
+            eventIdInput.value = requestDeleteEventId;
+
+            const reasonInput = document.createElement('input');
+            reasonInput.type = 'hidden';
+            reasonInput.name = 'reason';
+            reasonInput.value = reason;
+
+            form.appendChild(eventIdInput);
+            form.appendChild(reasonInput);
+            document.body.appendChild(form);
+            form.submit();
+        });
+
         // Close modal on escape key
         document.addEventListener('keydown', function(e) {
             if (e.key === 'Escape') {
                 closeDeleteModal();
+                closeRequestDeleteModal();
             }
         });
     </script>

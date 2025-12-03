@@ -64,8 +64,22 @@ if (isset($_GET['delete_payment'])) {
     }
 }
 
-if (isset($_GET['success']) && $_GET['success'] === 'deleted') {
-    $success = 'Transaction deleted successfully';
+if (isset($_GET['success'])) {
+    $success = match($_GET['success']) {
+        'deleted' => 'Transaction deleted successfully',
+        'delete_requested' => 'Deletion request submitted successfully! Super Admin will review your request.',
+        default => ''
+    };
+}
+
+if (isset($_GET['error'])) {
+    $error = match($_GET['error']) {
+        'duplicate_request' => 'A deletion request for this transaction is already pending review.',
+        'request_failed' => 'Failed to submit deletion request. Please try again.',
+        'notfound' => 'Transaction not found.',
+        'invalid' => 'Invalid request.',
+        default => $error
+    };
 }
 
 // Get all payment transactions for this distribution
@@ -203,12 +217,18 @@ $outstanding = $expectedAmount - $totalPaid;
                                         <td><?php echo htmlspecialchars($trans['collector_name'] ?? 'Unknown'); ?></td>
                                         <td><?php echo date('M d, Y g:i A', strtotime($trans['collected_at'])); ?></td>
                                         <td>
-                                            <?php if ($_SESSION['role'] === 'admin' || $trans['collected_by'] == AuthMiddleware::getUserId()): ?>
+                                            <?php if ($_SESSION['role'] === 'admin'): ?>
                                                 <a href="?dist_id=<?php echo $distributionId; ?>&delete_payment=<?php echo $trans['payment_id']; ?>"
                                                    class="btn btn-sm btn-danger"
                                                    onclick="return confirm('Delete this payment transaction? This cannot be undone.')">
                                                     🗑️ Delete
                                                 </a>
+                                            <?php elseif ($_SESSION['role'] === 'group_admin'): ?>
+                                                <button
+                                                    onclick="requestDeleteTransaction(<?php echo $trans['payment_id']; ?>, '₹<?php echo number_format($trans['amount_paid']); ?>', '<?php echo date('M d, Y', strtotime($trans['payment_date'])); ?>')"
+                                                    class="btn btn-sm btn-danger">
+                                                    🗑️ Request Delete
+                                                </button>
                                             <?php else: ?>
                                                 <span style="color: var(--gray-400);">-</span>
                                             <?php endif; ?>
@@ -236,5 +256,112 @@ $outstanding = $expectedAmount - $totalPaid;
             </div>
         </div>
     </div>
+
+    <!-- Request Delete Transaction Modal (Group Admin) -->
+    <div id="requestDeleteTransactionModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999; align-items: center; justify-content: center;">
+        <div style="background: white; padding: var(--spacing-xl); border-radius: var(--radius-lg); max-width: 500px; margin: var(--spacing-md);">
+            <h3 style="margin-top: 0; color: var(--warning-color);">🗑️ Request Transaction Deletion</h3>
+            <p>You are requesting to delete payment transaction:</p>
+            <div style="background: var(--gray-50); padding: var(--spacing-md); border-radius: var(--radius-md); margin: var(--spacing-md) 0;">
+                <div><strong>Amount:</strong> <span id="transactionAmount"></span></div>
+                <div><strong>Date:</strong> <span id="transactionDate"></span></div>
+            </div>
+            <p style="color: var(--gray-600); font-size: var(--font-size-sm);">
+                This request will be sent to the Super Admin for approval. The transaction will not be deleted until approved.
+            </p>
+            <form id="deleteTransactionRequestForm">
+                <div class="form-group">
+                    <label for="transactionDeleteReason" class="form-label" style="font-weight: 600;">
+                        Reason for deletion <span style="color: var(--danger-color);">*</span>
+                    </label>
+                    <textarea
+                        id="transactionDeleteReason"
+                        name="reason"
+                        class="form-control"
+                        rows="4"
+                        required
+                        placeholder="Please provide a detailed reason for requesting this deletion..."
+                        style="resize: vertical;"
+                    ></textarea>
+                    <small style="color: var(--gray-600); font-size: var(--font-size-xs); display: block; margin-top: var(--spacing-xs);">
+                        Be specific about why this transaction needs to be deleted (e.g., entered by mistake, duplicate, wrong amount, etc.)
+                    </small>
+                </div>
+                <div style="display: flex; gap: var(--spacing-md); margin-top: var(--spacing-lg);">
+                    <button type="button" onclick="closeRequestDeleteTransactionModal()" class="btn btn-secondary" style="flex: 1;">Cancel</button>
+                    <button type="submit" class="btn btn-warning" style="flex: 1;">Submit Request</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        let requestDeleteTransactionId = null;
+
+        // Group Admin - Request Delete Transaction
+        function requestDeleteTransaction(transactionId, amount, date) {
+            requestDeleteTransactionId = transactionId;
+            document.getElementById('transactionAmount').textContent = amount;
+            document.getElementById('transactionDate').textContent = date;
+            const modal = document.getElementById('requestDeleteTransactionModal');
+            modal.style.display = 'flex';
+        }
+
+        function closeRequestDeleteTransactionModal() {
+            document.getElementById('requestDeleteTransactionModal').style.display = 'none';
+            requestDeleteTransactionId = null;
+            document.getElementById('transactionDeleteReason').value = '';
+        }
+
+        // Handle transaction deletion request form submission
+        document.getElementById('deleteTransactionRequestForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            if (!requestDeleteTransactionId) return;
+
+            const reason = document.getElementById('transactionDeleteReason').value.trim();
+            if (!reason) {
+                alert('Please provide a reason for deletion');
+                return;
+            }
+
+            // Show loading state
+            const modal = document.getElementById('requestDeleteTransactionModal');
+            modal.innerHTML = '<div style="background: white; padding: var(--spacing-xl); border-radius: var(--radius-lg); text-align: center;"><h3>Submitting Request...</h3><p>Please wait...</p></div>';
+
+            // Create form and submit
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = '/public/group-admin/transaction-delete-request.php';
+
+            const transactionIdInput = document.createElement('input');
+            transactionIdInput.type = 'hidden';
+            transactionIdInput.name = 'transaction_id';
+            transactionIdInput.value = requestDeleteTransactionId;
+
+            const distIdInput = document.createElement('input');
+            distIdInput.type = 'hidden';
+            distIdInput.name = 'dist_id';
+            distIdInput.value = '<?php echo $distributionId; ?>';
+
+            const reasonInput = document.createElement('input');
+            reasonInput.type = 'hidden';
+            reasonInput.name = 'reason';
+            reasonInput.value = reason;
+
+            form.appendChild(transactionIdInput);
+            form.appendChild(distIdInput);
+            form.appendChild(reasonInput);
+            document.body.appendChild(form);
+            form.submit();
+        });
+
+        // Close modal on escape key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeRequestDeleteTransactionModal();
+            }
+        });
+    </script>
 </body>
 </html>

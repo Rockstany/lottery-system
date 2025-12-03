@@ -46,6 +46,12 @@ $stmt = $db->prepare($query);
 $stmt->execute();
 $totalTransactionCampaigns = $stmt->fetch()['count'];
 
+// Pending Deletion Requests
+$query = "SELECT COUNT(*) as count FROM deletion_requests WHERE status = 'pending'";
+$stmt = $db->prepare($query);
+$stmt->execute();
+$pendingDeletionRequests = $stmt->fetch()['count'];
+
 // Recent Activity
 $query = "SELECT al.*, u.full_name
           FROM activity_logs al
@@ -245,7 +251,15 @@ $recentActivity = $stmt->fetchAll();
                 <li><a href="/public/admin/dashboard.php" style="font-weight: 600;">Dashboard</a></li>
                 <li><a href="/public/admin/users.php">Manage Users</a></li>
                 <li><a href="/public/admin/communities.php">Manage Communities</a></li>
-                <li><a href="/public/admin/system-health.php">System Health</a></li>
+                <li>
+                    <a href="/public/admin/deletion-requests.php" style="<?php echo $pendingDeletionRequests > 0 ? 'color: var(--danger-color); font-weight: 600;' : ''; ?>">
+                        🗑️ Deletion Requests
+                        <?php if ($pendingDeletionRequests > 0): ?>
+                            <span class="badge badge-danger" style="margin-left: var(--spacing-xs);"><?php echo $pendingDeletionRequests; ?></span>
+                        <?php endif; ?>
+                    </a>
+                </li>
+                <li><a href="/public/admin/system-health.php">🖥️ System Health</a></li>
                 <li><a href="/public/admin/change-password.php">Change Password</a></li>
                 <li><a href="/public/logout.php">Logout</a></li>
             </ul>
@@ -293,6 +307,15 @@ $recentActivity = $stmt->fetchAll();
                     <a href="/public/admin/users.php" class="action-btn">
                         <div class="action-icon">👥</div>
                         <div>View All Users</div>
+                    </a>
+                    <a href="/public/admin/deletion-requests.php" class="action-btn" style="<?php echo $pendingDeletionRequests > 0 ? 'border: 2px solid var(--danger-color);' : ''; ?>">
+                        <div class="action-icon" style="position: relative;">
+                            🗑️
+                            <?php if ($pendingDeletionRequests > 0): ?>
+                                <span class="badge badge-danger" style="position: absolute; top: -5px; right: -10px; font-size: 10px; padding: 2px 5px;"><?php echo $pendingDeletionRequests; ?></span>
+                            <?php endif; ?>
+                        </div>
+                        <div>Deletion Requests</div>
                     </a>
                     <a href="/public/admin/system-health.php" class="action-btn">
                         <div class="action-icon">🖥️</div>
