@@ -29,6 +29,11 @@ define('ALLOWED_EXTENSIONS', ['csv', 'xlsx', 'jpg', 'jpeg', 'png', 'pdf']);
 // Pagination
 define('ITEMS_PER_PAGE', 20);
 
+// System Monitoring Settings
+define('ADMIN_EMAIL', 'info@careerplanning.fun'); // Change to your actual admin email
+define('MONITORING_ENABLED', true); // Set to false to disable monitoring
+define('WEEKLY_DIGEST_DAY', 'Monday'); // Day of week for weekly digest email
+
 // Session Configuration
 ini_set('session.cookie_httponly', 1);
 ini_set('session.use_only_cookies', 1);

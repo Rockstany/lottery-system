@@ -1,10 +1,13 @@
 <?php
 /**
- * System Health Monitoring Cron Job
- * Run this script every 5 minutes via cron
+ * Critical System Monitoring (OPTIONAL)
+ * Only monitors CRITICAL issues and sends immediate alerts
  *
- * Cron Command:
- * */5 * * * * /usr/bin/php /path/to/cron/monitor-system-health.php
+ * USAGE: This is optional. Only use if you want real-time critical alerts.
+ * For most users, the weekly digest is sufficient.
+ *
+ * Cron Command (Run every hour - OPTIONAL):
+ * 0 * * * * /usr/bin/php /path/to/cron/monitor-system-health.php
  */
 
 // Load dependencies
