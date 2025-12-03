@@ -1,6 +1,6 @@
 <?php
 /**
- * Commission Setup - Configure commission rates and dates
+ * Commission Setup - Individual Control for Each Commission Type
  * GetToKnow Community App
  */
 
@@ -41,61 +41,126 @@ $settings = $stmt->fetch();
 $error = '';
 $success = '';
 
-// Handle form submission
+// Handle form submission for individual commission types
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $enabled = isset($_POST['commission_enabled']) ? 1 : 0;
-    $earlyDate = $_POST['early_payment_date'] ?? null;
-    $earlyPercent = Validator::sanitizeFloat($_POST['early_commission_percent'] ?? 10);
-    $standardDate = $_POST['standard_payment_date'] ?? null;
-    $standardPercent = Validator::sanitizeFloat($_POST['standard_commission_percent'] ?? 5);
-    $extraDate = $_POST['extra_books_date'] ?? null;
-    $extraPercent = Validator::sanitizeFloat($_POST['extra_books_commission_percent'] ?? 15);
+    $action = $_POST['action'] ?? '';
 
-    if ($enabled && (!$earlyDate || !$standardDate || !$extraDate)) {
-        $error = 'Please fill in all dates when commission is enabled';
-    } else {
-        if ($settings) {
-            // Update existing
-            $updateQuery = "UPDATE commission_settings SET
-                           commission_enabled = :enabled,
-                           early_payment_date = :early_date,
-                           early_commission_percent = :early_percent,
-                           standard_payment_date = :standard_date,
-                           standard_commission_percent = :standard_percent,
-                           extra_books_date = :extra_date,
-                           extra_books_commission_percent = :extra_percent
-                           WHERE event_id = :event_id";
-            $stmt = $db->prepare($updateQuery);
+    if ($action === 'early_commission') {
+        $enabled = isset($_POST['early_commission_enabled']) ? 1 : 0;
+        $date = $_POST['early_payment_date'] ?? null;
+        $percent = Validator::sanitizeFloat($_POST['early_commission_percent'] ?? 10);
+
+        if ($enabled && !$date) {
+            $error = 'Please provide deadline date for Early Payment Commission';
         } else {
-            // Insert new
-            $updateQuery = "INSERT INTO commission_settings
-                           (event_id, commission_enabled, early_payment_date, early_commission_percent,
-                            standard_payment_date, standard_commission_percent, extra_books_date, extra_books_commission_percent)
-                           VALUES (:event_id, :enabled, :early_date, :early_percent, :standard_date, :standard_percent, :extra_date, :extra_percent)";
+            if ($settings) {
+                $updateQuery = "UPDATE commission_settings SET
+                               early_commission_enabled = :enabled,
+                               early_payment_date = :date,
+                               early_commission_percent = :percent
+                               WHERE event_id = :event_id";
+            } else {
+                $updateQuery = "INSERT INTO commission_settings
+                               (event_id, commission_enabled, early_commission_enabled, early_payment_date, early_commission_percent)
+                               VALUES (:event_id, 1, :enabled, :date, :percent)";
+            }
             $stmt = $db->prepare($updateQuery);
-        }
-
-        $stmt->bindParam(':event_id', $eventId);
-        $stmt->bindParam(':enabled', $enabled);
-        $stmt->bindParam(':early_date', $earlyDate);
-        $stmt->bindParam(':early_percent', $earlyPercent);
-        $stmt->bindParam(':standard_date', $standardDate);
-        $stmt->bindParam(':standard_percent', $standardPercent);
-        $stmt->bindParam(':extra_date', $extraDate);
-        $stmt->bindParam(':extra_percent', $extraPercent);
-
-        if ($stmt->execute()) {
-            $success = 'Commission settings saved successfully!';
-            // Refresh settings
-            $settingsQuery = "SELECT * FROM commission_settings WHERE event_id = :event_id";
-            $stmt = $db->prepare($settingsQuery);
             $stmt->bindParam(':event_id', $eventId);
-            $stmt->execute();
-            $settings = $stmt->fetch();
-        } else {
-            $error = 'Failed to save commission settings';
+            $stmt->bindParam(':enabled', $enabled);
+            $stmt->bindParam(':date', $date);
+            $stmt->bindParam(':percent', $percent);
+
+            if ($stmt->execute()) {
+                $success = 'Early Payment Commission settings saved successfully!';
+                header("Location: ?id=$eventId&success=early_saved");
+                exit;
+            } else {
+                $error = 'Failed to save settings';
+            }
         }
     }
+    elseif ($action === 'standard_commission') {
+        $enabled = isset($_POST['standard_commission_enabled']) ? 1 : 0;
+        $date = $_POST['standard_payment_date'] ?? null;
+        $percent = Validator::sanitizeFloat($_POST['standard_commission_percent'] ?? 5);
+
+        if ($enabled && !$date) {
+            $error = 'Please provide deadline date for Standard Payment Commission';
+        } else {
+            if ($settings) {
+                $updateQuery = "UPDATE commission_settings SET
+                               standard_commission_enabled = :enabled,
+                               standard_payment_date = :date,
+                               standard_commission_percent = :percent
+                               WHERE event_id = :event_id";
+            } else {
+                $updateQuery = "INSERT INTO commission_settings
+                               (event_id, commission_enabled, standard_commission_enabled, standard_payment_date, standard_commission_percent)
+                               VALUES (:event_id, 1, :enabled, :date, :percent)";
+            }
+            $stmt = $db->prepare($updateQuery);
+            $stmt->bindParam(':event_id', $eventId);
+            $stmt->bindParam(':enabled', $enabled);
+            $stmt->bindParam(':date', $date);
+            $stmt->bindParam(':percent', $percent);
+
+            if ($stmt->execute()) {
+                header("Location: ?id=$eventId&success=standard_saved");
+                exit;
+            } else {
+                $error = 'Failed to save settings';
+            }
+        }
+    }
+    elseif ($action === 'extra_books_commission') {
+        $enabled = isset($_POST['extra_books_commission_enabled']) ? 1 : 0;
+        $date = $_POST['extra_books_date'] ?? null;
+        $percent = Validator::sanitizeFloat($_POST['extra_books_commission_percent'] ?? 15);
+
+        if ($enabled && !$date) {
+            $error = 'Please provide reference date for Extra Books Commission';
+        } else {
+            if ($settings) {
+                $updateQuery = "UPDATE commission_settings SET
+                               extra_books_commission_enabled = :enabled,
+                               extra_books_date = :date,
+                               extra_books_commission_percent = :percent
+                               WHERE event_id = :event_id";
+            } else {
+                $updateQuery = "INSERT INTO commission_settings
+                               (event_id, commission_enabled, extra_books_commission_enabled, extra_books_date, extra_books_commission_percent)
+                               VALUES (:event_id, 1, :enabled, :date, :percent)";
+            }
+            $stmt = $db->prepare($updateQuery);
+            $stmt->bindParam(':event_id', $eventId);
+            $stmt->bindParam(':enabled', $enabled);
+            $stmt->bindParam(':date', $date);
+            $stmt->bindParam(':percent', $percent);
+
+            if ($stmt->execute()) {
+                header("Location: ?id=$eventId&success=extra_saved");
+                exit;
+            } else {
+                $error = 'Failed to save settings';
+            }
+        }
+    }
+
+    // Refresh settings
+    $stmt = $db->prepare($settingsQuery);
+    $stmt->bindParam(':event_id', $eventId);
+    $stmt->execute();
+    $settings = $stmt->fetch();
+}
+
+// Handle success messages
+if (isset($_GET['success'])) {
+    $success = match($_GET['success']) {
+        'early_saved' => 'Early Payment Commission settings saved successfully!',
+        'standard_saved' => 'Standard Payment Commission settings saved successfully!',
+        'extra_saved' => 'Extra Books Commission settings saved successfully!',
+        default => ''
+    };
 }
 ?>
 <!DOCTYPE html>
@@ -107,122 +172,342 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <link rel="stylesheet" href="/public/css/main.css">
     <link rel="stylesheet" href="/public/css/enhancements.css">
     <link rel="stylesheet" href="/public/css/lottery-responsive.css">
-    <script src="/public/js/toast.js"></script>
+    <style>
+        .commission-card {
+            background: white;
+            border-radius: var(--radius-lg);
+            margin-bottom: var(--spacing-lg);
+            box-shadow: var(--shadow-md);
+            overflow: hidden;
+            border: 2px solid var(--gray-200);
+            transition: all var(--transition-base);
+        }
+
+        .commission-card.enabled {
+            border-color: var(--success-color);
+        }
+
+        .commission-header {
+            padding: var(--spacing-lg);
+            background: var(--gray-50);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .commission-header:hover {
+            background: var(--gray-100);
+        }
+
+        .commission-title {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-md);
+            margin: 0;
+        }
+
+        .commission-toggle {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-md);
+        }
+
+        .toggle-switch {
+            position: relative;
+            width: 50px;
+            height: 26px;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: var(--gray-300);
+            transition: .4s;
+            border-radius: 34px;
+        }
+
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked + .toggle-slider {
+            background-color: var(--success-color);
+        }
+
+        input:checked + .toggle-slider:before {
+            transform: translateX(24px);
+        }
+
+        .commission-body {
+            display: none;
+            padding: var(--spacing-lg);
+            border-top: 1px solid var(--gray-200);
+        }
+
+        .commission-body.active {
+            display: block;
+        }
+
+        .expand-icon {
+            transition: transform 0.3s ease;
+            font-size: 20px;
+        }
+
+        .expand-icon.active {
+            transform: rotate(180deg);
+        }
+
+        .info-box {
+            background: var(--info-light);
+            padding: var(--spacing-md);
+            border-radius: var(--radius-md);
+            margin-top: var(--spacing-md);
+            border-left: 3px solid var(--info-color);
+        }
+    </style>
 </head>
 <body>
     <?php include __DIR__ . '/includes/navigation.php'; ?>
 
     <div class="header" style="background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%); color: white; padding: var(--spacing-xl) 0; margin-bottom: var(--spacing-xl);">
         <div class="container">
-            <h1>💰 <?php echo htmlspecialchars($event['event_name']); ?> - Commission Setup</h1>
-            <p style="margin: 0; opacity: 0.9;">Configure commission rates for Level 1 distributors</p>
+            <h1>💰 Commission Setup</h1>
+            <p style="margin: 0; opacity: 0.9;"><?php echo htmlspecialchars($event['event_name']); ?> - Configure Individual Commission Types</p>
         </div>
     </div>
 
     <div class="container main-content">
-        <!-- Back Button at Top -->
+        <!-- Back Button -->
         <div style="margin-bottom: var(--spacing-lg);">
             <a href="/public/group-admin/lottery.php" class="btn btn-secondary">← Back to Events</a>
-            <?php if ($settings && $settings['commission_enabled']): ?>
-                <a href="/public/group-admin/lottery-commission-report.php?id=<?php echo $eventId; ?>" class="btn btn-success">View Commission Report →</a>
-            <?php endif; ?>
+            <a href="/public/group-admin/lottery-commission-report.php?id=<?php echo $eventId; ?>" class="btn btn-success">View Commission Report →</a>
         </div>
 
-        <?php include __DIR__ . '/includes/toast-handler.php'; ?>
+        <!-- Success/Error Messages -->
+        <?php if ($success): ?>
+            <div class="alert alert-success"><?php echo $success; ?></div>
+        <?php endif; ?>
+        <?php if ($error): ?>
+            <div class="alert alert-danger"><?php echo $error; ?></div>
+        <?php endif; ?>
 
-        <!-- Help Box -->
-        <div class="help-box mb-3" style="background: var(--info-light); border-left: 4px solid var(--info-color); padding: var(--spacing-lg); border-radius: var(--radius-md);">
-            <h4>💡 How Commission Works</h4>
-            <p>Commission is calculated based on payment collection dates and paid to Level 1 distributors (e.g., Wing A, Building B):</p>
-            <ul>
-                <li><strong>Early Payment (10%):</strong> Payments received before Date 1</li>
-                <li><strong>Standard Payment (5%):</strong> Payments received before Date 2</li>
-                <li><strong>Extra Books (15%):</strong> Books assigned after Date 2 get extra commission</li>
+        <!-- Instructions -->
+        <div class="help-box mb-3" style="background: var(--info-light); border-left: 4px solid var(--info-color); padding: var(--spacing-lg); border-radius: var(--radius-md); margin-bottom: var(--spacing-xl);">
+            <h4>💡 How Individual Commission Controls Work</h4>
+            <p>Each commission type can be enabled or disabled independently:</p>
+            <ul style="margin-bottom: 0;">
+                <li><strong>Early Payment Commission:</strong> Enable to reward early payers with higher commission</li>
+                <li><strong>Standard Payment Commission:</strong> Enable for regular payment timeline commission</li>
+                <li><strong>Extra Books Commission:</strong> Enable for books marked as "extra" during assignment</li>
             </ul>
-            <p style="margin: 0;"><strong>Note:</strong> Commission is calculated automatically when payments are collected</p>
+            <p style="margin-top: var(--spacing-md); margin-bottom: 0;"><strong>Note:</strong> You can enable any combination of commission types. Toggle and expand each section to configure.</p>
         </div>
 
-        <div class="card">
-            <div class="card-header">
-                <h3 class="card-title">Commission Configuration</h3>
+        <!-- Commission Type 1: Early Payment Commission -->
+        <div class="commission-card <?php echo ($settings && $settings['early_commission_enabled']) ? 'enabled' : ''; ?>">
+            <div class="commission-header" onclick="toggleSection('early')">
+                <div class="commission-title">
+                    <span style="font-size: 24px;">🏃</span>
+                    <div>
+                        <h3 style="margin: 0;">Early Payment Commission</h3>
+                        <small style="color: var(--gray-600);">Reward early payers with bonus commission</small>
+                    </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: var(--spacing-md);">
+                    <span class="badge <?php echo ($settings && $settings['early_commission_enabled']) ? 'badge-success' : 'badge-secondary'; ?>">
+                        <?php echo ($settings && $settings['early_commission_enabled']) ? 'ENABLED' : 'DISABLED'; ?>
+                    </span>
+                    <span class="expand-icon" id="early-icon">▼</span>
+                </div>
             </div>
-            <div class="card-body">
+            <div class="commission-body" id="early-body">
                 <form method="POST">
+                    <input type="hidden" name="action" value="early_commission">
+
                     <!-- Enable/Disable Toggle -->
-                    <div class="form-group" style="background: var(--gray-50); padding: var(--spacing-md); border-radius: var(--radius-md); margin-bottom: var(--spacing-lg);">
-                        <label style="display: flex; align-items: center; cursor: pointer; font-weight: 600;">
-                            <input type="checkbox" name="commission_enabled" value="1"
-                                   <?php echo ($settings && $settings['commission_enabled']) ? 'checked' : ''; ?>
-                                   style="width: 20px; height: 20px; margin-right: var(--spacing-sm);">
-                            <span>Enable Commission for this Event</span>
+                    <div class="form-group">
+                        <label class="toggle-switch">
+                            <input type="checkbox" name="early_commission_enabled" value="1"
+                                   <?php echo ($settings && $settings['early_commission_enabled']) ? 'checked' : ''; ?>>
+                            <span class="toggle-slider"></span>
                         </label>
-                        <small class="form-text">Toggle commission calculation for this lottery event</small>
+                        <label style="margin-left: var(--spacing-md); font-weight: 600;">Enable Early Payment Commission</label>
                     </div>
 
-                    <!-- Early Payment Commission -->
-                    <div style="background: white; border: 2px solid #10b981; padding: var(--spacing-lg); border-radius: var(--radius-md); margin-bottom: var(--spacing-md);">
-                        <h4 style="margin-top: 0; color: #10b981;">🏃 Early Payment Commission (10%)</h4>
-                        <div class="form-row">
-                            <div class="form-col">
-                                <label class="form-label">Early Payment Date (Date 1)</label>
-                                <input type="date" name="early_payment_date" class="form-control"
-                                       value="<?php echo $settings['early_payment_date'] ?? ''; ?>">
-                                <small class="form-text">Payments before this date get 10% commission</small>
-                            </div>
-                            <div class="form-col">
-                                <label class="form-label">Commission Percentage</label>
-                                <input type="number" name="early_commission_percent" class="form-control" step="0.01"
-                                       value="<?php echo $settings['early_commission_percent'] ?? 10; ?>">
-                                <small class="form-text">Default: 10%</small>
-                            </div>
+                    <div class="form-row">
+                        <div class="form-col">
+                            <label class="form-label">Deadline Date *</label>
+                            <input type="date" name="early_payment_date" class="form-control"
+                                   value="<?php echo $settings['early_payment_date'] ?? ''; ?>" required>
+                            <small class="form-text">Payments collected before this date qualify for early commission</small>
+                        </div>
+                        <div class="form-col">
+                            <label class="form-label">Commission Percentage *</label>
+                            <input type="number" name="early_commission_percent" class="form-control"
+                                   step="0.01" min="0" max="100"
+                                   value="<?php echo $settings['early_commission_percent'] ?? 10; ?>" required>
+                            <small class="form-text">Example: 10 means 10% commission</small>
                         </div>
                     </div>
 
-                    <!-- Standard Payment Commission -->
-                    <div style="background: white; border: 2px solid #f59e0b; padding: var(--spacing-lg); border-radius: var(--radius-md); margin-bottom: var(--spacing-md);">
-                        <h4 style="margin-top: 0; color: #f59e0b;">🚶 Standard Payment Commission (5%)</h4>
-                        <div class="form-row">
-                            <div class="form-col">
-                                <label class="form-label">Standard Payment Date (Date 2)</label>
-                                <input type="date" name="standard_payment_date" class="form-control"
-                                       value="<?php echo $settings['standard_payment_date'] ?? ''; ?>">
-                                <small class="form-text">Payments before this date get 5% commission</small>
-                            </div>
-                            <div class="form-col">
-                                <label class="form-label">Commission Percentage</label>
-                                <input type="number" name="standard_commission_percent" class="form-control" step="0.01"
-                                       value="<?php echo $settings['standard_commission_percent'] ?? 5; ?>">
-                                <small class="form-text">Default: 5%</small>
-                            </div>
+                    <div class="info-box">
+                        <strong>ℹ️ How it works:</strong> When a payment is collected before the deadline date, the system automatically calculates and records commission based on the percentage you set.
+                    </div>
+
+                    <div style="margin-top: var(--spacing-lg);">
+                        <button type="submit" class="btn btn-success">💾 Save Early Commission Settings</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Commission Type 2: Standard Payment Commission -->
+        <div class="commission-card <?php echo ($settings && $settings['standard_commission_enabled']) ? 'enabled' : ''; ?>">
+            <div class="commission-header" onclick="toggleSection('standard')">
+                <div class="commission-title">
+                    <span style="font-size: 24px;">📅</span>
+                    <div>
+                        <h3 style="margin: 0;">Standard Payment Commission</h3>
+                        <small style="color: var(--gray-600);">Regular payment timeline commission</small>
+                    </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: var(--spacing-md);">
+                    <span class="badge <?php echo ($settings && $settings['standard_commission_enabled']) ? 'badge-success' : 'badge-secondary'; ?>">
+                        <?php echo ($settings && $settings['standard_commission_enabled']) ? 'ENABLED' : 'DISABLED'; ?>
+                    </span>
+                    <span class="expand-icon" id="standard-icon">▼</span>
+                </div>
+            </div>
+            <div class="commission-body" id="standard-body">
+                <form method="POST">
+                    <input type="hidden" name="action" value="standard_commission">
+
+                    <!-- Enable/Disable Toggle -->
+                    <div class="form-group">
+                        <label class="toggle-switch">
+                            <input type="checkbox" name="standard_commission_enabled" value="1"
+                                   <?php echo ($settings && $settings['standard_commission_enabled']) ? 'checked' : ''; ?>>
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <label style="margin-left: var(--spacing-md); font-weight: 600;">Enable Standard Payment Commission</label>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-col">
+                            <label class="form-label">Deadline Date *</label>
+                            <input type="date" name="standard_payment_date" class="form-control"
+                                   value="<?php echo $settings['standard_payment_date'] ?? ''; ?>" required>
+                            <small class="form-text">Payments collected before this date qualify for standard commission</small>
+                        </div>
+                        <div class="form-col">
+                            <label class="form-label">Commission Percentage *</label>
+                            <input type="number" name="standard_commission_percent" class="form-control"
+                                   step="0.01" min="0" max="100"
+                                   value="<?php echo $settings['standard_commission_percent'] ?? 5; ?>" required>
+                            <small class="form-text">Example: 5 means 5% commission</small>
                         </div>
                     </div>
 
-                    <!-- Extra Books Commission -->
-                    <div style="background: white; border: 2px solid #8b5cf6; padding: var(--spacing-lg); border-radius: var(--radius-md); margin-bottom: var(--spacing-lg);">
-                        <h4 style="margin-top: 0; color: #8b5cf6;">📚 Extra Books Commission (15%)</h4>
-                        <div class="form-row">
-                            <div class="form-col">
-                                <label class="form-label">Extra Books Date</label>
-                                <input type="date" name="extra_books_date" class="form-control"
-                                       value="<?php echo $settings['extra_books_date'] ?? ''; ?>">
-                                <small class="form-text">Books assigned after this date get 15% commission</small>
-                            </div>
-                            <div class="form-col">
-                                <label class="form-label">Commission Percentage</label>
-                                <input type="number" name="extra_books_commission_percent" class="form-control" step="0.01"
-                                       value="<?php echo $settings['extra_books_commission_percent'] ?? 15; ?>">
-                                <small class="form-text">Default: 15%</small>
-                            </div>
+                    <div class="info-box">
+                        <strong>ℹ️ How it works:</strong> Payments that don't qualify for early commission but are collected before this deadline get standard commission rate.
+                    </div>
+
+                    <div style="margin-top: var(--spacing-lg);">
+                        <button type="submit" class="btn btn-success">💾 Save Standard Commission Settings</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Commission Type 3: Extra Books Commission -->
+        <div class="commission-card <?php echo ($settings && $settings['extra_books_commission_enabled']) ? 'enabled' : ''; ?>">
+            <div class="commission-header" onclick="toggleSection('extra')">
+                <div class="commission-title">
+                    <span style="font-size: 24px;">📚</span>
+                    <div>
+                        <h3 style="margin: 0;">Extra Books Commission</h3>
+                        <small style="color: var(--gray-600);">Special commission for books marked as "extra"</small>
+                    </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: var(--spacing-md);">
+                    <span class="badge <?php echo ($settings && $settings['extra_books_commission_enabled']) ? 'badge-success' : 'badge-secondary'; ?>">
+                        <?php echo ($settings && $settings['extra_books_commission_enabled']) ? 'ENABLED' : 'DISABLED'; ?>
+                    </span>
+                    <span class="expand-icon" id="extra-icon">▼</span>
+                </div>
+            </div>
+            <div class="commission-body" id="extra-body">
+                <form method="POST">
+                    <input type="hidden" name="action" value="extra_books_commission">
+
+                    <!-- Enable/Disable Toggle -->
+                    <div class="form-group">
+                        <label class="toggle-switch">
+                            <input type="checkbox" name="extra_books_commission_enabled" value="1"
+                                   <?php echo ($settings && $settings['extra_books_commission_enabled']) ? 'checked' : ''; ?>>
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <label style="margin-left: var(--spacing-md); font-weight: 600;">Enable Extra Books Commission</label>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-col">
+                            <label class="form-label">Reference Date *</label>
+                            <input type="date" name="extra_books_date" class="form-control"
+                                   value="<?php echo $settings['extra_books_date'] ?? ''; ?>" required>
+                            <small class="form-text">This date is shown for reference when assigning books</small>
+                        </div>
+                        <div class="form-col">
+                            <label class="form-label">Commission Percentage *</label>
+                            <input type="number" name="extra_books_commission_percent" class="form-control"
+                                   step="0.01" min="0" max="100"
+                                   value="<?php echo $settings['extra_books_commission_percent'] ?? 15; ?>" required>
+                            <small class="form-text">Example: 15 means 15% commission</small>
                         </div>
                     </div>
 
-                    <div class="button-group-mobile">
-                        <button type="submit" class="btn btn-primary btn-lg">Save Commission Settings</button>
-                        <a href="/public/group-admin/lottery.php" class="btn btn-secondary">Cancel</a>
+                    <div class="info-box">
+                        <strong>ℹ️ How it works:</strong> During book assignment, you'll see a checkbox to mark a book as "Extra Book". Any payment collected for books marked as extra will receive this commission rate, regardless of payment date.
+                        <br><br>
+                        <strong>Note:</strong> The checkbox only appears during assignment if Extra Books Commission is enabled.
+                    </div>
+
+                    <div style="margin-top: var(--spacing-lg);">
+                        <button type="submit" class="btn btn-success">💾 Save Extra Books Commission Settings</button>
                     </div>
                 </form>
             </div>
         </div>
     </div>
+
+    <script>
+        function toggleSection(section) {
+            const body = document.getElementById(section + '-body');
+            const icon = document.getElementById(section + '-icon');
+
+            body.classList.toggle('active');
+            icon.classList.toggle('active');
+        }
+    </script>
 </body>
 </html>

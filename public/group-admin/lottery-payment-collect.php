@@ -50,15 +50,63 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $amount = Validator::sanitizeFloat($_POST['amount'] ?? 0);
     $paymentMethod = $_POST['payment_method'] ?? 'cash';
     $paymentDate = $_POST['payment_date'] ?? date('Y-m-d');
+    $returnReason = Validator::sanitizeString($_POST['return_reason'] ?? '');
 
-    // Validate based on payment type
-    if ($paymentType === 'full') {
-        if ($amount != $outstanding) {
-            $error = 'Full payment amount must equal outstanding amount of ₹' . number_format($outstanding);
+    // Handle "No Payment - Books Returned" case
+    if ($paymentType === 'no_payment') {
+        if (empty($returnReason)) {
+            $error = 'Please provide a reason for book return';
+        } else {
+            try {
+                $db->beginTransaction();
+
+                // Insert payment record with no_payment status
+                $query = "INSERT INTO payment_collections
+                         (distribution_id, amount_paid, payment_method, payment_date, collected_by, payment_status, return_reason, is_editable)
+                         VALUES (:distribution_id, 0, 'cash', :payment_date, :collected_by, 'no_payment_book_returned', :return_reason, 0)";
+                $stmt = $db->prepare($query);
+                $stmt->bindParam(':distribution_id', $book['distribution_id']);
+                $stmt->bindParam(':payment_date', $paymentDate);
+                $stmt->bindParam(':collected_by', AuthMiddleware::getUserId());
+                $stmt->bindParam(':return_reason', $returnReason);
+                $stmt->execute();
+
+                // Update book status back to available
+                $updateBookQuery = "UPDATE lottery_books SET book_status = 'available' WHERE book_id = :book_id";
+                $updateStmt = $db->prepare($updateBookQuery);
+                $updateStmt->bindParam(':book_id', $book['book_id']);
+                $updateStmt->execute();
+
+                // Log activity
+                $logQuery = "INSERT INTO activity_logs (user_id, action_type, action_description, created_at)
+                            VALUES (:user_id, 'book_returned', :description, NOW())";
+                $logStmt = $db->prepare($logQuery);
+                $description = "Book #{$book['book_number']} returned - no payment received. Reason: $returnReason";
+                $logStmt->bindParam(':user_id', AuthMiddleware::getUserId());
+                $logStmt->bindParam(':description', $description);
+                $logStmt->execute();
+
+                $db->commit();
+                header("Location: /public/group-admin/lottery-books.php?id={$book['event_id']}&success=book_returned");
+                exit;
+            } catch (Exception $e) {
+                $db->rollBack();
+                error_log("Book Return Error: " . $e->getMessage());
+                $error = 'Failed to process book return. Please try again.';
+            }
         }
-    } else {
-        if ($amount <= 0 || $amount > $outstanding) {
-            $error = 'Partial payment must be between ₹1 and ₹' . number_format($outstanding);
+    }
+    // Normal payment collection
+    else {
+        // Validate based on payment type
+        if ($paymentType === 'full') {
+            if ($amount != $outstanding) {
+                $error = 'Full payment amount must equal outstanding amount of ₹' . number_format($outstanding);
+            }
+        } else {
+            if ($amount <= 0 || $amount > $outstanding) {
+                $error = 'Partial payment must be between ₹1 and ₹' . number_format($outstanding);
+            }
         }
     }
 
@@ -249,14 +297,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <form method="POST" id="paymentForm">
                             <div class="form-group">
                                 <label class="form-label form-label-required">Payment Type</label>
-                                <div style="display: flex; gap: var(--spacing-lg); margin-top: var(--spacing-sm);">
-                                    <label style="display: flex; align-items: center; cursor: pointer;">
-                                        <input type="radio" name="payment_type" value="full" <?php echo ($outstanding > 0) ? '' : 'checked'; ?> onchange="updateAmount()" style="margin-right: var(--spacing-sm);">
-                                        <span>Full Payment (₹<?php echo number_format($outstanding); ?>)</span>
+                                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--spacing-md); margin-top: var(--spacing-sm);">
+                                    <label style="display: flex; align-items: center; cursor: pointer; padding: var(--spacing-sm); border: 2px solid var(--gray-300); border-radius: var(--radius-md);">
+                                        <input type="radio" name="payment_type" value="full" <?php echo ($outstanding > 0) ? '' : 'checked'; ?> onchange="togglePaymentFields('full')" style="margin-right: var(--spacing-sm);">
+                                        <span>💰 Full Payment<br><small style="color: var(--gray-600);">₹<?php echo number_format($outstanding); ?></small></span>
                                     </label>
-                                    <label style="display: flex; align-items: center; cursor: pointer;">
-                                        <input type="radio" name="payment_type" value="partial" checked onchange="updateAmount()" style="margin-right: var(--spacing-sm);">
-                                        <span>Partial Payment</span>
+                                    <label style="display: flex; align-items: center; cursor: pointer; padding: var(--spacing-sm); border: 2px solid var(--gray-300); border-radius: var(--radius-md);">
+                                        <input type="radio" name="payment_type" value="partial" checked onchange="togglePaymentFields('partial')" style="margin-right: var(--spacing-sm);">
+                                        <span>💵 Partial Payment<br><small style="color: var(--gray-600);">Any amount</small></span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; cursor: pointer; padding: var(--spacing-sm); border: 2px solid var(--danger-color); border-radius: var(--radius-md); background: var(--danger-light);">
+                                        <input type="radio" name="payment_type" value="no_payment" onchange="togglePaymentFields('no_payment')" style="margin-right: var(--spacing-sm);">
+                                        <span>📚 No Payment<br><small style="color: var(--danger-color);">Books Returned</small></span>
                                     </label>
                                 </div>
                             </div>
@@ -312,8 +364,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 >
                             </div>
 
+                            <!-- Return Reason Field (shown only for no_payment type) -->
+                            <div class="form-group" id="returnReasonField" style="display: none;">
+                                <label class="form-label form-label-required" style="color: var(--danger-color);">Reason for Book Return</label>
+                                <textarea
+                                    name="return_reason"
+                                    id="returnReasonTextarea"
+                                    class="form-control"
+                                    rows="3"
+                                    placeholder="Please provide a clear reason why the books were returned (e.g., member couldn't sell tickets, member relocated, etc.)"
+                                ></textarea>
+                                <small class="form-text" style="color: var(--danger-color);">This will mark the book as returned and make it available for reassignment</small>
+                            </div>
+
                             <div class="button-group-mobile">
-                                <button type="submit" class="btn btn-success btn-lg">Record Payment</button>
+                                <button type="submit" class="btn btn-success btn-lg" id="submitButton">Record Payment</button>
                                 <a href="/public/group-admin/lottery-payments.php?id=<?php echo $book['event_id']; ?>" class="btn btn-secondary">Cancel</a>
                             </div>
                         </form>
@@ -338,11 +403,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <script>
         const outstanding = <?php echo $outstanding; ?>;
         const amountInput = document.getElementById('amountInput');
+        const paymentMethodGroup = document.querySelector('.payment-method-grid').parentElement;
+        const returnReasonField = document.getElementById('returnReasonField');
+        const returnReasonTextarea = document.getElementById('returnReasonTextarea');
+        const submitButton = document.getElementById('submitButton');
+        const amountGroup = amountInput.parentElement;
 
-        function updateAmount() {
-            const paymentType = document.querySelector('input[name="payment_type"]:checked').value;
+        function togglePaymentFields(type) {
+            if (type === 'no_payment') {
+                // Hide payment fields
+                amountGroup.style.display = 'none';
+                paymentMethodGroup.style.display = 'none';
 
-            if (paymentType === 'full') {
+                // Show return reason field
+                returnReasonField.style.display = 'block';
+                returnReasonTextarea.required = true;
+
+                // Update button text
+                submitButton.textContent = '📚 Record Book Return';
+                submitButton.className = 'btn btn-danger btn-lg';
+            } else {
+                // Show payment fields
+                amountGroup.style.display = 'block';
+                paymentMethodGroup.style.display = 'block';
+
+                // Hide return reason field
+                returnReasonField.style.display = 'none';
+                returnReasonTextarea.required = false;
+
+                // Update button text
+                submitButton.textContent = '💰 Record Payment';
+                submitButton.className = 'btn btn-success btn-lg';
+
+                // Update amount based on type
+                updateAmount(type);
+            }
+        }
+
+        function updateAmount(type) {
+            if (type === 'full') {
                 amountInput.value = outstanding;
                 amountInput.readOnly = true;
                 amountInput.style.backgroundColor = '#f3f4f6';

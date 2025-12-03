@@ -68,6 +68,7 @@ if (isset($_GET['success'])) {
     $success = match($_GET['success']) {
         'deleted' => 'Transaction deleted successfully',
         'delete_requested' => 'Deletion request submitted successfully! Super Admin will review your request.',
+        'payment_edited' => 'Payment updated successfully!',
         default => ''
     };
 }
@@ -78,6 +79,7 @@ if (isset($_GET['error'])) {
         'request_failed' => 'Failed to submit deletion request. Please try again.',
         'notfound' => 'Transaction not found.',
         'invalid' => 'Invalid request.',
+        'not_editable' => 'This payment cannot be edited.',
         default => $error
     };
 }
@@ -217,21 +219,31 @@ $outstanding = $expectedAmount - $totalPaid;
                                         <td><?php echo htmlspecialchars($trans['collector_name'] ?? 'Unknown'); ?></td>
                                         <td><?php echo date('M d, Y g:i A', strtotime($trans['collected_at'])); ?></td>
                                         <td>
-                                            <?php if ($_SESSION['role'] === 'admin'): ?>
-                                                <a href="?dist_id=<?php echo $distributionId; ?>&delete_payment=<?php echo $trans['payment_id']; ?>"
-                                                   class="btn btn-sm btn-danger"
-                                                   onclick="return confirm('Delete this payment transaction? This cannot be undone.')">
-                                                    🗑️ Delete
-                                                </a>
-                                            <?php elseif ($_SESSION['role'] === 'group_admin'): ?>
-                                                <button
-                                                    onclick="requestDeleteTransaction(<?php echo $trans['payment_id']; ?>, '₹<?php echo number_format($trans['amount_paid']); ?>', '<?php echo date('M d, Y', strtotime($trans['payment_date'])); ?>')"
-                                                    class="btn btn-sm btn-danger">
-                                                    🗑️ Request Delete
-                                                </button>
-                                            <?php else: ?>
-                                                <span style="color: var(--gray-400);">-</span>
-                                            <?php endif; ?>
+                                            <div style="display: flex; gap: var(--spacing-xs); flex-wrap: wrap;">
+                                                <?php if ($trans['is_editable']): ?>
+                                                    <a href="/public/group-admin/lottery-payment-edit.php?payment_id=<?php echo $trans['payment_id']; ?>&dist_id=<?php echo $distributionId; ?>"
+                                                       class="btn btn-sm btn-warning"
+                                                       title="Edit payment">
+                                                        ✏️ Edit
+                                                    </a>
+                                                <?php endif; ?>
+
+                                                <?php if ($_SESSION['role'] === 'admin'): ?>
+                                                    <a href="?dist_id=<?php echo $distributionId; ?>&delete_payment=<?php echo $trans['payment_id']; ?>"
+                                                       class="btn btn-sm btn-danger"
+                                                       onclick="return confirm('Delete this payment transaction? This cannot be undone.')">
+                                                        🗑️ Delete
+                                                    </a>
+                                                <?php elseif ($_SESSION['role'] === 'group_admin'): ?>
+                                                    <button
+                                                        onclick="requestDeleteTransaction(<?php echo $trans['payment_id']; ?>, '₹<?php echo number_format($trans['amount_paid']); ?>', '<?php echo date('M d, Y', strtotime($trans['payment_date'])); ?>')"
+                                                        class="btn btn-sm btn-danger">
+                                                        🗑️ Request Delete
+                                                    </button>
+                                                <?php else: ?>
+                                                    <span style="color: var(--gray-400);">-</span>
+                                                <?php endif; ?>
+                                            </div>
                                         </td>
                                     </tr>
                                 <?php endforeach; ?>

@@ -40,6 +40,16 @@ $stmt->bindParam(':event_id', $eventId);
 $stmt->execute();
 $levels = $stmt->fetchAll();
 
+// Check if Extra Books Commission is enabled
+$commissionQuery = "SELECT extra_books_commission_enabled, extra_books_date, extra_books_commission_percent
+                    FROM commission_settings
+                    WHERE event_id = :event_id";
+$stmt = $db->prepare($commissionQuery);
+$stmt->bindParam(':event_id', $eventId);
+$stmt->execute();
+$commissionSettings = $stmt->fetch();
+$extraBooksEnabled = $commissionSettings && $commissionSettings['extra_books_commission_enabled'];
+
 // Get all level values with parent relationships
 $levelValues = [];
 $allValues = []; // For JavaScript
@@ -111,9 +121,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Build distribution path (e.g., "Wing A > Floor 2 > Flat 101")
         $distributionPath = !empty($distributionData) ? implode(' > ', $distributionData) : '';
 
+        // Check if marked as extra book
+        $isExtraBook = isset($_POST['is_extra_book']) ? 1 : 0;
+
         // Assign book
-        $query = "INSERT INTO book_distribution (book_id, notes, mobile_number, distribution_path, distributed_by)
-                  VALUES (:book_id, :notes, :mobile, :distribution_path, :distributed_by)";
+        $query = "INSERT INTO book_distribution (book_id, notes, mobile_number, distribution_path, distributed_by, is_extra_book)
+                  VALUES (:book_id, :notes, :mobile, :distribution_path, :distributed_by, :is_extra_book)";
         $stmt = $db->prepare($query);
         $stmt->bindParam(':book_id', $bookId);
         $stmt->bindParam(':notes', $notes);
@@ -121,6 +134,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->bindParam(':distribution_path', $distributionPath);
         $distributedBy = AuthMiddleware::getUserId();
         $stmt->bindParam(':distributed_by', $distributedBy);
+        $stmt->bindParam(':is_extra_book', $isExtraBook);
 
         if ($stmt->execute()) {
             header("Location: /public/group-admin/lottery-books.php?id={$eventId}");
@@ -269,6 +283,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     pattern="[6-9][0-9]{9}"
                                 >
                             </div>
+
+                            <?php if ($extraBooksEnabled): ?>
+                                <div class="form-group" style="background: #fef3c7; border: 2px solid #f59e0b; padding: var(--spacing-lg); border-radius: var(--radius-md); margin-top: var(--spacing-lg);">
+                                    <h4 style="margin-top: 0; color: #92400e; display: flex; align-items: center; gap: var(--spacing-sm);">
+                                        <span>📚</span>
+                                        <span>Extra Books Commission</span>
+                                    </h4>
+                                    <label style="display: flex; align-items: start; cursor: pointer; margin-bottom: var(--spacing-md);">
+                                        <input type="checkbox" name="is_extra_book" value="1" style="width: 20px; height: 20px; margin-right: var(--spacing-md); margin-top: 2px;">
+                                        <div>
+                                            <strong>Mark this as an Extra Book</strong>
+                                            <p style="margin: var(--spacing-xs) 0 0 0; font-size: var(--font-size-sm); color: var(--gray-700);">
+                                                Extra books qualify for <strong><?php echo number_format($commissionSettings['extra_books_commission_percent'], 1); ?>%</strong> commission regardless of payment date.
+                                            </p>
+                                        </div>
+                                    </label>
+                                    <div style="background: white; padding: var(--spacing-sm); border-radius: var(--radius-sm); font-size: var(--font-size-sm); color: var(--gray-600);">
+                                        <strong>ℹ️ Info:</strong> Extra Books Commission is enabled for this event (Reference Date: <?php echo date('M d, Y', strtotime($commissionSettings['extra_books_date'])); ?>)
+                                    </div>
+                                </div>
+                            <?php endif; ?>
 
                             <div class="button-group-mobile">
                                 <button type="submit" class="btn btn-primary btn-lg">Assign Book</button>

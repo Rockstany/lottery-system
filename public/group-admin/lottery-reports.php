@@ -168,6 +168,55 @@ $stmt = $db->prepare($dateWiseQuery);
 $stmt->bindParam(':event_id', $eventId);
 $stmt->execute();
 $dateWisePayments = $stmt->fetchAll();
+
+// Get commission statistics
+$commissionQuery = "SELECT
+    commission_type,
+    COUNT(*) as payment_count,
+    SUM(payment_amount) as total_payment_amount,
+    SUM(commission_amount) as total_commission_earned,
+    AVG(commission_percent) as avg_commission_percent
+    FROM commission_earned
+    WHERE event_id = :event_id
+    GROUP BY commission_type";
+$stmt = $db->prepare($commissionQuery);
+$stmt->bindParam(':event_id', $eventId);
+$stmt->execute();
+$commissionStats = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// Get commission by Level 1
+$commissionByLevelQuery = "SELECT
+    level_1_value,
+    commission_type,
+    COUNT(*) as payment_count,
+    SUM(payment_amount) as total_payment,
+    SUM(commission_amount) as total_commission
+    FROM commission_earned
+    WHERE event_id = :event_id
+    GROUP BY level_1_value, commission_type
+    ORDER BY level_1_value, commission_type";
+$stmt = $db->prepare($commissionByLevelQuery);
+$stmt->bindParam(':event_id', $eventId);
+$stmt->execute();
+$commissionByLevel = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// Calculate total commission
+$totalCommission = 0;
+foreach ($commissionStats as $comm) {
+    $totalCommission += $comm['total_commission_earned'];
+}
+
+// Check if commission is enabled
+$commissionSettingsQuery = "SELECT * FROM commission_settings WHERE event_id = :event_id";
+$stmt = $db->prepare($commissionSettingsQuery);
+$stmt->bindParam(':event_id', $eventId);
+$stmt->execute();
+$commissionSettings = $stmt->fetch(PDO::FETCH_ASSOC);
+$commissionEnabled = $commissionSettings && (
+    $commissionSettings['early_commission_enabled'] ||
+    $commissionSettings['standard_commission_enabled'] ||
+    $commissionSettings['extra_books_commission_enabled']
+);
 ?>
 <!DOCTYPE html>
 <html lang="en">
