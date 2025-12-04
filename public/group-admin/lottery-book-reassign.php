@@ -86,82 +86,82 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $notes = Validator::sanitizeString($_POST['notes'] ?? '');
         $mobile = Validator::sanitizeString($_POST['mobile'] ?? '');
 
-    // Get distribution level selections
-    $distributionData = [];
-    $lastValueId = null;
+        // Get distribution level selections
+        $distributionData = [];
+        $lastValueId = null;
 
-    foreach ($levels as $level) {
-        $selectedValueId = $_POST["level_{$level['level_id']}_id"] ?? '';
-        $selectedValue = $_POST["level_{$level['level_id']}"] ?? '';
-        $newValue = trim($_POST["new_level_{$level['level_id']}"] ?? '');
+        foreach ($levels as $level) {
+            $selectedValueId = $_POST["level_{$level['level_id']}_id"] ?? '';
+            $selectedValue = $_POST["level_{$level['level_id']}"] ?? '';
+            $newValue = trim($_POST["new_level_{$level['level_id']}"] ?? '');
 
-        // If "Add New" is selected and new value is provided
-        if ($selectedValue === '__new__' && !empty($newValue)) {
-            // Insert new value with parent relationship
-            $insertQuery = "INSERT INTO distribution_level_values (level_id, value_name, parent_value_id) VALUES (:level_id, :value_name, :parent_value_id)";
-            $insertStmt = $db->prepare($insertQuery);
-            $insertStmt->bindParam(':level_id', $level['level_id']);
-            $insertStmt->bindParam(':value_name', $newValue);
-            $insertStmt->bindValue(':parent_value_id', $lastValueId, PDO::PARAM_INT);
-            $insertStmt->execute();
-            $lastValueId = $db->lastInsertId();
-            $selectedValue = $newValue;
-        } elseif (!empty($selectedValueId)) {
-            // Use existing value ID as parent for next level
-            $lastValueId = $selectedValueId;
+            // If "Add New" is selected and new value is provided
+            if ($selectedValue === '__new__' && !empty($newValue)) {
+                // Insert new value with parent relationship
+                $insertQuery = "INSERT INTO distribution_level_values (level_id, value_name, parent_value_id) VALUES (:level_id, :value_name, :parent_value_id)";
+                $insertStmt = $db->prepare($insertQuery);
+                $insertStmt->bindParam(':level_id', $level['level_id']);
+                $insertStmt->bindParam(':value_name', $newValue);
+                $insertStmt->bindValue(':parent_value_id', $lastValueId, PDO::PARAM_INT);
+                $insertStmt->execute();
+                $lastValueId = $db->lastInsertId();
+                $selectedValue = $newValue;
+            } elseif (!empty($selectedValueId)) {
+                // Use existing value ID as parent for next level
+                $lastValueId = $selectedValueId;
+            }
+
+            if (!empty($selectedValue) && $selectedValue !== '__new__') {
+                $distributionData[$level['level_name']] = $selectedValue;
+            }
         }
 
-        if (!empty($selectedValue) && $selectedValue !== '__new__') {
-            $distributionData[$level['level_name']] = $selectedValue;
+        // Validate distribution levels
+        $missingLevels = [];
+        foreach ($levels as $level) {
+            if (empty($distributionData[$level['level_name']])) {
+                $missingLevels[] = $level['level_name'];
+            }
         }
-    }
 
-    // Validate distribution levels
-    $missingLevels = [];
-    foreach ($levels as $level) {
-        if (empty($distributionData[$level['level_name']])) {
-            $missingLevels[] = $level['level_name'];
-        }
-    }
-
-    if (count($levels) > 0 && count($missingLevels) > 0) {
-        $error = 'Please select: ' . implode(', ', $missingLevels);
-    } else {
-        // Build distribution path
-        $distributionPath = !empty($distributionData) ? implode(' > ', $distributionData) : '';
-
-        // Update book distribution
-        $updateQuery = "UPDATE book_distribution
-                       SET notes = :notes,
-                           mobile_number = :mobile,
-                           distribution_path = :distribution_path,
-                           distributed_by = :distributed_by,
-                           distributed_at = NOW()
-                       WHERE distribution_id = :dist_id";
-        $stmt = $db->prepare($updateQuery);
-        $stmt->bindParam(':notes', $notes);
-        $stmt->bindParam(':mobile', $mobile);
-        $stmt->bindParam(':distribution_path', $distributionPath);
-        $distributedBy = AuthMiddleware::getUserId();
-        $stmt->bindParam(':distributed_by', $distributedBy);
-        $stmt->bindParam(':dist_id', $distributionId);
-
-        if ($stmt->execute()) {
-            // Log the action
-            $logQuery = "INSERT INTO activity_logs (user_id, action_type, action_description) VALUES (:user_id, 'book_reassigned', :description)";
-            $logStmt = $db->prepare($logQuery);
-            $userId = AuthMiddleware::getUserId();
-            $description = "Reassigned Book #{$distribution['book_number']} from '{$distribution['distribution_path']}' to '{$distributionPath}'";
-            $logStmt->bindParam(':user_id', $userId);
-            $logStmt->bindParam(':description', $description);
-            $logStmt->execute();
-
-            header("Location: /public/group-admin/lottery-books.php?id={$eventId}&success=reassigned");
-            exit;
+        if (count($levels) > 0 && count($missingLevels) > 0) {
+            $error = 'Please select: ' . implode(', ', $missingLevels);
         } else {
-            $error = 'Failed to reassign book';
+            // Build distribution path
+            $distributionPath = !empty($distributionData) ? implode(' > ', $distributionData) : '';
+
+            // Update book distribution
+            $updateQuery = "UPDATE book_distribution
+                           SET notes = :notes,
+                               mobile_number = :mobile,
+                               distribution_path = :distribution_path,
+                               distributed_by = :distributed_by,
+                               distributed_at = NOW()
+                           WHERE distribution_id = :dist_id";
+            $stmt = $db->prepare($updateQuery);
+            $stmt->bindParam(':notes', $notes);
+            $stmt->bindParam(':mobile', $mobile);
+            $stmt->bindParam(':distribution_path', $distributionPath);
+            $distributedBy = AuthMiddleware::getUserId();
+            $stmt->bindParam(':distributed_by', $distributedBy);
+            $stmt->bindParam(':dist_id', $distributionId);
+
+            if ($stmt->execute()) {
+                // Log the action
+                $logQuery = "INSERT INTO activity_logs (user_id, action_type, action_description) VALUES (:user_id, 'book_reassigned', :description)";
+                $logStmt = $db->prepare($logQuery);
+                $userId = AuthMiddleware::getUserId();
+                $description = "Reassigned Book #{$distribution['book_number']} from '{$distribution['distribution_path']}' to '{$distributionPath}'";
+                $logStmt->bindParam(':user_id', $userId);
+                $logStmt->bindParam(':description', $description);
+                $logStmt->execute();
+
+                header("Location: /public/group-admin/lottery-books.php?id={$eventId}&success=reassigned");
+                exit;
+            } else {
+                $error = 'Failed to reassign book';
+            }
         }
-    }
     }
 }
 ?>
