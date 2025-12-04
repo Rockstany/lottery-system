@@ -65,14 +65,32 @@ if (!empty($search)) {
     }
 }
 
-// First, get total count for pagination
-$countQuery = "SELECT COUNT(DISTINCT lb.book_id) as total
+// First, get total count for pagination (using subquery to account for HAVING clause)
+$countQuery = "SELECT COUNT(*) as total FROM (
+          SELECT lb.book_id,
+          COALESCE(SUM(pc.amount_paid), 0) as total_paid,
+          (lb.end_ticket_number - lb.start_ticket_number + 1) * :price_per_ticket as expected_amount
           FROM lottery_books lb
           JOIN book_distribution bd ON lb.book_id = bd.book_id
           LEFT JOIN payment_collections pc ON bd.distribution_id = pc.distribution_id
-          WHERE {$whereClause}";
+          WHERE {$whereClause}
+          GROUP BY lb.book_id
+          HAVING 1=1";
+
+// Add status filter to count query
+if ($statusFilter === 'paid') {
+    $countQuery .= " AND total_paid >= expected_amount";
+} elseif ($statusFilter === 'partial') {
+    $countQuery .= " AND total_paid > 0 AND total_paid < expected_amount";
+} elseif ($statusFilter === 'unpaid') {
+    $countQuery .= " AND total_paid = 0";
+}
+
+$countQuery .= ") as filtered_books";
+
 $countStmt = $db->prepare($countQuery);
 $countStmt->bindValue(':event_id', $eventId);
+$countStmt->bindValue(':price_per_ticket', $event['price_per_ticket']);
 foreach ($searchParams as $key => $value) {
     $countStmt->bindValue(':' . $key, $value);
 }
