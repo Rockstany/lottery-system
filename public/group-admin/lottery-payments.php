@@ -89,10 +89,14 @@ if ($statusFilter === 'paid') {
 $countQuery .= ") as filtered_books";
 
 $countStmt = $db->prepare($countQuery);
-$countStmt->bindValue(':event_id', $eventId);
+$countStmt->bindValue(':event_id', $eventId, PDO::PARAM_INT);
 $countStmt->bindValue(':price_per_ticket', $event['price_per_ticket']);
 foreach ($searchParams as $key => $value) {
-    $countStmt->bindValue(':' . $key, $value);
+    if (is_int($value)) {
+        $countStmt->bindValue(':' . $key, $value, PDO::PARAM_INT);
+    } else {
+        $countStmt->bindValue(':' . $key, $value, PDO::PARAM_STR);
+    }
 }
 $countStmt->execute();
 $totalDistributions = $countStmt->fetch()['total'];
@@ -122,14 +126,18 @@ $query .= " ORDER BY lb.start_ticket_number, bd.distribution_path ASC, bd.notes 
           LIMIT :limit OFFSET :offset";
 
 $distributionsStmt = $db->prepare($query);
-$distributionsStmt->bindValue(':event_id', $eventId);
+$distributionsStmt->bindValue(':event_id', $eventId, PDO::PARAM_INT);
 $distributionsStmt->bindValue(':price_per_ticket', $event['price_per_ticket']);
 $distributionsStmt->bindValue(':limit', $perPage, PDO::PARAM_INT);
 $distributionsStmt->bindValue(':offset', $offset, PDO::PARAM_INT);
 
 // Bind search parameters
 foreach ($searchParams as $key => $value) {
-    $distributionsStmt->bindValue(':' . $key, $value);
+    if (is_int($value)) {
+        $distributionsStmt->bindValue(':' . $key, $value, PDO::PARAM_INT);
+    } else {
+        $distributionsStmt->bindValue(':' . $key, $value, PDO::PARAM_STR);
+    }
 }
 
 $distributionsStmt->execute();

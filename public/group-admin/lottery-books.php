@@ -215,9 +215,13 @@ $countQuery = "SELECT COUNT(*) as total
           LEFT JOIN book_distribution bd ON lb.book_id = bd.book_id
           WHERE {$whereClause}";
 $countStmt = $db->prepare($countQuery);
-$countStmt->bindValue(':event_id', $eventId);
+$countStmt->bindValue(':event_id', $eventId, PDO::PARAM_INT);
 foreach ($searchParams as $key => $value) {
-    $countStmt->bindValue(':' . $key, $value);
+    if (is_int($value)) {
+        $countStmt->bindValue(':' . $key, $value, PDO::PARAM_INT);
+    } else {
+        $countStmt->bindValue(':' . $key, $value, PDO::PARAM_STR);
+    }
 }
 $countStmt->execute();
 $totalBooks = $countStmt->fetch()['total'];
@@ -231,13 +235,17 @@ $query = "SELECT lb.*, bd.notes, bd.mobile_number, bd.distribution_path, bd.dist
           ORDER BY lb.start_ticket_number, lb.book_number
           LIMIT :limit OFFSET :offset";
 $booksStmt = $db->prepare($query);
-$booksStmt->bindValue(':event_id', $eventId);
+$booksStmt->bindValue(':event_id', $eventId, PDO::PARAM_INT);
 $booksStmt->bindValue(':limit', $perPage, PDO::PARAM_INT);
 $booksStmt->bindValue(':offset', $offset, PDO::PARAM_INT);
 
 // Bind search parameters
 foreach ($searchParams as $key => $value) {
-    $booksStmt->bindValue(':' . $key, $value);
+    if (is_int($value)) {
+        $booksStmt->bindValue(':' . $key, $value, PDO::PARAM_INT);
+    } else {
+        $booksStmt->bindValue(':' . $key, $value, PDO::PARAM_STR);
+    }
 }
 
 $booksStmt->execute();
