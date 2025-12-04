@@ -213,7 +213,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </style>
 </head>
 <body>
-    <?php include __DIR__ . '/includes/navigation.php'; ?>
+    <?php //include __DIR__ . '/includes/navigation.php'; ?>
 
     <div class="header">
         <div class="container">
@@ -223,7 +223,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
 
     <div class="container main-content">
-        <?php include __DIR__ . '/includes/toast-handler.php'; ?>
+        <?php //include __DIR__ . '/includes/toast-handler.php'; ?>
 
         <!-- Back Button -->
         <div style="margin-bottom: var(--spacing-lg);">
