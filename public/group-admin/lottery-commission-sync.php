@@ -211,8 +211,7 @@ $previewQuery = "SELECT
                   ORDER BY full_payment_date ASC";
 
 $previewStmt = $db->prepare($previewQuery);
-$previewStmt->bindParam(':event_id', $eventId);
-$previewStmt->execute();
+$previewStmt->execute(['event_id' => $eventId]);
 $missingRecords = $previewStmt->fetchAll();
 ?>
 <!DOCTYPE html>
