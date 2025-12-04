@@ -214,16 +214,38 @@ $countQuery = "SELECT COUNT(*) as total
           FROM lottery_books lb
           LEFT JOIN book_distribution bd ON lb.book_id = bd.book_id
           WHERE {$whereClause}";
+
+// DEBUG
+error_log("=== BOOKS COUNT QUERY DEBUG ===");
+error_log("Query: " . $countQuery);
+error_log("WHERE: " . $whereClause);
+error_log("Search params: " . json_encode($searchParams));
+
 $countStmt = $db->prepare($countQuery);
 $countStmt->bindValue(':event_id', $eventId, PDO::PARAM_INT);
 foreach ($searchParams as $key => $value) {
+    error_log("Binding :{$key} = " . var_export($value, true));
     if (is_int($value)) {
         $countStmt->bindValue(':' . $key, $value, PDO::PARAM_INT);
     } else {
         $countStmt->bindValue(':' . $key, $value, PDO::PARAM_STR);
     }
 }
-$countStmt->execute();
+try {
+    $countStmt->execute();
+} catch (PDOException $e) {
+    echo "<h2 style='color: red;'>DEBUG: PDO Error in Count Query</h2>";
+    echo "<pre style='background: #f5f5f5; padding: 20px; border: 2px solid red;'>";
+    echo "<strong>Error:</strong> " . htmlspecialchars($e->getMessage()) . "\n\n";
+    echo "<strong>Query:</strong> " . htmlspecialchars($countQuery) . "\n\n";
+    echo "<strong>WHERE Clause:</strong> " . htmlspecialchars($whereClause) . "\n\n";
+    echo "<strong>Search Input:</strong> " . htmlspecialchars($search) . "\n\n";
+    echo "<strong>Search Params:</strong>\n" . print_r($searchParams, true) . "\n";
+    echo "<strong>Event ID:</strong> " . $eventId . "\n";
+    echo "<strong>Filter:</strong> " . $filter . "\n";
+    echo "</pre>";
+    die();
+}
 $totalBooks = $countStmt->fetch()['total'];
 $totalPages = ceil($totalBooks / $perPage);
 
