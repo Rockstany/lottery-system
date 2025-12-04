@@ -60,8 +60,11 @@ if (!empty($search)) {
     }
     // Otherwise search in distribution path, notes
     else {
-        $whereClause .= " AND (bd.distribution_path LIKE :search_term OR bd.notes LIKE :search_term OR bd.mobile_number LIKE :search_term)";
-        $searchParams['search_term'] = '%' . $search . '%';
+        $searchTerm = '%' . $search . '%';
+        $whereClause .= " AND (bd.distribution_path LIKE :search_path OR bd.notes LIKE :search_notes OR bd.mobile_number LIKE :search_mobile)";
+        $searchParams['search_path'] = $searchTerm;
+        $searchParams['search_notes'] = $searchTerm;
+        $searchParams['search_mobile'] = $searchTerm;
     }
 }
 
