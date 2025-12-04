@@ -32,7 +32,8 @@ $levelsStmt->execute();
 $levels = $levelsStmt->fetchAll();
 
 // Get search, filter, and pagination parameters
-$search = Validator::sanitizeString($_GET['search'] ?? '');
+// For search, use trim and strip_tags only (no htmlspecialchars) since PDO handles SQL injection
+$search = trim(strip_tags($_GET['search'] ?? ''));
 $statusFilter = $_GET['status_filter'] ?? 'all';
 $perPage = isset($_GET['per_page']) ? (int)$_GET['per_page'] : 20; // Default 20 per page
 $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;

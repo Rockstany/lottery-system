@@ -170,7 +170,8 @@ if (isset($_GET['success'])) {
 
 // Get filter, search, and pagination
 $filter = $_GET['filter'] ?? 'all';
-$search = Validator::sanitizeString($_GET['search'] ?? '');
+// For search, use trim and strip_tags only (no htmlspecialchars) since PDO handles SQL injection
+$search = trim(strip_tags($_GET['search'] ?? ''));
 $perPage = isset($_GET['per_page']) ? (int)$_GET['per_page'] : 20; // Default 20 per page
 $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
 $offset = ($page - 1) * $perPage;
