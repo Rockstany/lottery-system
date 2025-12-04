@@ -58,18 +58,42 @@ $offset = ($page - 1) * $perPage;
 $whereClause = "lb.event_id = :event_id";
 $searchParams = [];
 
-// Add level filters
+// Add level filters (filter by level value names in distribution_path)
 if ($level1Filter > 0) {
-    $whereClause .= " AND bd.level1_value_id = :level1_filter";
-    $searchParams['level1_filter'] = $level1Filter;
+    // Get level 1 value name
+    $level1ValueQuery = "SELECT value_name FROM distribution_level_values WHERE value_id = :value_id";
+    $level1ValueStmt = $db->prepare($level1ValueQuery);
+    $level1ValueStmt->bindValue(':value_id', $level1Filter, PDO::PARAM_INT);
+    $level1ValueStmt->execute();
+    $level1ValueName = $level1ValueStmt->fetchColumn();
+    if ($level1ValueName) {
+        $whereClause .= " AND bd.distribution_path LIKE :level1_filter";
+        $searchParams['level1_filter'] = '%' . $level1ValueName . '%';
+    }
 }
 if ($level2Filter > 0) {
-    $whereClause .= " AND bd.level2_value_id = :level2_filter";
-    $searchParams['level2_filter'] = $level2Filter;
+    // Get level 2 value name
+    $level2ValueQuery = "SELECT value_name FROM distribution_level_values WHERE value_id = :value_id";
+    $level2ValueStmt = $db->prepare($level2ValueQuery);
+    $level2ValueStmt->bindValue(':value_id', $level2Filter, PDO::PARAM_INT);
+    $level2ValueStmt->execute();
+    $level2ValueName = $level2ValueStmt->fetchColumn();
+    if ($level2ValueName) {
+        $whereClause .= " AND bd.distribution_path LIKE :level2_filter";
+        $searchParams['level2_filter'] = '%' . $level2ValueName . '%';
+    }
 }
 if ($level3Filter > 0) {
-    $whereClause .= " AND bd.level3_value_id = :level3_filter";
-    $searchParams['level3_filter'] = $level3Filter;
+    // Get level 3 value name
+    $level3ValueQuery = "SELECT value_name FROM distribution_level_values WHERE value_id = :value_id";
+    $level3ValueStmt = $db->prepare($level3ValueQuery);
+    $level3ValueStmt->bindValue(':value_id', $level3Filter, PDO::PARAM_INT);
+    $level3ValueStmt->execute();
+    $level3ValueName = $level3ValueStmt->fetchColumn();
+    if ($level3ValueName) {
+        $whereClause .= " AND bd.distribution_path LIKE :level3_filter";
+        $searchParams['level3_filter'] = '%' . $level3ValueName . '%';
+    }
 }
 
 if (!empty($search)) {
