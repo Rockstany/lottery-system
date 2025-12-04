@@ -9,11 +9,15 @@ ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
-require_once __DIR__ . '/../../config/config.php';
-AuthMiddleware::requireRole('group_admin');
+try {
+    require_once __DIR__ . '/../../config/config.php';
+    AuthMiddleware::requireRole('group_admin');
 
-$distributionId = Validator::sanitizeInt($_GET['dist_id'] ?? 0);
-$communityId = AuthMiddleware::getCommunityId();
+    $distributionId = Validator::sanitizeInt($_GET['dist_id'] ?? 0);
+    $communityId = AuthMiddleware::getCommunityId();
+} catch (Exception $e) {
+    die("Error in initialization: " . $e->getMessage() . " in " . $e->getFile() . " on line " . $e->getLine());
+}
 
 if (!$distributionId || !$communityId) {
     header("Location: /public/group-admin/lottery.php");
