@@ -213,7 +213,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </style>
 </head>
 <body>
-    <?php //include __DIR__ . '/includes/navigation.php'; ?>
+    <?php include __DIR__ . '/includes/navigation.php'; ?>
 
     <div class="header">
         <div class="container">
@@ -223,7 +223,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
 
     <div class="container main-content">
-        <?php //include __DIR__ . '/includes/toast-handler.php'; ?>
+        <?php include __DIR__ . '/includes/toast-handler.php'; ?>
 
         <!-- Back Button -->
         <div style="margin-bottom: var(--spacing-lg);">
@@ -248,7 +248,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <h3 style="margin-top: 0;">⚠️ Important</h3>
                 <p>You are about to reassign this book to a different location. Make sure this is correct before proceeding.</p>
             </div>
-        <?php endif; ?>
 
         <!-- Current Assignment -->
         <div class="current-assignment">
