@@ -182,24 +182,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     // Save each eligible commission
                     if ($level1Value && count($eligibleCommissions) > 0) {
                         foreach ($eligibleCommissions as $commission) {
-                            $commissionAmount = ($expectedAmount * $commission['percent']) / 100;
+                            // Check if commission already exists for this distribution and type
+                            $checkQuery = "SELECT COUNT(*) as count FROM commission_earned
+                                          WHERE distribution_id = :dist_id
+                                          AND commission_type = :comm_type";
+                            $checkStmt = $db->prepare($checkQuery);
+                            $checkStmt->bindParam(':dist_id', $book['distribution_id']);
+                            $checkStmt->bindParam(':comm_type', $commission['type']);
+                            $checkStmt->execute();
+                            $exists = $checkStmt->fetch();
 
-                            $insertCommQuery = "INSERT INTO commission_earned
-                                               (event_id, distribution_id, level_1_value, commission_type, commission_percent,
-                                                payment_amount, commission_amount, payment_date, book_id)
-                                               VALUES (:event_id, :dist_id, :level_1, :comm_type, :comm_percent,
-                                                       :payment_amt, :comm_amt, :payment_date, :book_id)";
-                            $insertCommStmt = $db->prepare($insertCommQuery);
-                            $insertCommStmt->bindParam(':event_id', $book['event_id']);
-                            $insertCommStmt->bindParam(':dist_id', $book['distribution_id']);
-                            $insertCommStmt->bindParam(':level_1', $level1Value);
-                            $insertCommStmt->bindParam(':comm_type', $commission['type']);
-                            $insertCommStmt->bindParam(':comm_percent', $commission['percent']);
-                            $insertCommStmt->bindParam(':payment_amt', $expectedAmount);
-                            $insertCommStmt->bindParam(':comm_amt', $commissionAmount);
-                            $insertCommStmt->bindParam(':payment_date', $paymentDate);
-                            $insertCommStmt->bindParam(':book_id', $bookId);
-                            $insertCommStmt->execute();
+                            // Only insert if commission doesn't already exist
+                            if ($exists['count'] == 0) {
+                                $commissionAmount = ($expectedAmount * $commission['percent']) / 100;
+
+                                $insertCommQuery = "INSERT INTO commission_earned
+                                                   (event_id, distribution_id, level_1_value, commission_type, commission_percent,
+                                                    payment_amount, commission_amount, payment_date, book_id)
+                                                   VALUES (:event_id, :dist_id, :level_1, :comm_type, :comm_percent,
+                                                           :payment_amt, :comm_amt, :payment_date, :book_id)";
+                                $insertCommStmt = $db->prepare($insertCommQuery);
+                                $insertCommStmt->bindParam(':event_id', $book['event_id']);
+                                $insertCommStmt->bindParam(':dist_id', $book['distribution_id']);
+                                $insertCommStmt->bindParam(':level_1', $level1Value);
+                                $insertCommStmt->bindParam(':comm_type', $commission['type']);
+                                $insertCommStmt->bindParam(':comm_percent', $commission['percent']);
+                                $insertCommStmt->bindParam(':payment_amt', $expectedAmount);
+                                $insertCommStmt->bindParam(':comm_amt', $commissionAmount);
+                                $insertCommStmt->bindParam(':payment_date', $paymentDate);
+                                $insertCommStmt->bindParam(':book_id', $bookId);
+                                $insertCommStmt->execute();
+                            }
                         }
                     }
                 }

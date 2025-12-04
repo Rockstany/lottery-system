@@ -135,32 +135,53 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
             // Insert commission records
             if (count($eligibleCommissions) > 0) {
+                $commissionInserted = false;
                 foreach ($eligibleCommissions as $commission) {
-                    $commissionAmount = ($dist['expected_amount'] * $commission['percent']) / 100;
+                    // Check if commission already exists for this distribution and type
+                    $checkQuery = "SELECT COUNT(*) as count FROM commission_earned
+                                  WHERE distribution_id = :dist_id
+                                  AND commission_type = :comm_type";
+                    $checkStmt = $db->prepare($checkQuery);
+                    $checkStmt->bindParam(':dist_id', $dist['distribution_id']);
+                    $checkStmt->bindParam(':comm_type', $commission['type']);
+                    $checkStmt->execute();
+                    $exists = $checkStmt->fetch();
 
-                    $insertQuery = "INSERT INTO commission_earned
-                                   (event_id, distribution_id, level_1_value, commission_type,
-                                    commission_percent, payment_amount, commission_amount,
-                                    payment_date, book_id)
-                                   VALUES (:event_id, :dist_id, :level_1, :comm_type,
-                                           :comm_percent, :payment_amt, :comm_amt,
-                                           :payment_date, :book_id)";
-                    $insertStmt = $db->prepare($insertQuery);
-                    $insertStmt->bindParam(':event_id', $eventId);
-                    $insertStmt->bindParam(':dist_id', $dist['distribution_id']);
-                    $insertStmt->bindParam(':level_1', $level1Value);
-                    $insertStmt->bindParam(':comm_type', $commission['type']);
-                    $insertStmt->bindParam(':comm_percent', $commission['percent']);
-                    $insertStmt->bindParam(':payment_amt', $dist['expected_amount']);
-                    $insertStmt->bindParam(':comm_amt', $commissionAmount);
-                    $insertStmt->bindParam(':payment_date', $fullPaymentDate);
-                    $insertStmt->bindParam(':book_id', $dist['book_id']);
+                    // Only insert if commission doesn't already exist
+                    if ($exists['count'] == 0) {
+                        $commissionAmount = ($dist['expected_amount'] * $commission['percent']) / 100;
 
-                    if (!$insertStmt->execute()) {
-                        $errors++;
+                        $insertQuery = "INSERT INTO commission_earned
+                                       (event_id, distribution_id, level_1_value, commission_type,
+                                        commission_percent, payment_amount, commission_amount,
+                                        payment_date, book_id)
+                                       VALUES (:event_id, :dist_id, :level_1, :comm_type,
+                                               :comm_percent, :payment_amt, :comm_amt,
+                                               :payment_date, :book_id)";
+                        $insertStmt = $db->prepare($insertQuery);
+                        $insertStmt->bindParam(':event_id', $eventId);
+                        $insertStmt->bindParam(':dist_id', $dist['distribution_id']);
+                        $insertStmt->bindParam(':level_1', $level1Value);
+                        $insertStmt->bindParam(':comm_type', $commission['type']);
+                        $insertStmt->bindParam(':comm_percent', $commission['percent']);
+                        $insertStmt->bindParam(':payment_amt', $dist['expected_amount']);
+                        $insertStmt->bindParam(':comm_amt', $commissionAmount);
+                        $insertStmt->bindParam(':payment_date', $fullPaymentDate);
+                        $insertStmt->bindParam(':book_id', $dist['book_id']);
+
+                        if ($insertStmt->execute()) {
+                            $commissionInserted = true;
+                        } else {
+                            $errors++;
+                        }
                     }
                 }
-                $synced++;
+
+                if ($commissionInserted) {
+                    $synced++;
+                } else {
+                    $skipped++;
+                }
             } else {
                 $skipped++;
             }
