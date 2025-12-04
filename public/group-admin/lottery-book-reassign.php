@@ -3,11 +3,11 @@
  * Reassign Book to Different Unit
  * GetToKnow Community App
  */
+ ini_set('display_errors', 1);
+    ini_set('display_startup_errors', 1);
+    error_reporting(E_ALL);
+    // Rest of your lottery-book-reassign.php script
 
-// Enable error reporting for debugging
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
-error_reporting(E_ALL);
 
 try {
     require_once __DIR__ . '/../../config/config.php';
