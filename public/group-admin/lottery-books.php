@@ -657,100 +657,6 @@ $stats = $statsStmt->fetch();
             </a>
         </div>
 
-        <!-- Bulk Assignment Form -->
-        <div id="bulkActions" class="bulk-actions hidden">
-            <form method="POST" id="bulkForm">
-                <input type="hidden" name="bulk_assign" value="1">
-                <h4 style="margin-top: 0;">Bulk Assign Selected Books (<span id="selectedCount">0</span> selected)</h4>
-
-                <?php if (count($levels) > 0): ?>
-                    <div style="background: white; padding: var(--spacing-md); border-radius: var(--radius-md); margin-bottom: var(--spacing-md);">
-                        <p style="margin: 0 0 var(--spacing-md) 0; font-weight: 600; color: var(--primary-color);">
-                            📍 Distribution Levels (Required)
-                        </p>
-                        <div class="form-row">
-                            <?php foreach ($levels as $level): ?>
-                                <div class="form-col">
-                                    <div class="form-group">
-                                        <label class="form-label"><?php echo htmlspecialchars($level['level_name']); ?> <span style="color: red;">*</span></label>
-                                        <input type="hidden" name="level_<?php echo $level['level_id']; ?>_id" id="bulk_level_<?php echo $level['level_id']; ?>_id">
-                                        <select
-                                            name="level_<?php echo $level['level_id']; ?>"
-                                            id="bulk_level_<?php echo $level['level_id']; ?>"
-                                            class="form-control bulk-level-select"
-                                            data-level-id="<?php echo $level['level_id']; ?>"
-                                            data-level-number="<?php echo $level['level_number']; ?>"
-                                            onchange="handleBulkLevelChange(<?php echo $level['level_id']; ?>, <?php echo $level['level_number']; ?>)"
-                                            required
-                                        >
-                                            <option value="">- Select <?php echo htmlspecialchars($level['level_name']); ?> -</option>
-                                            <?php foreach ($levelValues[$level['level_id']] as $value): ?>
-                                                <option
-                                                    value="<?php echo htmlspecialchars($value['value_name']); ?>"
-                                                    data-value-id="<?php echo $value['value_id']; ?>"
-                                                    data-parent-id="<?php echo $value['parent_value_id'] ?? ''; ?>"
-                                                >
-                                                    <?php echo htmlspecialchars($value['value_name']); ?>
-                                                </option>
-                                            <?php endforeach; ?>
-                                            <option value="__new__">➕ Add New</option>
-                                        </select>
-
-                                        <div class="add-new-field" id="bulk_add_new_<?php echo $level['level_id']; ?>">
-                                            <input
-                                                type="text"
-                                                name="new_level_<?php echo $level['level_id']; ?>"
-                                                class="form-control"
-                                                placeholder="Enter new <?php echo htmlspecialchars($level['level_name']); ?>"
-                                                style="margin-top: var(--spacing-xs);"
-                                            >
-                                        </div>
-                                    </div>
-                                </div>
-                            <?php endforeach; ?>
-                        </div>
-                    </div>
-                <?php endif; ?>
-
-                <div class="form-row">
-                    <div class="form-col">
-                        <div class="form-group">
-                            <label class="form-label">Notes (Optional)</label>
-                            <input
-                                type="text"
-                                name="bulk_notes"
-                                class="form-control"
-                                placeholder="e.g., Member name or any notes"
-                            >
-                            <small class="form-text">Optional: Add any notes for these books</small>
-                        </div>
-                    </div>
-                    <div class="form-col">
-                        <div class="form-group">
-                            <label class="form-label">Mobile Number (Optional)</label>
-                            <input
-                                type="tel"
-                                name="bulk_mobile"
-                                class="form-control"
-                                placeholder="10-digit mobile number"
-                                maxlength="10"
-                                pattern="[6-9][0-9]{9}"
-                            >
-                        </div>
-                    </div>
-                </div>
-
-                <div class="button-group-mobile">
-                    <button type="submit" class="btn btn-success">
-                        Assign Selected Books
-                    </button>
-                    <button type="button" class="btn btn-secondary" onclick="clearSelection()">
-                        Clear
-                    </button>
-                </div>
-            </form>
-        </div>
-
         <!-- Per Page Selector & Pagination Info -->
         <div class="card" style="margin-bottom: var(--spacing-sm); background: #f8fafc;">
             <div class="card-body" style="padding: var(--spacing-md);">
@@ -809,9 +715,6 @@ $stats = $statsStmt->fetch();
                     <table class="table">
                         <thead>
                             <tr>
-                                <th class="checkbox-cell">
-                                    <input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll()">
-                                </th>
                                 <th>First Ticket No</th>
                                 <?php foreach ($levels as $level): ?>
                                     <th><?php echo htmlspecialchars($level['level_name']); ?></th>
@@ -827,7 +730,7 @@ $stats = $statsStmt->fetch();
                         <tbody>
                             <?php if (count($books) === 0): ?>
                                 <tr>
-                                    <td colspan="<?php echo 3 + count($levels); ?>" style="text-align: center; padding: var(--spacing-2xl); color: var(--gray-500);">
+                                    <td colspan="<?php echo 2 + count($levels); ?>" style="text-align: center; padding: var(--spacing-2xl); color: var(--gray-500);">
                                         No books found in this category
                                     </td>
                                 </tr>
@@ -840,20 +743,6 @@ $stats = $statsStmt->fetch();
                                     }
                                 ?>
                                     <tr class="<?php echo $book['book_status'] !== 'available' ? 'assigned-row' : ''; ?>">
-                                        <td class="checkbox-cell">
-                                            <?php if ($book['book_status'] === 'available'): ?>
-                                                <input
-                                                    type="checkbox"
-                                                    name="selected_books[]"
-                                                    value="<?php echo $book['book_id']; ?>"
-                                                    form="bulkForm"
-                                                    class="book-checkbox"
-                                                    onchange="updateBulkActions()"
-                                                >
-                                            <?php else: ?>
-                                                <input type="checkbox" disabled>
-                                            <?php endif; ?>
-                                        </td>
                                         <td><strong><?php echo $book['start_ticket_number']; ?></strong></td>
                                         <?php
                                         // Display dynamic level columns
@@ -1127,180 +1016,6 @@ $stats = $statsStmt->fetch();
                 selectElement.appendChild(option);
             });
         }
-
-        function updateBulkActions() {
-            const checkboxes = document.querySelectorAll('.book-checkbox:checked');
-            const count = checkboxes.length;
-            const bulkActions = document.getElementById('bulkActions');
-            const countSpan = document.getElementById('selectedCount');
-
-            if (count > 0) {
-                bulkActions.classList.remove('hidden');
-                countSpan.textContent = count;
-            } else {
-                bulkActions.classList.add('hidden');
-            }
-
-            // Update select all checkbox
-            const allCheckboxes = document.querySelectorAll('.book-checkbox');
-            const selectAllCheckbox = document.getElementById('selectAllCheckbox');
-            selectAllCheckbox.checked = allCheckboxes.length > 0 && count === allCheckboxes.length;
-        }
-
-        function toggleSelectAll() {
-            const selectAllCheckbox = document.getElementById('selectAllCheckbox');
-            const checkboxes = document.querySelectorAll('.book-checkbox');
-
-            checkboxes.forEach(checkbox => {
-                checkbox.checked = selectAllCheckbox.checked;
-            });
-
-            updateBulkActions();
-        }
-
-        function selectAll() {
-            const checkboxes = document.querySelectorAll('.book-checkbox');
-            checkboxes.forEach(checkbox => {
-                checkbox.checked = true;
-            });
-            updateBulkActions();
-        }
-
-        function deselectAll() {
-            const checkboxes = document.querySelectorAll('.book-checkbox');
-            checkboxes.forEach(checkbox => {
-                checkbox.checked = false;
-            });
-            document.getElementById('selectAllCheckbox').checked = false;
-            updateBulkActions();
-        }
-
-        function clearSelection() {
-            deselectAll();
-        }
-
-        // Bulk level change handling
-        function handleBulkLevelChange(levelId, levelNumber) {
-            const select = document.getElementById(`bulk_level_${levelId}`);
-            const selectedOption = select.options[select.selectedIndex];
-            const selectedValueId = selectedOption.getAttribute('data-value-id');
-            const hiddenInput = document.getElementById(`bulk_level_${levelId}_id`);
-
-            // Store the value_id in hidden field
-            if (selectedValueId) {
-                hiddenInput.value = selectedValueId;
-            } else {
-                hiddenInput.value = '';
-            }
-
-            // Handle "Add New" toggle
-            toggleBulkAddNew(levelId);
-
-            // Filter next level dropdown (if exists)
-            filterBulkNextLevel(levelId, levelNumber, selectedValueId);
-        }
-
-        function toggleBulkAddNew(levelId) {
-            const select = document.getElementById(`bulk_level_${levelId}`);
-            const addNewField = document.getElementById(`bulk_add_new_${levelId}`);
-            const input = addNewField.querySelector('input');
-
-            if (select.value === '__new__') {
-                addNewField.classList.add('show');
-                input.required = true;
-                input.focus();
-            } else {
-                addNewField.classList.remove('show');
-                input.required = false;
-                input.value = '';
-            }
-        }
-
-        function filterBulkNextLevel(currentLevelId, currentLevelNumber, parentValueId) {
-            // Find next level
-            const nextLevel = allLevels.find(level => level.level_number === currentLevelNumber + 1);
-
-            if (!nextLevel) {
-                return; // No next level exists
-            }
-
-            const nextSelect = document.getElementById(`bulk_level_${nextLevel.level_id}`);
-            if (!nextSelect) {
-                return;
-            }
-
-            // Get all options for next level
-            const allOptions = nextSelect.querySelectorAll('option');
-
-            // Reset next level
-            nextSelect.value = '';
-            document.getElementById(`bulk_level_${nextLevel.level_id}_id`).value = '';
-
-            // Hide/show options based on parent
-            allOptions.forEach(option => {
-                const optionParentId = option.getAttribute('data-parent-id');
-
-                // Always show default option and "Add New" option
-                if (option.value === '' || option.value === '__new__') {
-                    option.style.display = '';
-                    return;
-                }
-
-                // Show option if parent matches
-                if (!parentValueId) {
-                    option.style.display = 'none';
-                } else if (optionParentId === parentValueId) {
-                    option.style.display = '';
-                } else {
-                    option.style.display = 'none';
-                }
-            });
-
-            // Also reset all subsequent levels
-            resetBulkSubsequentLevels(currentLevelNumber + 1);
-        }
-
-        function resetBulkSubsequentLevels(fromLevelNumber) {
-            // Reset all levels after the changed level
-            allLevels.forEach(level => {
-                if (level.level_number > fromLevelNumber) {
-                    const select = document.getElementById(`bulk_level_${level.level_id}`);
-                    const hiddenInput = document.getElementById(`bulk_level_${level.level_id}_id`);
-                    if (select) {
-                        select.value = '';
-                        const allOptions = select.querySelectorAll('option');
-                        allOptions.forEach(option => {
-                            if (option.value !== '' && option.value !== '__new__') {
-                                option.style.display = 'none';
-                            }
-                        });
-                    }
-                    if (hiddenInput) {
-                        hiddenInput.value = '';
-                    }
-                }
-            });
-        }
-
-        // Initialize on page load
-        document.addEventListener('DOMContentLoaded', function() {
-            updateBulkActions();
-
-            // For all levels except the first, hide all value options initially
-            allLevels.forEach((level, index) => {
-                if (index > 0) { // Not the first level
-                    const select = document.getElementById(`bulk_level_${level.level_id}`);
-                    if (select) {
-                        const allOptions = select.querySelectorAll('option');
-                        allOptions.forEach(option => {
-                            if (option.value !== '' && option.value !== '__new__') {
-                                option.style.display = 'none';
-                            }
-                        });
-                    }
-                }
-            });
-        });
     </script>
 </body>
 </html>

@@ -382,13 +382,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <?php endif; ?>
 
                         <div class="form-group">
-                            <label class="form-label">Member Name / Notes *</label>
-                            <input type="text" name="notes" class="form-control" placeholder="e.g., John Doe" required>
+                            <label class="form-label">Member Name / Notes (Optional)</label>
+                            <input type="text" name="notes" class="form-control" placeholder="e.g., John Doe, or any notes about this assignment">
+                            <small class="form-text">Optional: Add member name or any notes about this bulk assignment</small>
                         </div>
 
                         <div class="form-group">
-                            <label class="form-label">Mobile Number</label>
+                            <label class="form-label">Mobile Number (Optional)</label>
                             <input type="tel" name="mobile" class="form-control" placeholder="e.g., 9876543210" pattern="[0-9]{10}">
+                            <small class="form-text">Optional: 10-digit mobile number</small>
                         </div>
 
                         <?php if ($extraBooksEnabled): ?>
