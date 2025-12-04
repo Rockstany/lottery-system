@@ -121,19 +121,19 @@ if ($statusFilter === 'paid') {
 $query .= " ORDER BY lb.start_ticket_number, bd.distribution_path ASC, bd.notes ASC
           LIMIT :limit OFFSET :offset";
 
-$stmt = $db->prepare($query);
-$stmt->bindValue(':event_id', $eventId);
-$stmt->bindValue(':price_per_ticket', $event['price_per_ticket']);
-$stmt->bindValue(':limit', $perPage, PDO::PARAM_INT);
-$stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+$distributionsStmt = $db->prepare($query);
+$distributionsStmt->bindValue(':event_id', $eventId);
+$distributionsStmt->bindValue(':price_per_ticket', $event['price_per_ticket']);
+$distributionsStmt->bindValue(':limit', $perPage, PDO::PARAM_INT);
+$distributionsStmt->bindValue(':offset', $offset, PDO::PARAM_INT);
 
 // Bind search parameters
 foreach ($searchParams as $key => $value) {
-    $stmt->bindValue(':' . $key, $value);
+    $distributionsStmt->bindValue(':' . $key, $value);
 }
 
-$stmt->execute();
-$distributions = $stmt->fetchAll();
+$distributionsStmt->execute();
+$distributions = $distributionsStmt->fetchAll();
 
 $totalCollected = 0;
 $totalExpected = 0;

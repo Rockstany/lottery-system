@@ -85,8 +85,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['bulk_assign'])) {
                 // Insert new value with parent relationship
                 $insertQuery = "INSERT INTO distribution_level_values (level_id, value_name, parent_value_id) VALUES (:level_id, :value_name, :parent_value_id)";
                 $insertStmt = $db->prepare($insertQuery);
-                $insertStmt->bindParam(':level_id', $level['level_id']);
-                $insertStmt->bindParam(':value_name', $newValue);
+                $insertStmt->bindValue(':level_id', $level['level_id']);
+                $insertStmt->bindValue(':value_name', $newValue);
                 $insertStmt->bindValue(':parent_value_id', $lastValueId, PDO::PARAM_INT);
                 $insertStmt->execute();
                 $lastValueId = $db->lastInsertId();
@@ -122,7 +122,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['bulk_assign'])) {
                 // Check if book is available
                 $checkQuery = "SELECT book_status FROM lottery_books WHERE book_id = :book_id";
                 $checkStmt = $db->prepare($checkQuery);
-                $checkStmt->bindParam(':book_id', $bookId);
+                $checkStmt->bindValue(':book_id', $bookId);
                 $checkStmt->execute();
                 $bookStatus = $checkStmt->fetch();
 
@@ -130,15 +130,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['bulk_assign'])) {
                     // Assign book
                     $query = "INSERT INTO book_distribution (book_id, notes, mobile_number, distribution_path, distributed_by)
                               VALUES (:book_id, :notes, :mobile, :distribution_path, :distributed_by)";
-                    $stmt = $db->prepare($query);
-                    $stmt->bindParam(':book_id', $bookId);
-                    $stmt->bindParam(':notes', $notes);
-                    $stmt->bindParam(':mobile', $mobile);
-                    $stmt->bindParam(':distribution_path', $distributionPath);
+                    $assignStmt = $db->prepare($query);
+                    $assignStmt->bindValue(':book_id', $bookId);
+                    $assignStmt->bindValue(':notes', $notes);
+                    $assignStmt->bindValue(':mobile', $mobile);
+                    $assignStmt->bindValue(':distribution_path', $distributionPath);
                     $distributedBy = AuthMiddleware::getUserId();
-                    $stmt->bindParam(':distributed_by', $distributedBy);
+                    $assignStmt->bindValue(':distributed_by', $distributedBy);
 
-                    if ($stmt->execute()) {
+                    if ($assignStmt->execute()) {
                         $assigned++;
                     }
                 } else {
@@ -230,18 +230,18 @@ $query = "SELECT lb.*, bd.notes, bd.mobile_number, bd.distribution_path, bd.dist
           WHERE {$whereClause}
           ORDER BY lb.start_ticket_number, lb.book_number
           LIMIT :limit OFFSET :offset";
-$stmt = $db->prepare($query);
-$stmt->bindValue(':event_id', $eventId);
-$stmt->bindValue(':limit', $perPage, PDO::PARAM_INT);
-$stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+$booksStmt = $db->prepare($query);
+$booksStmt->bindValue(':event_id', $eventId);
+$booksStmt->bindValue(':limit', $perPage, PDO::PARAM_INT);
+$booksStmt->bindValue(':offset', $offset, PDO::PARAM_INT);
 
 // Bind search parameters
 foreach ($searchParams as $key => $value) {
-    $stmt->bindValue(':' . $key, $value);
+    $booksStmt->bindValue(':' . $key, $value);
 }
 
-$stmt->execute();
-$books = $stmt->fetchAll();
+$booksStmt->execute();
+$books = $booksStmt->fetchAll();
 
 // Stats (all books)
 $statsQuery = "SELECT
