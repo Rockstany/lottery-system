@@ -43,13 +43,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     try {
         $db->beginTransaction();
 
-        // Find duplicate commission records (same distribution_id + commission_type)
-        $findDuplicatesQuery = "SELECT distribution_id, commission_type, COUNT(*) as duplicate_count,
+        // Find duplicate commission records (same book_id + commission_type)
+        $findDuplicatesQuery = "SELECT book_id, commission_type, COUNT(*) as duplicate_count,
                                        GROUP_CONCAT(commission_id ORDER BY commission_id) as commission_ids
                                 FROM commission_earned
                                 WHERE event_id = ?
-                                AND distribution_id IS NOT NULL
-                                GROUP BY distribution_id, commission_type
+                                GROUP BY book_id, commission_type
                                 HAVING duplicate_count > 1";
 
         $findStmt = $db->prepare($findDuplicatesQuery);
@@ -93,18 +92,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 }
 
 // Preview duplicate records
-$previewQuery = "SELECT distribution_id, commission_type, COUNT(*) as duplicate_count,
+// Find duplicates by book_id + commission_type (since distribution_id might be NULL)
+$previewQuery = "SELECT book_id, commission_type, COUNT(*) as duplicate_count,
                         MIN(commission_id) as keep_id,
                         GROUP_CONCAT(commission_id ORDER BY commission_id) as all_ids,
                         level_1_value,
                         commission_amount,
-                        payment_date
+                        payment_date,
+                        MIN(distribution_id) as distribution_id
                  FROM commission_earned
                  WHERE event_id = ?
-                 AND distribution_id IS NOT NULL
-                 GROUP BY distribution_id, commission_type
+                 GROUP BY book_id, commission_type
                  HAVING duplicate_count > 1
-                 ORDER BY distribution_id, commission_type";
+                 ORDER BY book_id, commission_type";
 
 $previewStmt = $db->prepare($previewQuery);
 $previewStmt->execute([$eventId]);
@@ -113,16 +113,13 @@ $duplicateRecords = $previewStmt->fetchAll();
 // Get book numbers for display
 $bookNumbers = [];
 if (count($duplicateRecords) > 0) {
-    $distIds = array_unique(array_column($duplicateRecords, 'distribution_id'));
-    $placeholders = implode(',', array_fill(0, count($distIds), '?'));
-    $bookQuery = "SELECT bd.distribution_id, lb.book_number
-                  FROM book_distribution bd
-                  JOIN lottery_books lb ON bd.book_id = lb.book_id
-                  WHERE bd.distribution_id IN ($placeholders)";
+    $bookIds = array_unique(array_column($duplicateRecords, 'book_id'));
+    $placeholders = implode(',', array_fill(0, count($bookIds), '?'));
+    $bookQuery = "SELECT book_id, book_number FROM lottery_books WHERE book_id IN ($placeholders)";
     $bookStmt = $db->prepare($bookQuery);
-    $bookStmt->execute($distIds);
+    $bookStmt->execute($bookIds);
     foreach ($bookStmt->fetchAll() as $row) {
-        $bookNumbers[$row['distribution_id']] = $row['book_number'];
+        $bookNumbers[$row['book_id']] = $row['book_number'];
     }
 }
 ?>
@@ -170,8 +167,8 @@ if (count($duplicateRecords) > 0) {
 
                 <h4>What it does:</h4>
                 <ul>
-                    <li>Finds commission records with same <code>distribution_id</code> + <code>commission_type</code></li>
-                    <li>Keeps the FIRST record (lowest earned_id)</li>
+                    <li>Finds commission records with same <code>book_id</code> + <code>commission_type</code></li>
+                    <li>Keeps the FIRST record (lowest commission_id)</li>
                     <li>Deletes all duplicate records</li>
                 </ul>
 
@@ -217,7 +214,7 @@ if (count($duplicateRecords) > 0) {
                             <tbody>
                                 <?php foreach ($duplicateRecords as $record): ?>
                                     <tr>
-                                        <td><strong><?php echo $bookNumbers[$record['distribution_id']] ?? 'N/A'; ?></strong></td>
+                                        <td><strong><?php echo $bookNumbers[$record['book_id']] ?? 'N/A'; ?></strong></td>
                                         <td><?php echo htmlspecialchars($record['level_1_value']); ?></td>
                                         <td>
                                             <?php
