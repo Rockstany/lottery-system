@@ -45,7 +45,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
         // Find duplicate commission records (same distribution_id + commission_type)
         $findDuplicatesQuery = "SELECT distribution_id, commission_type, COUNT(*) as duplicate_count,
-                                       GROUP_CONCAT(earned_id ORDER BY earned_id) as earned_ids
+                                       GROUP_CONCAT(commission_id ORDER BY commission_id) as commission_ids
                                 FROM commission_earned
                                 WHERE event_id = ?
                                 AND distribution_id IS NOT NULL
@@ -60,14 +60,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $totalRemoved = 0;
 
         foreach ($duplicates as $dup) {
-            $earnedIds = explode(',', $dup['earned_ids']);
+            $commissionIds = explode(',', $dup['commission_ids']);
             // Keep the first record, delete the rest
-            $keepId = array_shift($earnedIds);
-            $deleteIds = $earnedIds;
+            $keepId = array_shift($commissionIds);
+            $deleteIds = $commissionIds;
 
             if (count($deleteIds) > 0) {
                 $placeholders = implode(',', array_fill(0, count($deleteIds), '?'));
-                $deleteQuery = "DELETE FROM commission_earned WHERE earned_id IN ($placeholders)";
+                $deleteQuery = "DELETE FROM commission_earned WHERE commission_id IN ($placeholders)";
                 $deleteStmt = $db->prepare($deleteQuery);
                 $deleteStmt->execute($deleteIds);
 
@@ -94,8 +94,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
 // Preview duplicate records
 $previewQuery = "SELECT distribution_id, commission_type, COUNT(*) as duplicate_count,
-                        MIN(earned_id) as keep_id,
-                        GROUP_CONCAT(earned_id ORDER BY earned_id) as all_ids,
+                        MIN(commission_id) as keep_id,
+                        GROUP_CONCAT(commission_id ORDER BY commission_id) as all_ids,
                         level_1_value,
                         commission_amount,
                         payment_date
