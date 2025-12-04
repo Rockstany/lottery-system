@@ -89,7 +89,7 @@ $transQuery = "SELECT pc.*, u.full_name as collector_name
                FROM payment_collections pc
                LEFT JOIN users u ON pc.collected_by = u.user_id
                WHERE pc.distribution_id = :dist_id
-               ORDER BY pc.payment_date DESC, pc.collected_at DESC";
+               ORDER BY pc.payment_date DESC, pc.created_at DESC";
 $stmt = $db->prepare($transQuery);
 $stmt->bindParam(':dist_id', $distributionId);
 $stmt->execute();
@@ -217,7 +217,7 @@ $outstanding = $expectedAmount - $totalPaid;
                                             ?>
                                         </td>
                                         <td><?php echo htmlspecialchars($trans['collector_name'] ?? 'Unknown'); ?></td>
-                                        <td><?php echo date('M d, Y g:i A', strtotime($trans['collected_at'])); ?></td>
+                                        <td><?php echo date('M d, Y g:i A', strtotime($trans['created_at'])); ?></td>
                                         <td>
                                             <div style="display: flex; gap: var(--spacing-xs); flex-wrap: wrap;">
                                                 <?php if ($trans['is_editable']): ?>
