@@ -172,6 +172,10 @@ if (isset($_GET['success'])) {
 $filter = $_GET['filter'] ?? 'all';
 // For search, use trim and strip_tags only (no htmlspecialchars) since PDO handles SQL injection
 $search = trim(strip_tags($_GET['search'] ?? ''));
+// Get level filters
+$level1Filter = isset($_GET['level1']) ? (int)$_GET['level1'] : 0;
+$level2Filter = isset($_GET['level2']) ? (int)$_GET['level2'] : 0;
+$level3Filter = isset($_GET['level3']) ? (int)$_GET['level3'] : 0;
 $perPage = isset($_GET['per_page']) ? (int)$_GET['per_page'] : 20; // Default 20 per page
 $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
 $offset = ($page - 1) * $perPage;
@@ -184,6 +188,20 @@ if ($filter === 'available') {
     $whereClause .= " AND lb.book_status = 'available'";
 } elseif ($filter === 'assigned') {
     $whereClause .= " AND lb.book_status IN ('distributed', 'collected')";
+}
+
+// Add level filters
+if ($level1Filter > 0) {
+    $whereClause .= " AND bd.level1_value_id = :level1_filter";
+    $searchParams['level1_filter'] = $level1Filter;
+}
+if ($level2Filter > 0) {
+    $whereClause .= " AND bd.level2_value_id = :level2_filter";
+    $searchParams['level2_filter'] = $level2Filter;
+}
+if ($level3Filter > 0) {
+    $whereClause .= " AND bd.level3_value_id = :level3_filter";
+    $searchParams['level3_filter'] = $level3Filter;
 }
 
 // Add search conditions
@@ -508,6 +526,59 @@ $stats = $statsStmt->fetch();
             </div>
         </div>
 
+        <!-- Level Filters -->
+        <?php if (count($levels) > 0): ?>
+        <div class="card" style="margin-bottom: var(--spacing-md);">
+            <div class="card-body">
+                <form method="GET" action="" id="levelFilterForm">
+                    <input type="hidden" name="id" value="<?php echo $eventId; ?>">
+                    <input type="hidden" name="filter" value="<?php echo htmlspecialchars($filter); ?>">
+                    <input type="hidden" name="search" value="<?php echo htmlspecialchars($search); ?>">
+                    <input type="hidden" name="per_page" value="<?php echo $perPage; ?>">
+
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--spacing-md); align-items: end;">
+                        <?php foreach ($levels as $index => $level): ?>
+                        <div>
+                            <label class="form-label"><?php echo htmlspecialchars($level['level_name']); ?></label>
+                            <select
+                                name="level<?php echo $level['level_number']; ?>"
+                                class="form-control level-filter-select"
+                                data-level="<?php echo $level['level_number']; ?>"
+                                onchange="handleLevelFilterChange(<?php echo $level['level_number']; ?>)"
+                            >
+                                <option value="">All <?php echo htmlspecialchars($level['level_name']); ?></option>
+                                <?php
+                                $currentLevelFilter = ${'level' . $level['level_number'] . 'Filter'};
+                                foreach ($levelValues[$level['level_id']] as $value):
+                                    // For dependent levels, filter by parent
+                                    if ($level['level_number'] == 2 && $level1Filter > 0) {
+                                        // Only show Level 2 values that belong to selected Level 1
+                                        if ($value['parent_value_id'] != $level1Filter) continue;
+                                    } elseif ($level['level_number'] == 3 && $level2Filter > 0) {
+                                        // Only show Level 3 values that belong to selected Level 2
+                                        if ($value['parent_value_id'] != $level2Filter) continue;
+                                    }
+                                ?>
+                                <option value="<?php echo $value['value_id']; ?>" <?php echo $currentLevelFilter == $value['value_id'] ? 'selected' : ''; ?>>
+                                    <?php echo htmlspecialchars($value['value_name']); ?>
+                                </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <?php endforeach; ?>
+
+                        <div style="display: flex; gap: var(--spacing-xs);">
+                            <button type="submit" class="btn btn-primary">Apply Filter</button>
+                            <?php if ($level1Filter > 0 || $level2Filter > 0 || $level3Filter > 0): ?>
+                                <a href="?id=<?php echo $eventId; ?>&filter=<?php echo $filter; ?>&search=<?php echo urlencode($search); ?>&per_page=<?php echo $perPage; ?>" class="btn btn-secondary">Clear</a>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+        <?php endif; ?>
+
         <!-- Collapsible Help Box -->
         <div class="help-box mb-3" style="border: 2px solid #3b82f6; border-radius: var(--radius-md); overflow: hidden;">
             <button type="button" class="help-box-toggle" onclick="toggleHelpBox()" style="width: 100%; text-align: left; background: #eff6ff; border: none; padding: var(--spacing-md); cursor: pointer; display: flex; justify-content: space-between; align-items: center; font-weight: 600; color: #1e40af;">
@@ -662,6 +733,9 @@ $stats = $statsStmt->fetch();
                                 'id' => $eventId,
                                 'filter' => $filter,
                                 'search' => $search,
+                                'level1' => $level1Filter,
+                                'level2' => $level2Filter,
+                                'level3' => $level3Filter,
                                 'per_page' => $option,
                                 'page' => 1
                             ]));
@@ -803,6 +877,9 @@ $stats = $statsStmt->fetch();
                             'id' => $eventId,
                             'filter' => $filter,
                             'search' => $search,
+                            'level1' => $level1Filter,
+                            'level2' => $level2Filter,
+                            'level3' => $level3Filter,
                             'per_page' => $perPage,
                             'page' => $page - 1
                         ]));
@@ -820,6 +897,9 @@ $stats = $statsStmt->fetch();
                             'id' => $eventId,
                             'filter' => $filter,
                             'search' => $search,
+                            'level1' => $level1Filter,
+                            'level2' => $level2Filter,
+                            'level3' => $level3Filter,
                             'per_page' => $perPage,
                             'page' => 1
                         ]));
@@ -835,6 +915,9 @@ $stats = $statsStmt->fetch();
                             'id' => $eventId,
                             'filter' => $filter,
                             'search' => $search,
+                            'level1' => $level1Filter,
+                            'level2' => $level2Filter,
+                            'level3' => $level3Filter,
                             'per_page' => $perPage,
                             'page' => $i
                         ]));
@@ -855,6 +938,9 @@ $stats = $statsStmt->fetch();
                             'id' => $eventId,
                             'filter' => $filter,
                             'search' => $search,
+                            'level1' => $level1Filter,
+                            'level2' => $level2Filter,
+                            'level3' => $level3Filter,
                             'per_page' => $perPage,
                             'page' => $totalPages
                         ]));
@@ -869,6 +955,9 @@ $stats = $statsStmt->fetch();
                             'id' => $eventId,
                             'filter' => $filter,
                             'search' => $search,
+                            'level1' => $level1Filter,
+                            'level2' => $level2Filter,
+                            'level3' => $level3Filter,
                             'per_page' => $perPage,
                             'page' => $page + 1
                         ]));
@@ -896,6 +985,24 @@ $stats = $statsStmt->fetch();
                 content.style.display = 'none';
                 icon.textContent = '▼';
             }
+        }
+
+        // Handle level filter changes (for dependent dropdowns)
+        function handleLevelFilterChange(levelNumber) {
+            // When level 1 changes, clear level 2 and 3
+            if (levelNumber === 1) {
+                const level2Select = document.querySelector('select[data-level="2"]');
+                const level3Select = document.querySelector('select[data-level="3"]');
+                if (level2Select) level2Select.value = '';
+                if (level3Select) level3Select.value = '';
+            }
+            // When level 2 changes, clear level 3
+            else if (levelNumber === 2) {
+                const level3Select = document.querySelector('select[data-level="3"]');
+                if (level3Select) level3Select.value = '';
+            }
+            // Auto-submit the form
+            document.getElementById('levelFilterForm').submit();
         }
 
         // Store all level data for cascading
