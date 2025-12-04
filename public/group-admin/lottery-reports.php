@@ -38,6 +38,7 @@ $levels = $stmt->fetchAll();
 
 // Get all level values for filters
 $levelValues = [];
+$allValues = []; // For JavaScript cascading
 foreach ($levels as $level) {
     $valuesQuery = "SELECT * FROM distribution_level_values WHERE level_id = :level_id ORDER BY value_name";
     $valuesStmt = $db->prepare($valuesQuery);
@@ -45,6 +46,15 @@ foreach ($levels as $level) {
     $valuesStmt->execute();
     $values = $valuesStmt->fetchAll();
     $levelValues[$level['level_id']] = $values;
+
+    foreach ($values as $val) {
+        $allValues[] = [
+            'value_id' => $val['value_id'],
+            'level_id' => $level['level_id'],
+            'parent_value_id' => $val['parent_value_id'],
+            'value_name' => $val['value_name']
+        ];
+    }
 }
 
 // Get filter parameters (only for on-screen display, not for exports)
@@ -1305,22 +1315,74 @@ $commissionEnabled = $commissionSettings && (
             event.target.classList.add('active');
         }
 
+        // Store all level data for cascading
+        const allLevels = <?php echo json_encode($levels); ?>;
+        const allLevelValues = <?php echo json_encode($allValues); ?>;
+
         // Handle level filter changes (for dependent dropdowns)
         function handleLevelFilterChange(levelNumber) {
-            // When level 1 changes, clear level 2 and 3
+            // Update dependent dropdowns based on parent selection
             if (levelNumber === 1) {
+                const level1Select = document.querySelector('select[data-level="1"]');
                 const level2Select = document.querySelector('select[data-level="2"]');
                 const level3Select = document.querySelector('select[data-level="3"]');
+
+                const selectedLevel1 = level1Select ? parseInt(level1Select.value) : 0;
+
+                // Clear level 2 and 3 selections
                 if (level2Select) level2Select.value = '';
                 if (level3Select) level3Select.value = '';
+
+                // Update Level 2 options
+                if (level2Select && allLevels.length >= 2) {
+                    updateLevelOptions(level2Select, allLevels[1].level_id, selectedLevel1);
+                }
+
+                // Clear Level 3 options (no parent selected)
+                if (level3Select && allLevels.length >= 3) {
+                    updateLevelOptions(level3Select, allLevels[2].level_id, 0);
+                }
             }
-            // When level 2 changes, clear level 3
             else if (levelNumber === 2) {
+                const level2Select = document.querySelector('select[data-level="2"]');
                 const level3Select = document.querySelector('select[data-level="3"]');
+
+                const selectedLevel2 = level2Select ? parseInt(level2Select.value) : 0;
+
+                // Clear level 3 selection
                 if (level3Select) level3Select.value = '';
+
+                // Update Level 3 options
+                if (level3Select && allLevels.length >= 3) {
+                    updateLevelOptions(level3Select, allLevels[2].level_id, selectedLevel2);
+                }
             }
+
             // Auto-submit the form
             document.getElementById('reportFilterForm').submit();
+        }
+
+        // Update dropdown options based on parent selection
+        function updateLevelOptions(selectElement, levelId, parentValueId) {
+            // Keep the first option (All...)
+            const firstOption = selectElement.options[0];
+            selectElement.innerHTML = '';
+            selectElement.appendChild(firstOption);
+
+            // Filter values by parent
+            const filteredValues = allLevelValues.filter(val => {
+                if (val.level_id != levelId) return false;
+                if (parentValueId === 0) return true; // Show all if no parent selected
+                return val.parent_value_id == parentValueId;
+            });
+
+            // Add filtered options
+            filteredValues.forEach(val => {
+                const option = document.createElement('option');
+                option.value = val.value_id;
+                option.textContent = val.value_name;
+                selectElement.appendChild(option);
+            });
         }
 
         function exportToCSV() {

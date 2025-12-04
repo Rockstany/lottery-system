@@ -42,8 +42,12 @@
 - Added to Books page (lottery-books.php)
 - Added to Payments page (lottery-payments.php)
 - Dynamic dropdowns based on Step 3 configuration
-- Dependent filtering (Level 2 depends on Level 1, Level 3 depends on Level 2)
+- **Client-side dependent filtering** - Dropdowns update immediately when parent level is selected
+- Level 2 shows only values belonging to selected Level 1
+- Level 3 shows only values belonging to selected Level 2
+- When no parent is selected, all values are shown
 - Filters by distribution_path using LIKE queries
+- JavaScript cascading uses parent_value_id relationships
 
 ### 3. **Search Fix for Apostrophes** ✅
 - Fixed "St Mary's" → "St Mary&#039;" issue
@@ -67,10 +71,11 @@
 ### 6. **Report Filters** ✅
 - Added to Reports page (lottery-reports.php)
 - **Filter options:**
-  - Level 1, 2, 3 dropdown filters (dependent filtering)
+  - Level 1, 2, 3 dropdown filters (client-side dependent filtering)
   - Payment Status filter (Paid/Partial/Unpaid/All)
   - Payment Method filter (Cash/UPI/Bank/Other/All)
   - Book Return Status filter (Returned/Not Returned/All)
+- **Client-side cascading:** Level dropdowns update immediately based on parent selection
 - **Important:** Filters apply ONLY to on-screen Member-Wise Report view
 - Download/Export functions ignore all filters and export ALL data
 - Added "Book Return" column to Member-Wise Report table
