@@ -13,7 +13,7 @@ $database = new Database();
 $db = $database->getConnection();
 
 // Get book & distribution details
-$query = "SELECT lb.*, bd.distribution_id, bd.notes, bd.mobile_number, bd.distribution_path,
+$query = "SELECT lb.*, bd.distribution_id, bd.notes, bd.mobile_number, bd.distribution_path, bd.is_extra_book,
           le.event_id, le.event_name, le.price_per_ticket, le.tickets_per_book,
           COALESCE(SUM(pc.amount_paid), 0) as total_paid
           FROM lottery_books lb
@@ -302,7 +302,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div class="card-body">
                         <div class="info-box">
                             <div style="margin-bottom: var(--spacing-sm);"><strong>Event:</strong> <?php echo htmlspecialchars($book['event_name']); ?></div>
-                            <div style="margin-bottom: var(--spacing-sm);"><strong>Book:</strong> #<?php echo $book['book_number']; ?></div>
+                            <div style="margin-bottom: var(--spacing-sm);">
+                                <strong>Book:</strong> #<?php echo $book['book_number']; ?>
+                                <?php if ($book['is_extra_book'] == 1): ?>
+                                    <span class="badge badge-warning" style="margin-left: 8px;" title="This book qualifies for extra book commission">📚 Extra Book</span>
+                                <?php endif; ?>
+                            </div>
                             <?php
                             // Display dynamic level values
                             if (!empty($book['distribution_path'])) {
