@@ -137,18 +137,6 @@ $outstanding = $expectedAmount - $totalPaid;
     <div class="container main-content">
         <?php include __DIR__ . '/includes/toast-handler.php'; ?>
 
-        <?php if ($error): ?>
-            <div class="alert alert-danger" style="margin-bottom: var(--spacing-lg);">
-                <?php echo htmlspecialchars($error); ?>
-            </div>
-        <?php endif; ?>
-
-        <?php if ($success): ?>
-            <div class="alert alert-success" style="margin-bottom: var(--spacing-lg);">
-                <?php echo htmlspecialchars($success); ?>
-            </div>
-        <?php endif; ?>
-
         <!-- Back Button -->
         <div style="margin-bottom: var(--spacing-lg);">
             <a href="/public/group-admin/lottery-payments.php?id=<?php echo $distribution['event_id']; ?>" class="btn btn-secondary">← Back to Payments</a>
