@@ -71,18 +71,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                       JOIN lottery_books lb ON bd.book_id = lb.book_id
                       JOIN lottery_events le ON lb.event_id = le.event_id
                       LEFT JOIN payment_collections pc ON bd.distribution_id = pc.distribution_id
-                      WHERE le.event_id = :event_id
+                      WHERE le.event_id = ?
                       GROUP BY bd.distribution_id
                       HAVING total_paid >= expected_amount
                       AND bd.distribution_id NOT IN (
                           SELECT DISTINCT ce.distribution_id
                           FROM commission_earned ce
-                          WHERE ce.event_id = :event_id
+                          WHERE ce.event_id = ?
                           AND ce.distribution_id IS NOT NULL
                       )";
 
         $findStmt = $db->prepare($findQuery);
-        $findStmt->execute(['event_id' => $eventId]);
+        $findStmt->execute([$eventId, $eventId]);
         $missingCommissions = $findStmt->fetchAll();
 
         $synced = 0;
@@ -198,19 +198,19 @@ $previewQuery = "SELECT
                   JOIN lottery_books lb ON bd.book_id = lb.book_id
                   JOIN lottery_events le ON lb.event_id = le.event_id
                   LEFT JOIN payment_collections pc ON bd.distribution_id = pc.distribution_id
-                  WHERE le.event_id = :event_id
+                  WHERE le.event_id = ?
                   GROUP BY bd.distribution_id
                   HAVING total_paid >= expected_amount
                   AND bd.distribution_id NOT IN (
                       SELECT DISTINCT ce.distribution_id
                       FROM commission_earned ce
-                      WHERE ce.event_id = :event_id
+                      WHERE ce.event_id = ?
                       AND ce.distribution_id IS NOT NULL
                   )
                   ORDER BY full_payment_date ASC";
 
 $previewStmt = $db->prepare($previewQuery);
-$previewStmt->execute(['event_id' => $eventId]);
+$previewStmt->execute([$eventId, $eventId]);
 $missingRecords = $previewStmt->fetchAll();
 ?>
 <!DOCTYPE html>
