@@ -161,11 +161,13 @@ $totalPages = ceil($totalDistributions / $perPage);
 
 // Get distributed books with payment info (paginated)
 $query = "SELECT lb.*, bd.notes, bd.mobile_number, bd.distribution_path, bd.distribution_id,
+          bd.is_returned, bd.returned_by, le.book_return_deadline,
           COALESCE(SUM(pc.amount_paid), 0) as total_paid,
           (lb.end_ticket_number - lb.start_ticket_number + 1) * :price_per_ticket as expected_amount
           FROM lottery_books lb
           JOIN book_distribution bd ON lb.book_id = bd.book_id
           LEFT JOIN payment_collections pc ON bd.distribution_id = pc.distribution_id
+          LEFT JOIN lottery_events le ON lb.event_id = le.event_id
           WHERE {$whereClause}
           GROUP BY lb.book_id
           HAVING 1=1";
@@ -248,6 +250,12 @@ foreach ($distributions as $dist) {
         .stat-value {
             font-size: var(--font-size-2xl);
             font-weight: 700;
+        }
+
+        .btn-xs {
+            font-size: 0.7rem;
+            padding: 0.15rem 0.4rem;
+            line-height: 1.2;
         }
 
         /* Mobile Responsiveness */
@@ -513,6 +521,7 @@ foreach ($distributions as $dist) {
                                         <th>Location</th>
                                     <?php endif; ?>
                                     <th>Status & Action</th>
+                                    <th>Book Return</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -565,6 +574,39 @@ foreach ($distributions as $dist) {
                                                     <?php endif; ?>
                                                 </div>
                                             </div>
+                                        </td>
+                                        <td>
+                                            <?php
+                                            // Check if past deadline
+                                            $isPastDeadline = false;
+                                            if (!empty($dist['book_return_deadline'])) {
+                                                $deadline = strtotime($dist['book_return_deadline']);
+                                                $today = strtotime(date('Y-m-d'));
+                                                $isPastDeadline = $today > $deadline;
+                                            }
+
+                                            if ($dist['is_returned'] == 1): ?>
+                                                <span class="badge badge-success" title="Book has been returned">✓ Returned</span>
+                                                <form method="POST" action="/public/group-admin/book-return-toggle.php" style="display: inline;">
+                                                    <input type="hidden" name="distribution_id" value="<?php echo $dist['distribution_id']; ?>">
+                                                    <input type="hidden" name="action" value="mark_not_returned">
+                                                    <button type="submit" class="btn btn-xs btn-secondary">Undo</button>
+                                                </form>
+                                            <?php elseif ($isPastDeadline): ?>
+                                                <span class="badge badge-danger" title="Book not returned after deadline">⚠️ Not Returned</span>
+                                                <form method="POST" action="/public/group-admin/book-return-toggle.php" style="display: inline;">
+                                                    <input type="hidden" name="distribution_id" value="<?php echo $dist['distribution_id']; ?>">
+                                                    <input type="hidden" name="action" value="mark_returned">
+                                                    <button type="submit" class="btn btn-xs btn-success">Mark Returned</button>
+                                                </form>
+                                            <?php else: ?>
+                                                <span class="badge badge-warning" title="Awaiting return">📦 Pending Return</span>
+                                                <form method="POST" action="/public/group-admin/book-return-toggle.php" style="display: inline;">
+                                                    <input type="hidden" name="distribution_id" value="<?php echo $dist['distribution_id']; ?>">
+                                                    <input type="hidden" name="action" value="mark_returned">
+                                                    <button type="submit" class="btn btn-xs btn-success">Mark Returned</button>
+                                                </form>
+                                            <?php endif; ?>
                                         </td>
                                     </tr>
                                 <?php endforeach; ?>

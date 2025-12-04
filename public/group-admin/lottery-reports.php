@@ -36,6 +36,25 @@ $stmt->bindParam(':event_id', $eventId);
 $stmt->execute();
 $levels = $stmt->fetchAll();
 
+// Get all level values for filters
+$levelValues = [];
+foreach ($levels as $level) {
+    $valuesQuery = "SELECT * FROM distribution_level_values WHERE level_id = :level_id ORDER BY value_name";
+    $valuesStmt = $db->prepare($valuesQuery);
+    $valuesStmt->bindValue(':level_id', $level['level_id']);
+    $valuesStmt->execute();
+    $values = $valuesStmt->fetchAll();
+    $levelValues[$level['level_id']] = $values;
+}
+
+// Get filter parameters (only for on-screen display, not for exports)
+$level1Filter = isset($_GET['level1']) ? (int)$_GET['level1'] : 0;
+$level2Filter = isset($_GET['level2']) ? (int)$_GET['level2'] : 0;
+$level3Filter = isset($_GET['level3']) ? (int)$_GET['level3'] : 0;
+$paymentStatusFilter = $_GET['payment_status'] ?? 'all';
+$paymentMethodFilter = $_GET['payment_method'] ?? 'all';
+$returnStatusFilter = $_GET['return_status'] ?? 'all';
+
 // Get comprehensive statistics
 $statsQuery = "SELECT
     COUNT(*) as total_books,
@@ -98,11 +117,51 @@ $paymentStats['paid_count'] = $statusCounts['paid_count'];
 $paymentStats['partial_count'] = $statusCounts['partial_count'];
 $paymentStats['unpaid_count'] = $statusCounts['unpaid_count'];
 
-// Get member-wise report
+// Get member-wise report WITH FILTERS (for on-screen display)
+$memberWhereClause = "le.event_id = :event_id";
+$memberSearchParams = [];
+
+// Apply level filters
+if ($level1Filter > 0) {
+    $level1ValueQuery = "SELECT value_name FROM distribution_level_values WHERE value_id = :value_id";
+    $level1ValueStmt = $db->prepare($level1ValueQuery);
+    $level1ValueStmt->bindValue(':value_id', $level1Filter, PDO::PARAM_INT);
+    $level1ValueStmt->execute();
+    $level1ValueName = $level1ValueStmt->fetchColumn();
+    if ($level1ValueName) {
+        $memberWhereClause .= " AND bd.distribution_path LIKE :level1_filter";
+        $memberSearchParams['level1_filter'] = '%' . $level1ValueName . '%';
+    }
+}
+if ($level2Filter > 0) {
+    $level2ValueQuery = "SELECT value_name FROM distribution_level_values WHERE value_id = :value_id";
+    $level2ValueStmt = $db->prepare($level2ValueQuery);
+    $level2ValueStmt->bindValue(':value_id', $level2Filter, PDO::PARAM_INT);
+    $level2ValueStmt->execute();
+    $level2ValueName = $level2ValueStmt->fetchColumn();
+    if ($level2ValueName) {
+        $memberWhereClause .= " AND bd.distribution_path LIKE :level2_filter";
+        $memberSearchParams['level2_filter'] = '%' . $level2ValueName . '%';
+    }
+}
+if ($level3Filter > 0) {
+    $level3ValueQuery = "SELECT value_name FROM distribution_level_values WHERE value_id = :value_id";
+    $level3ValueStmt = $db->prepare($level3ValueQuery);
+    $level3ValueStmt->bindValue(':value_id', $level3Filter, PDO::PARAM_INT);
+    $level3ValueStmt->execute();
+    $level3ValueName = $level3ValueStmt->fetchColumn();
+    if ($level3ValueName) {
+        $memberWhereClause .= " AND bd.distribution_path LIKE :level3_filter";
+        $memberSearchParams['level3_filter'] = '%' . $level3ValueName . '%';
+    }
+}
+
 $memberQuery = "SELECT
     bd.notes,
     bd.distribution_path,
     bd.mobile_number,
+    bd.is_returned,
+    bd.distribution_id,
     lb.book_number,
     lb.start_ticket_number,
     lb.end_ticket_number,
@@ -119,13 +178,53 @@ $memberQuery = "SELECT
     JOIN lottery_books lb ON bd.book_id = lb.book_id
     JOIN lottery_events le ON lb.event_id = le.event_id
     LEFT JOIN payment_collections pc ON bd.distribution_id = pc.distribution_id
-    WHERE le.event_id = :event_id
+    WHERE {$memberWhereClause}
     GROUP BY bd.distribution_id
-    ORDER BY bd.distribution_path ASC, bd.notes ASC";
+    HAVING 1=1";
+
+// Apply payment status filter using HAVING clause
+if ($paymentStatusFilter === 'paid') {
+    $memberQuery .= " AND total_paid >= expected_amount";
+} elseif ($paymentStatusFilter === 'partial') {
+    $memberQuery .= " AND total_paid > 0 AND total_paid < expected_amount";
+} elseif ($paymentStatusFilter === 'unpaid') {
+    $memberQuery .= " AND total_paid = 0";
+}
+
+$memberQuery .= " ORDER BY bd.distribution_path ASC, bd.notes ASC";
+
 $stmt = $db->prepare($memberQuery);
 $stmt->bindParam(':event_id', $eventId);
+foreach ($memberSearchParams as $key => $value) {
+    $stmt->bindValue(':' . $key, $value, PDO::PARAM_STR);
+}
 $stmt->execute();
 $members = $stmt->fetchAll();
+
+// Apply payment method filter (post-query - check if distribution has any payment with specified method)
+if ($paymentMethodFilter !== 'all') {
+    $members = array_filter($members, function($member) use ($db, $paymentMethodFilter) {
+        $checkQuery = "SELECT COUNT(*) as count FROM payment_collections
+                       WHERE distribution_id = :dist_id AND payment_method = :method";
+        $checkStmt = $db->prepare($checkQuery);
+        $checkStmt->bindValue(':dist_id', $member['distribution_id'], PDO::PARAM_INT);
+        $checkStmt->bindValue(':method', $paymentMethodFilter, PDO::PARAM_STR);
+        $checkStmt->execute();
+        $result = $checkStmt->fetch();
+        return $result['count'] > 0;
+    });
+}
+
+// Apply return status filter (post-query since it's simpler)
+if ($returnStatusFilter === 'returned') {
+    $members = array_filter($members, function($member) {
+        return $member['is_returned'] == 1;
+    });
+} elseif ($returnStatusFilter === 'not_returned') {
+    $members = array_filter($members, function($member) {
+        return $member['is_returned'] == 0;
+    });
+}
 
 // Calculate percentages
 $collectionPercent = $event['total_predicted_amount'] > 0
@@ -406,6 +505,92 @@ $commissionEnabled = $commissionSettings && (
             <button onclick="copyToClipboard()" class="btn btn-info">📋 Copy Data</button>
         </div>
 
+        <!-- Filter Section (applies to Member-Wise Report only) -->
+        <?php if (count($levels) > 0 || true): ?>
+        <div class="card" style="margin-bottom: var(--spacing-lg);">
+            <div class="card-header">
+                <h3 class="card-title">🔍 Report Filters</h3>
+                <small style="color: var(--gray-600);">These filters apply only to the on-screen Member-Wise Report. Export functions will include ALL data.</small>
+            </div>
+            <div class="card-body">
+                <form method="GET" action="" id="reportFilterForm">
+                    <input type="hidden" name="id" value="<?php echo $eventId; ?>">
+
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--spacing-md); margin-bottom: var(--spacing-md);">
+                        <!-- Level Filters -->
+                        <?php foreach ($levels as $index => $level): ?>
+                        <div>
+                            <label class="form-label"><?php echo htmlspecialchars($level['level_name']); ?></label>
+                            <select
+                                name="level<?php echo $level['level_number']; ?>"
+                                class="form-control level-filter-select"
+                                data-level="<?php echo $level['level_number']; ?>"
+                                onchange="handleLevelFilterChange(<?php echo $level['level_number']; ?>)"
+                            >
+                                <option value="">All <?php echo htmlspecialchars($level['level_name']); ?></option>
+                                <?php
+                                $currentLevelFilter = ${'level' . $level['level_number'] . 'Filter'};
+                                foreach ($levelValues[$level['level_id']] as $value):
+                                    // For dependent levels, filter by parent
+                                    if ($level['level_number'] == 2 && $level1Filter > 0) {
+                                        if ($value['parent_value_id'] != $level1Filter) continue;
+                                    } elseif ($level['level_number'] == 3 && $level2Filter > 0) {
+                                        if ($value['parent_value_id'] != $level2Filter) continue;
+                                    }
+                                ?>
+                                <option value="<?php echo $value['value_id']; ?>" <?php echo $currentLevelFilter == $value['value_id'] ? 'selected' : ''; ?>>
+                                    <?php echo htmlspecialchars($value['value_name']); ?>
+                                </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <?php endforeach; ?>
+
+                        <!-- Payment Status Filter -->
+                        <div>
+                            <label class="form-label">Payment Status</label>
+                            <select name="payment_status" class="form-control">
+                                <option value="all" <?php echo $paymentStatusFilter === 'all' ? 'selected' : ''; ?>>All Status</option>
+                                <option value="paid" <?php echo $paymentStatusFilter === 'paid' ? 'selected' : ''; ?>>✓ Paid Only</option>
+                                <option value="partial" <?php echo $paymentStatusFilter === 'partial' ? 'selected' : ''; ?>>⚠️ Partial Only</option>
+                                <option value="unpaid" <?php echo $paymentStatusFilter === 'unpaid' ? 'selected' : ''; ?>>❌ Unpaid Only</option>
+                            </select>
+                        </div>
+
+                        <!-- Payment Method Filter -->
+                        <div>
+                            <label class="form-label">Payment Method</label>
+                            <select name="payment_method" class="form-control">
+                                <option value="all" <?php echo $paymentMethodFilter === 'all' ? 'selected' : ''; ?>>All Methods</option>
+                                <option value="cash" <?php echo $paymentMethodFilter === 'cash' ? 'selected' : ''; ?>>💵 Cash Only</option>
+                                <option value="upi" <?php echo $paymentMethodFilter === 'upi' ? 'selected' : ''; ?>>📱 UPI Only</option>
+                                <option value="bank" <?php echo $paymentMethodFilter === 'bank' ? 'selected' : ''; ?>>🏦 Bank Transfer Only</option>
+                                <option value="other" <?php echo $paymentMethodFilter === 'other' ? 'selected' : ''; ?>>🔄 Other Only</option>
+                            </select>
+                        </div>
+
+                        <!-- Return Status Filter -->
+                        <div>
+                            <label class="form-label">Book Return Status</label>
+                            <select name="return_status" class="form-control">
+                                <option value="all" <?php echo $returnStatusFilter === 'all' ? 'selected' : ''; ?>>All Books</option>
+                                <option value="returned" <?php echo $returnStatusFilter === 'returned' ? 'selected' : ''; ?>>✓ Returned Only</option>
+                                <option value="not_returned" <?php echo $returnStatusFilter === 'not_returned' ? 'selected' : ''; ?>>⚠️ Not Returned Only</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; gap: var(--spacing-sm); flex-wrap: wrap;">
+                        <button type="submit" class="btn btn-primary">Apply Filters</button>
+                        <?php if ($level1Filter > 0 || $level2Filter > 0 || $level3Filter > 0 || $paymentStatusFilter !== 'all' || $paymentMethodFilter !== 'all' || $returnStatusFilter !== 'all'): ?>
+                            <a href="?id=<?php echo $eventId; ?>" class="btn btn-secondary">Clear All Filters</a>
+                        <?php endif; ?>
+                    </div>
+                </form>
+            </div>
+        </div>
+        <?php endif; ?>
+
         <!-- Tabbed Reports -->
         <div class="tab-container">
             <div class="tabs">
@@ -442,6 +627,7 @@ $commissionEnabled = $commissionSettings && (
                                     <th>Paid</th>
                                     <th>Outstanding</th>
                                     <th>Status</th>
+                                    <th>Book Return</th>
                                     <th>Distributed On</th>
                                 </tr>
                             </thead>
@@ -476,6 +662,13 @@ $commissionEnabled = $commissionSettings && (
                                                 <span class="badge badge-danger">Unpaid</span>
                                             <?php endif; ?>
                                         </td>
+                                        <td>
+                                            <?php if ($member['is_returned'] == 1): ?>
+                                                <span class="badge badge-success">✓ Returned</span>
+                                            <?php else: ?>
+                                                <span class="badge badge-warning">⚠️ Not Returned</span>
+                                            <?php endif; ?>
+                                        </td>
                                         <td><?php echo date('M d, Y', strtotime($member['distributed_at'])); ?></td>
                                     </tr>
                                 <?php endforeach; ?>
@@ -486,7 +679,7 @@ $commissionEnabled = $commissionSettings && (
                                     <td>₹<?php echo number_format(array_sum(array_column($members, 'expected_amount')), 0); ?></td>
                                     <td>₹<?php echo number_format(array_sum(array_column($members, 'total_paid')), 0); ?></td>
                                     <td>₹<?php echo number_format(array_sum(array_column($members, 'outstanding')), 0); ?></td>
-                                    <td colspan="2"></td>
+                                    <td colspan="3"></td>
                                 </tr>
                             </tfoot>
                         </table>
@@ -1110,6 +1303,24 @@ $commissionEnabled = $commissionSettings && (
             // Show selected tab
             document.getElementById(tabId).classList.add('active');
             event.target.classList.add('active');
+        }
+
+        // Handle level filter changes (for dependent dropdowns)
+        function handleLevelFilterChange(levelNumber) {
+            // When level 1 changes, clear level 2 and 3
+            if (levelNumber === 1) {
+                const level2Select = document.querySelector('select[data-level="2"]');
+                const level3Select = document.querySelector('select[data-level="3"]');
+                if (level2Select) level2Select.value = '';
+                if (level3Select) level3Select.value = '';
+            }
+            // When level 2 changes, clear level 3
+            else if (levelNumber === 2) {
+                const level3Select = document.querySelector('select[data-level="3"]');
+                if (level3Select) level3Select.value = '';
+            }
+            // Auto-submit the form
+            document.getElementById('reportFilterForm').submit();
         }
 
         function exportToCSV() {

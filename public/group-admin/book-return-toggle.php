@@ -86,7 +86,14 @@ try {
 
     // Redirect back with success message
     $eventId = $distribution['event_id'];
-    header("Location: /public/group-admin/lottery-books.php?id=$eventId&success=" . urlencode($successMsg));
+
+    // Check if coming from payments or books page
+    $referer = $_SERVER['HTTP_REFERER'] ?? '';
+    if (strpos($referer, 'lottery-payments.php') !== false) {
+        header("Location: /public/group-admin/lottery-payments.php?id=$eventId&success=" . urlencode($successMsg));
+    } else {
+        header("Location: /public/group-admin/lottery-books.php?id=$eventId&success=" . urlencode($successMsg));
+    }
     exit;
 
 } catch (Exception $e) {

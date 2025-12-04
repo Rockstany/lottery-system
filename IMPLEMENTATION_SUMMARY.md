@@ -20,10 +20,10 @@
   - Logs all return status changes in `activity_logs`
   - Transaction-based for data integrity
 
-#### UI Implementation (Books Page)
-- **File:** `public/group-admin/lottery-books.php` (Modified)
+#### UI Implementation (Payments Page)
+- **File:** `public/group-admin/lottery-payments.php` (Modified)
 - **Features:**
-  - Added "Book Return" column to books table
+  - Added "Book Return" column to payments table
   - Shows return status with badges:
     - ✅ **"Returned"** (green badge) - Book has been physically returned
     - ⚠️ **"Not Returned"** (red badge) - Past deadline, not returned yet
@@ -31,7 +31,12 @@
   - **Auto-flagging:** If current date > book_return_deadline, shows "Not Returned" automatically
   - "Mark Returned" button for admins
   - "Undo" button to reverse return status
-  - Only shown for distributed/collected books (not available books)
+  - Return status is independent of payment status (can be returned with 0, partial, or full payment)
+
+#### UI Also Available on Books Page
+- **File:** `public/group-admin/lottery-books.php` (Modified)
+- Same book return functionality available on Books page as well
+- Only shown for distributed/collected books (not available books)
 
 ### 2. **Level-Based Filters** ✅
 - Added to Books page (lottery-books.php)
@@ -56,6 +61,21 @@
 - Added to 10 pages
 - Shows contact information (7899015086)
 - Mobile responsive
+
+---
+
+### 6. **Report Filters** ✅
+- Added to Reports page (lottery-reports.php)
+- **Filter options:**
+  - Level 1, 2, 3 dropdown filters (dependent filtering)
+  - Payment Status filter (Paid/Partial/Unpaid/All)
+  - Payment Method filter (Cash/UPI/Bank/Other/All)
+  - Book Return Status filter (Returned/Not Returned/All)
+- **Important:** Filters apply ONLY to on-screen Member-Wise Report view
+- Download/Export functions ignore all filters and export ALL data
+- Added "Book Return" column to Member-Wise Report table
+- Shows clear message: "These filters apply only to the on-screen Member-Wise Report. Export functions will include ALL data."
+- Payment Method filter shows only distributions that have at least one payment with the selected method
 
 ---
 
@@ -96,15 +116,6 @@
 - Requires PHPSpreadsheet library
 - Awaiting Composer installation or manual setup
 
-### **Report View Filters**
-
-**Requirements:**
-- Add Level 1, 2, 3 filter dropdowns to lottery-reports.php
-- Add payment status filter (Paid/Partial/Unpaid)
-- Add return status filter (Returned/Not Returned)
-- **Filters apply ONLY to on-screen view**
-- Download button ignores all filters
-
 ---
 
 ## Next Steps
@@ -127,18 +138,16 @@
      ```
    - Or provide manual installation instructions
 
-4. **Add Report Filters:**
-   - Similar implementation to Books/Payments filters
-   - Add to lottery-reports.php
-
 ---
 
 ## Files Modified
 
-1. `public/group-admin/lottery-books.php` - Added return status column and logic
-2. `public/group-admin/lottery-payments.php` - Simplified table, added level filters
-3. `public/group-admin/includes/footer.php` - Created new footer component
-4. 10+ pages - Added footer includes
+1. `public/group-admin/lottery-books.php` - Added return status column and logic, level filters
+2. `public/group-admin/lottery-payments.php` - Simplified table, added level filters, added book return column
+3. `public/group-admin/lottery-reports.php` - Added filter UI (levels, payment status, return status), added book return column to member report
+4. `public/group-admin/book-return-toggle.php` - Handler for book return status (redirects to referring page)
+5. `public/group-admin/includes/footer.php` - Created new footer component
+6. 10+ pages - Added footer includes
 
 ## Files Created
 
