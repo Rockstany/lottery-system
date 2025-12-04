@@ -42,45 +42,44 @@ try {
     }
 
     $eventId = $distribution['event_id'];
+
+    // Check if there are any payments collected for this distribution
+    $paymentCheck = "SELECT COUNT(*) as payment_count, SUM(amount_paid) as total_paid
+                     FROM payment_collections
+                     WHERE distribution_id = :dist_id";
+    $stmt = $db->prepare($paymentCheck);
+    $stmt->bindParam(':dist_id', $distributionId);
+    $stmt->execute();
+    $paymentInfo = $stmt->fetch();
+    // Get distribution levels for this event
+    $levelsQuery = "SELECT * FROM distribution_levels WHERE event_id = :event_id ORDER BY level_number";
+    $stmt = $db->prepare($levelsQuery);
+    $stmt->bindParam(':event_id', $eventId);
+    $stmt->execute();
+    $levels = $stmt->fetchAll();
+
+    // Get all level values with parent relationships
+    $levelValues = [];
+    $allValues = [];
+    foreach ($levels as $level) {
+        $valuesQuery = "SELECT * FROM distribution_level_values WHERE level_id = :level_id ORDER BY value_name";
+        $stmt = $db->prepare($valuesQuery);
+        $stmt->bindParam(':level_id', $level['level_id']);
+        $stmt->execute();
+        $values = $stmt->fetchAll();
+        $levelValues[$level['level_id']] = $values;
+
+        foreach ($values as $val) {
+            $allValues[] = [
+                'value_id' => $val['value_id'],
+                'level_id' => $level['level_id'],
+                'parent_value_id' => $val['parent_value_id'],
+                'value_name' => $val['value_name']
+            ];
+        }
+    }
 } catch (Exception $e) {
     die("Error in initialization: " . $e->getMessage() . " in " . $e->getFile() . " on line " . $e->getLine());
-}
-
-// Check if there are any payments collected for this distribution
-$paymentCheck = "SELECT COUNT(*) as payment_count, SUM(amount_paid) as total_paid
-                 FROM payment_collections
-                 WHERE distribution_id = :dist_id";
-$stmt = $db->prepare($paymentCheck);
-$stmt->bindParam(':dist_id', $distributionId);
-$stmt->execute();
-$paymentInfo = $stmt->fetch();
-
-// Get distribution levels for this event
-$levelsQuery = "SELECT * FROM distribution_levels WHERE event_id = :event_id ORDER BY level_number";
-$stmt = $db->prepare($levelsQuery);
-$stmt->bindParam(':event_id', $eventId);
-$stmt->execute();
-$levels = $stmt->fetchAll();
-
-// Get all level values with parent relationships
-$levelValues = [];
-$allValues = [];
-foreach ($levels as $level) {
-    $valuesQuery = "SELECT * FROM distribution_level_values WHERE level_id = :level_id ORDER BY value_name";
-    $stmt = $db->prepare($valuesQuery);
-    $stmt->bindParam(':level_id', $level['level_id']);
-    $stmt->execute();
-    $values = $stmt->fetchAll();
-    $levelValues[$level['level_id']] = $values;
-
-    foreach ($values as $val) {
-        $allValues[] = [
-            'value_id' => $val['value_id'],
-            'level_id' => $level['level_id'],
-            'parent_value_id' => $val['parent_value_id'],
-            'value_name' => $val['value_name']
-        ];
-    }
 }
 
 $error = '';
