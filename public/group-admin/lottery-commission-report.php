@@ -124,10 +124,7 @@ $totalExtra = array_sum(array_column($summary, 'extra_books_commission'));
                 <h3 class="card-title">Commission by Level 1 Distributor</h3>
                 <div style="display: flex; gap: var(--spacing-sm); flex-wrap: wrap;">
                     <a href="/public/group-admin/lottery-commission-sync.php?id=<?php echo $eventId; ?>" class="btn btn-warning btn-sm">
-                        🔄 Sync Commissions
-                    </a>
-                    <a href="/public/group-admin/lottery-commission-cleanup-duplicates.php?id=<?php echo $eventId; ?>" class="btn btn-danger btn-sm">
-                        🧹 Cleanup Duplicates
+                        🔄 Recalculate Commissions
                     </a>
                     <a href="/public/group-admin/lottery-commission-export.php?id=<?php echo $eventId; ?>" class="btn btn-primary btn-sm">
                         📥 Export to CSV

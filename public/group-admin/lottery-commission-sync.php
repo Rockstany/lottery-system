@@ -55,7 +55,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     try {
         $db->beginTransaction();
 
-        // Find all fully paid distributions that don't have commission records
+        // STEP 1: Delete ALL existing commission records for this event
+        $deleteQuery = "DELETE FROM commission_earned WHERE event_id = ?";
+        $deleteStmt = $db->prepare($deleteQuery);
+        $deleteStmt->execute([$eventId]);
+        $deletedCount = $deleteStmt->rowCount();
+
+        // STEP 2: Find all fully paid distributions and recalculate commissions from scratch
         // Use MAX(payment_date) to get the date when payment became fully paid
         $findQuery = "SELECT
                         bd.distribution_id,
@@ -73,16 +79,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                       LEFT JOIN payment_collections pc ON bd.distribution_id = pc.distribution_id
                       WHERE le.event_id = ?
                       GROUP BY bd.distribution_id
-                      HAVING total_paid >= expected_amount
-                      AND bd.distribution_id NOT IN (
-                          SELECT DISTINCT ce.distribution_id
-                          FROM commission_earned ce
-                          WHERE ce.event_id = ?
-                          AND ce.distribution_id IS NOT NULL
-                      )";
+                      HAVING total_paid >= expected_amount";
 
         $findStmt = $db->prepare($findQuery);
-        $findStmt->execute([$eventId, $eventId]);
+        $findStmt->execute([$eventId]);
         $missingCommissions = $findStmt->fetchAll();
 
         $synced = 0;
@@ -135,53 +135,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
             // Insert commission records
             if (count($eligibleCommissions) > 0) {
-                $commissionInserted = false;
                 foreach ($eligibleCommissions as $commission) {
-                    // Check if commission already exists for this distribution and type
-                    $checkQuery = "SELECT COUNT(*) as count FROM commission_earned
-                                  WHERE distribution_id = :dist_id
-                                  AND commission_type = :comm_type";
-                    $checkStmt = $db->prepare($checkQuery);
-                    $checkStmt->bindParam(':dist_id', $dist['distribution_id']);
-                    $checkStmt->bindParam(':comm_type', $commission['type']);
-                    $checkStmt->execute();
-                    $exists = $checkStmt->fetch();
+                    $commissionAmount = ($dist['expected_amount'] * $commission['percent']) / 100;
 
-                    // Only insert if commission doesn't already exist
-                    if ($exists['count'] == 0) {
-                        $commissionAmount = ($dist['expected_amount'] * $commission['percent']) / 100;
+                    $insertQuery = "INSERT INTO commission_earned
+                                   (event_id, distribution_id, level_1_value, commission_type,
+                                    commission_percent, payment_amount, commission_amount,
+                                    payment_date, book_id)
+                                   VALUES (:event_id, :dist_id, :level_1, :comm_type,
+                                           :comm_percent, :payment_amt, :comm_amt,
+                                           :payment_date, :book_id)";
+                    $insertStmt = $db->prepare($insertQuery);
+                    $insertStmt->bindParam(':event_id', $eventId);
+                    $insertStmt->bindParam(':dist_id', $dist['distribution_id']);
+                    $insertStmt->bindParam(':level_1', $level1Value);
+                    $insertStmt->bindParam(':comm_type', $commission['type']);
+                    $insertStmt->bindParam(':comm_percent', $commission['percent']);
+                    $insertStmt->bindParam(':payment_amt', $dist['expected_amount']);
+                    $insertStmt->bindParam(':comm_amt', $commissionAmount);
+                    $insertStmt->bindParam(':payment_date', $fullPaymentDate);
+                    $insertStmt->bindParam(':book_id', $dist['book_id']);
 
-                        $insertQuery = "INSERT INTO commission_earned
-                                       (event_id, distribution_id, level_1_value, commission_type,
-                                        commission_percent, payment_amount, commission_amount,
-                                        payment_date, book_id)
-                                       VALUES (:event_id, :dist_id, :level_1, :comm_type,
-                                               :comm_percent, :payment_amt, :comm_amt,
-                                               :payment_date, :book_id)";
-                        $insertStmt = $db->prepare($insertQuery);
-                        $insertStmt->bindParam(':event_id', $eventId);
-                        $insertStmt->bindParam(':dist_id', $dist['distribution_id']);
-                        $insertStmt->bindParam(':level_1', $level1Value);
-                        $insertStmt->bindParam(':comm_type', $commission['type']);
-                        $insertStmt->bindParam(':comm_percent', $commission['percent']);
-                        $insertStmt->bindParam(':payment_amt', $dist['expected_amount']);
-                        $insertStmt->bindParam(':comm_amt', $commissionAmount);
-                        $insertStmt->bindParam(':payment_date', $fullPaymentDate);
-                        $insertStmt->bindParam(':book_id', $dist['book_id']);
-
-                        if ($insertStmt->execute()) {
-                            $commissionInserted = true;
-                        } else {
-                            $errors++;
-                        }
+                    if (!$insertStmt->execute()) {
+                        $errors++;
                     }
                 }
-
-                if ($commissionInserted) {
-                    $synced++;
-                } else {
-                    $skipped++;
-                }
+                $synced++;
             } else {
                 $skipped++;
             }
@@ -190,13 +169,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $db->commit();
 
         $syncResults = [
+            'deleted' => $deletedCount,
             'total' => count($missingCommissions),
             'synced' => $synced,
             'skipped' => $skipped,
             'errors' => $errors
         ];
 
-        $success = "Commission sync completed! Processed {$syncResults['total']} books, synced {$synced} commissions.";
+        $success = "Commission sync completed! Deleted {$deletedCount} old records, recalculated {$synced} commissions from {$syncResults['total']} fully paid books.";
 
     } catch (Exception $e) {
         $db->rollBack();
@@ -205,7 +185,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     }
 }
 
-// Get preview of missing commissions
+// Get preview of ALL fully paid books (will be synced)
 $previewQuery = "SELECT
                     bd.distribution_id,
                     bd.distribution_path,
@@ -222,17 +202,11 @@ $previewQuery = "SELECT
                   WHERE le.event_id = ?
                   GROUP BY bd.distribution_id
                   HAVING total_paid >= expected_amount
-                  AND bd.distribution_id NOT IN (
-                      SELECT DISTINCT ce.distribution_id
-                      FROM commission_earned ce
-                      WHERE ce.event_id = ?
-                      AND ce.distribution_id IS NOT NULL
-                  )
                   ORDER BY full_payment_date ASC";
 
 $previewStmt = $db->prepare($previewQuery);
-$previewStmt->execute([$eventId, $eventId]);
-$missingRecords = $previewStmt->fetchAll();
+$previewStmt->execute([$eventId]);
+$fullyPaidBooks = $previewStmt->fetchAll();
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -259,8 +233,9 @@ $missingRecords = $previewStmt->fetchAll();
                 <?php echo htmlspecialchars($success); ?>
                 <?php if ($syncResults): ?>
                     <ul style="margin: var(--spacing-sm) 0 0 var(--spacing-lg);">
-                        <li>Total fully paid books found: <?php echo $syncResults['total']; ?></li>
-                        <li>Commissions synced: <?php echo $syncResults['synced']; ?></li>
+                        <li>Old commission records deleted: <?php echo $syncResults['deleted']; ?></li>
+                        <li>Fully paid books found: <?php echo $syncResults['total']; ?></li>
+                        <li>New commissions created: <?php echo $syncResults['synced']; ?></li>
                         <li>Skipped (no Level 1 or no eligible commission): <?php echo $syncResults['skipped']; ?></li>
                         <?php if ($syncResults['errors'] > 0): ?>
                             <li style="color: var(--error-color);">Errors: <?php echo $syncResults['errors']; ?></li>
@@ -304,24 +279,25 @@ $missingRecords = $previewStmt->fetchAll();
             </div>
         </div>
 
-        <!-- Missing Commissions Preview -->
+        <!-- Fully Paid Books Preview -->
         <div class="card" style="margin-bottom: var(--spacing-lg);">
             <div class="card-header">
-                <h3 class="card-title">📋 Books Missing Commission Records (<?php echo count($missingRecords); ?>)</h3>
+                <h3 class="card-title">📋 Fully Paid Books (<?php echo count($fullyPaidBooks); ?>)</h3>
             </div>
             <div class="card-body">
-                <?php if (count($missingRecords) === 0): ?>
+                <?php if (count($fullyPaidBooks) === 0): ?>
                     <div style="text-align: center; padding: var(--spacing-2xl); color: var(--gray-500);">
-                        <div style="font-size: 64px; margin-bottom: var(--spacing-md);">✅</div>
-                        <h3>All Commissions Up to Date!</h3>
-                        <p>No missing commission records found. All fully paid books have their commissions calculated.</p>
+                        <div style="font-size: 64px; margin-bottom: var(--spacing-md);">💰</div>
+                        <h3>No Fully Paid Books Yet</h3>
+                        <p>Commission records will be calculated when books are fully paid.</p>
                     </div>
                 <?php else: ?>
                     <div style="margin-bottom: var(--spacing-md);">
-                        <p><strong><?php echo count($missingRecords); ?> book(s)</strong> are fully paid but missing commission records.</p>
-                        <form method="POST" onsubmit="return confirm('Are you sure you want to sync <?php echo count($missingRecords); ?> commission record(s)?');">
+                        <p><strong><?php echo count($fullyPaidBooks); ?> book(s)</strong> are fully paid and will have commissions recalculated.</p>
+                        <p style="color: var(--warning-color); margin: var(--spacing-sm) 0;"><strong>⚠️ Warning:</strong> This will DELETE all existing commission records and recalculate them fresh with correct amounts.</p>
+                        <form method="POST" onsubmit="return confirm('This will DELETE all existing commission records and recalculate them. Are you sure?');">
                             <input type="hidden" name="action" value="sync">
-                            <button type="submit" class="btn btn-primary">🔄 Sync <?php echo count($missingRecords); ?> Commission(s)</button>
+                            <button type="submit" class="btn btn-primary">🔄 Reset & Recalculate All Commissions</button>
                         </form>
                     </div>
 
@@ -339,7 +315,7 @@ $missingRecords = $previewStmt->fetchAll();
                                 </tr>
                             </thead>
                             <tbody>
-                                <?php foreach ($missingRecords as $record): ?>
+                                <?php foreach ($fullyPaidBooks as $record): ?>
                                     <tr>
                                         <td><strong><?php echo $record['book_number']; ?></strong></td>
                                         <td><?php echo htmlspecialchars($record['distribution_path']); ?></td>
