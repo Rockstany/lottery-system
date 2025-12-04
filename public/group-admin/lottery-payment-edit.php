@@ -205,7 +205,7 @@ $expectedAmount = $payment['tickets_per_book'] * $payment['price_per_ticket'];
                         <strong>Payment Date:</strong> <?php echo date('M d, Y', strtotime($payment['payment_date'])); ?>
                     </div>
                     <div>
-                        <strong>Collected At:</strong> <?php echo date('M d, Y H:i', strtotime($payment['collected_at'])); ?>
+                        <strong>Collected At:</strong> <?php echo date('M d, Y H:i', strtotime($payment['created_at'])); ?>
                     </div>
                 </div>
                 <div style="margin-top: var(--spacing-md); padding: var(--spacing-sm); background: var(--info-light); border-radius: var(--radius-sm);">
