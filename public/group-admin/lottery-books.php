@@ -20,11 +20,11 @@ $db = $database->getConnection();
 
 // Get event
 $query = "SELECT * FROM lottery_events WHERE event_id = :id AND community_id = :community_id";
-$stmt = $db->prepare($query);
-$stmt->bindParam(':id', $eventId);
-$stmt->bindParam(':community_id', $communityId);
-$stmt->execute();
-$event = $stmt->fetch();
+$eventStmt = $db->prepare($query);
+$eventStmt->bindValue(':id', $eventId);
+$eventStmt->bindValue(':community_id', $communityId);
+$eventStmt->execute();
+$event = $eventStmt->fetch();
 
 if (!$event) {
     header("Location: /public/group-admin/lottery.php");
@@ -33,20 +33,20 @@ if (!$event) {
 
 // Get distribution levels for this event
 $levelsQuery = "SELECT * FROM distribution_levels WHERE event_id = :event_id ORDER BY level_number";
-$stmt = $db->prepare($levelsQuery);
-$stmt->bindParam(':event_id', $eventId);
-$stmt->execute();
-$levels = $stmt->fetchAll();
+$levelsStmt = $db->prepare($levelsQuery);
+$levelsStmt->bindValue(':event_id', $eventId);
+$levelsStmt->execute();
+$levels = $levelsStmt->fetchAll();
 
 // Get all level values with parent relationships
 $levelValues = [];
 $allValues = []; // For JavaScript
 foreach ($levels as $level) {
     $valuesQuery = "SELECT * FROM distribution_level_values WHERE level_id = :level_id ORDER BY value_name";
-    $stmt = $db->prepare($valuesQuery);
-    $stmt->bindParam(':level_id', $level['level_id']);
-    $stmt->execute();
-    $values = $stmt->fetchAll();
+    $valuesStmt = $db->prepare($valuesQuery);
+    $valuesStmt->bindValue(':level_id', $level['level_id']);
+    $valuesStmt->execute();
+    $values = $valuesStmt->fetchAll();
     $levelValues[$level['level_id']] = $values;
 
     foreach ($values as $val) {

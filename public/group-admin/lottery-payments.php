@@ -14,10 +14,10 @@ $db = $database->getConnection();
 
 // Get event
 $query = "SELECT * FROM lottery_events WHERE event_id = :id";
-$stmt = $db->prepare($query);
-$stmt->bindParam(':id', $eventId);
-$stmt->execute();
-$event = $stmt->fetch();
+$eventStmt = $db->prepare($query);
+$eventStmt->bindValue(':id', $eventId);
+$eventStmt->execute();
+$event = $eventStmt->fetch();
 
 if (!$event) {
     header("Location: /public/group-admin/lottery.php");
@@ -26,10 +26,10 @@ if (!$event) {
 
 // Get distribution levels for this event
 $levelsQuery = "SELECT * FROM distribution_levels WHERE event_id = :event_id ORDER BY level_number";
-$stmt = $db->prepare($levelsQuery);
-$stmt->bindParam(':event_id', $eventId);
-$stmt->execute();
-$levels = $stmt->fetchAll();
+$levelsStmt = $db->prepare($levelsQuery);
+$levelsStmt->bindValue(':event_id', $eventId);
+$levelsStmt->execute();
+$levels = $levelsStmt->fetchAll();
 
 // Get search, filter, and pagination parameters
 $search = Validator::sanitizeString($_GET['search'] ?? '');
