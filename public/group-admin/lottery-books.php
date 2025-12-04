@@ -296,9 +296,11 @@ $totalBooks = $countStmt->fetch()['total'];
 $totalPages = ceil($totalBooks / $perPage);
 
 // Get paginated books
-$query = "SELECT lb.*, bd.notes, bd.mobile_number, bd.distribution_path, bd.distribution_id
+$query = "SELECT lb.*, bd.notes, bd.mobile_number, bd.distribution_path, bd.distribution_id,
+                 bd.is_returned, bd.returned_by, le.book_return_deadline
           FROM lottery_books lb
           LEFT JOIN book_distribution bd ON lb.book_id = bd.book_id
+          LEFT JOIN lottery_events le ON lb.event_id = le.event_id
           WHERE {$whereClause}
           ORDER BY lb.start_ticket_number, lb.book_number
           LIMIT :limit OFFSET :offset";
@@ -403,6 +405,11 @@ $stats = $statsStmt->fetch();
         .assigned-row {
             background-color: #f3f4f6;
             opacity: 0.7;
+        }
+        .btn-xs {
+            font-size: 0.7rem;
+            padding: 0.15rem 0.4rem;
+            line-height: 1.2;
         }
         .checkbox-cell {
             width: 40px;
@@ -812,6 +819,7 @@ $stats = $statsStmt->fetch();
                                     <th>Location</th>
                                 <?php endif; ?>
                                 <th>Status</th>
+                                <th>Book Return</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
@@ -864,6 +872,44 @@ $stats = $statsStmt->fetch();
                                                 <span class="badge badge-info">Distributed</span>
                                             <?php else: ?>
                                                 <span class="badge badge-danger">Collected</span>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td>
+                                            <?php if ($book['book_status'] !== 'available'): ?>
+                                                <?php
+                                                // Check if past deadline
+                                                $isPastDeadline = false;
+                                                if (!empty($book['book_return_deadline'])) {
+                                                    $deadline = strtotime($book['book_return_deadline']);
+                                                    $today = strtotime(date('Y-m-d'));
+                                                    $isPastDeadline = $today > $deadline;
+                                                }
+
+                                                // Determine return status
+                                                if ($book['is_returned'] == 1): ?>
+                                                    <span class="badge badge-success" title="Book has been returned">✓ Returned</span>
+                                                    <form method="POST" action="/public/group-admin/book-return-toggle.php" style="display: inline; margin-top: var(--spacing-xs);">
+                                                        <input type="hidden" name="distribution_id" value="<?php echo $book['distribution_id']; ?>">
+                                                        <input type="hidden" name="action" value="mark_not_returned">
+                                                        <button type="submit" class="btn btn-xs btn-secondary" onclick="return confirm('Mark this book as not returned?')">Undo</button>
+                                                    </form>
+                                                <?php elseif ($isPastDeadline): ?>
+                                                    <span class="badge badge-danger" title="Book not returned after deadline">⚠️ Not Returned</span>
+                                                    <form method="POST" action="/public/group-admin/book-return-toggle.php" style="display: inline; margin-top: var(--spacing-xs);">
+                                                        <input type="hidden" name="distribution_id" value="<?php echo $book['distribution_id']; ?>">
+                                                        <input type="hidden" name="action" value="mark_returned">
+                                                        <button type="submit" class="btn btn-xs btn-success">Mark Returned</button>
+                                                    </form>
+                                                <?php else: ?>
+                                                    <span class="badge badge-warning" title="Awaiting return">📦 Pending Return</span>
+                                                    <form method="POST" action="/public/group-admin/book-return-toggle.php" style="display: inline; margin-top: var(--spacing-xs);">
+                                                        <input type="hidden" name="distribution_id" value="<?php echo $book['distribution_id']; ?>">
+                                                        <input type="hidden" name="action" value="mark_returned">
+                                                        <button type="submit" class="btn btn-xs btn-success">Mark Returned</button>
+                                                    </form>
+                                                <?php endif; ?>
+                                            <?php else: ?>
+                                                <span style="color: var(--gray-400);">-</span>
                                             <?php endif; ?>
                                         </td>
                                         <td>
