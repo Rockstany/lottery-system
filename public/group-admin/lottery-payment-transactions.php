@@ -85,7 +85,7 @@ if (isset($_GET['error'])) {
 }
 
 // Get all payment transactions for this distribution
-$transQuery = "SELECT pc.*, u.name as collector_name
+$transQuery = "SELECT pc.*, u.full_name as collector_name
                FROM payment_collections pc
                LEFT JOIN users u ON pc.collected_by = u.user_id
                WHERE pc.distribution_id = :dist_id
