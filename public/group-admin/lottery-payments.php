@@ -512,11 +512,7 @@ foreach ($distributions as $dist) {
                                     <?php if (count($levels) === 0): ?>
                                         <th>Location</th>
                                     <?php endif; ?>
-                                    <th>Expected</th>
-                                    <th>Paid</th>
-                                    <th>Outstanding</th>
-                                    <th>Status</th>
-                                    <th>Action</th>
+                                    <th>Status & Action</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -545,33 +541,29 @@ foreach ($distributions as $dist) {
                                             echo '<td>' . htmlspecialchars($dist['distribution_path'] ?? '-') . '</td>';
                                         }
                                         ?>
-                                        <td>₹<?php echo number_format($dist['expected_amount']); ?></td>
-                                        <td style="color: var(--success-color); font-weight: 600;">₹<?php echo number_format($dist['total_paid']); ?></td>
-                                        <td style="color: <?php echo $outstanding > 0 ? 'var(--danger-color)' : 'var(--success-color)'; ?>; font-weight: 600;">₹<?php echo number_format($outstanding); ?></td>
                                         <td>
-                                            <?php if ($status === 'paid'): ?>
-                                                <span class="badge badge-success">Paid</span>
-                                            <?php elseif ($status === 'partial'): ?>
-                                                <span class="badge badge-warning">Partial</span>
-                                            <?php else: ?>
-                                                <span class="badge badge-danger">Unpaid</span>
-                                            <?php endif; ?>
-                                        </td>
-                                        <td>
-                                            <div style="display: flex; gap: var(--spacing-xs); flex-wrap: wrap;">
-                                                <?php if ($status !== 'paid'): ?>
-                                                    <a href="/public/group-admin/lottery-payment-collect.php?book_id=<?php echo $dist['book_id']; ?>" class="btn btn-sm btn-success">
-                                                        <span>💰</span> <span>Collect</span>
-                                                    </a>
-                                                <?php endif; ?>
-                                                <?php if ($dist['total_paid'] > 0): ?>
-                                                    <a href="/public/group-admin/lottery-payment-transactions.php?dist_id=<?php echo $dist['distribution_id']; ?>" class="btn btn-sm btn-info">
-                                                        <span>📋</span> <span>View Transactions</span>
-                                                    </a>
-                                                <?php endif; ?>
-                                                <?php if ($status === 'paid'): ?>
-                                                    <span style="color: var(--success-color); font-weight: 600;">✓ Complete</span>
-                                                <?php endif; ?>
+                                            <div style="display: flex; flex-direction: column; gap: var(--spacing-xs);">
+                                                <div>
+                                                    <?php if ($status === 'paid'): ?>
+                                                        <span class="badge badge-success">✓ Paid - ₹<?php echo number_format($dist['total_paid']); ?></span>
+                                                    <?php elseif ($status === 'partial'): ?>
+                                                        <span class="badge badge-warning">Partial - ₹<?php echo number_format($dist['total_paid']); ?> / ₹<?php echo number_format($dist['expected_amount']); ?></span>
+                                                    <?php else: ?>
+                                                        <span class="badge badge-danger">Unpaid - ₹<?php echo number_format($dist['expected_amount']); ?></span>
+                                                    <?php endif; ?>
+                                                </div>
+                                                <div style="display: flex; gap: var(--spacing-xs); flex-wrap: wrap;">
+                                                    <?php if ($status !== 'paid'): ?>
+                                                        <a href="/public/group-admin/lottery-payment-collect.php?book_id=<?php echo $dist['book_id']; ?>" class="btn btn-sm btn-success">
+                                                            💰 Collect
+                                                        </a>
+                                                    <?php endif; ?>
+                                                    <?php if ($dist['total_paid'] > 0): ?>
+                                                        <a href="/public/group-admin/lottery-payment-transactions.php?dist_id=<?php echo $dist['distribution_id']; ?>" class="btn btn-sm btn-info">
+                                                            📋 Transactions
+                                                        </a>
+                                                    <?php endif; ?>
+                                                </div>
                                             </div>
                                         </td>
                                     </tr>
