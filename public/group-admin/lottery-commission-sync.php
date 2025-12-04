@@ -82,8 +82,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                       )";
 
         $findStmt = $db->prepare($findQuery);
-        $findStmt->bindParam(':event_id', $eventId);
-        $findStmt->execute();
+        $findStmt->execute(['event_id' => $eventId]);
         $missingCommissions = $findStmt->fetchAll();
 
         $synced = 0;
