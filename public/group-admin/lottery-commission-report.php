@@ -120,11 +120,16 @@ $totalExtra = array_sum(array_column($summary, 'extra_books_commission'));
 
         <!-- Level 1 Summary -->
         <div class="card" style="margin-bottom: var(--spacing-lg);">
-            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--spacing-sm);">
                 <h3 class="card-title">Commission by Level 1 Distributor</h3>
-                <a href="/public/group-admin/lottery-commission-export.php?id=<?php echo $eventId; ?>" class="btn btn-primary btn-sm">
-                    📥 Export to CSV
-                </a>
+                <div style="display: flex; gap: var(--spacing-sm); flex-wrap: wrap;">
+                    <a href="/public/group-admin/lottery-commission-sync.php?id=<?php echo $eventId; ?>" class="btn btn-warning btn-sm">
+                        🔄 Sync Commissions
+                    </a>
+                    <a href="/public/group-admin/lottery-commission-export.php?id=<?php echo $eventId; ?>" class="btn btn-primary btn-sm">
+                        📥 Export to CSV
+                    </a>
+                </div>
             </div>
             <div class="card-body" style="padding: 0;">
                 <?php if (count($summary) === 0): ?>

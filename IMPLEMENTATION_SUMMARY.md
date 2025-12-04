@@ -138,20 +138,77 @@
 
 ---
 
+### 8. **Commission Calculation Fix** ✅
+- **File:** `public/group-admin/lottery-payment-collect.php` (Modified)
+- **Issues Fixed:**
+  1. **Individual commission toggles not checked** - Now checks `early_commission_enabled`, `standard_commission_enabled`, `extra_books_commission_enabled` flags
+  2. **is_extra_book flag not used** - Now checks `is_extra_book` flag from `book_distribution` table
+  3. **Wrong priority logic** - Extra books commission was overriding date-based commission incorrectly
+  4. **Commission on partial payments** - Was calculating commission on every payment; now only on FULL payment
+  5. **Single commission type only** - Couldn't apply multiple commission types together
+- **New Logic:**
+  - **Only calculates commission when payment is FULLY PAID** (total_paid >= expected_amount)
+  - **Multiple commission types can apply together:**
+    - Extra book commission (if `is_extra_book = 1` AND enabled)
+    - PLUS early payment bonus (if payment date ≤ early date AND enabled)
+    - OR standard payment bonus (if payment date ≤ standard date AND enabled)
+  - Example: An extra book (15%) paid early (10%) gets BOTH commissions = 25% total
+  - Commission calculated on full expected amount, not partial payments
+  - Each commission type saved as separate record in `commission_earned` table
+- **Benefits:** Accurate commission calculation respecting full payment requirement, extra book flags, date-based bonuses, and individual toggles
+
+---
+
+### 9. **Commission Sync Tool** ✅
+- **File:** `public/group-admin/lottery-commission-sync.php` (New)
+- **Purpose:** Recalculate missing commissions for books paid in multiple installments
+- **Problem Solved:**
+  - Book paid partially on Jan 10, then fully on Jan 12
+  - Commission only calculated when FULLY PAID (on Jan 12)
+  - If commission record creation failed, this tool will recalculate it
+- **Logic:**
+  - Uses **LAST payment date** (MAX(payment_date)) = date when book became fully paid
+  - Commission eligibility checked against this final payment date
+  - Example: Paid in 2 parts (Jan 10 + Jan 12) → Commission based on Jan 12
+- **Features:**
+  - Finds all fully paid books missing commission records
+  - Previews which books will be synced before running
+  - Shows whether book had single or multiple payments
+  - One-click sync button with confirmation
+  - Shows detailed results (synced, skipped, errors)
+- **Access:** "🔄 Sync Commissions" button on Commission Report page
+- **Benefits:** Fixes missing commission records for books paid in installments or when commission creation failed
+
+---
+
 ## Next Steps
 
-1. **Run the SQL migration:**
+1. **Run the SQL migrations (if not already done):**
    ```sql
    -- Execute: database/add_book_return_feature.sql
+   -- Execute: database/migrations/update_commission_individual_controls.sql
+   -- Execute: database/migrations/add_distribution_id_to_commission.sql
    ```
 
-2. **Test Book Return Feature:**
+2. **Fix missing commissions (partial payment issue):**
+   - Visit Commission Report page → Click "🔄 Sync Commissions" button
+   - This will automatically recalculate commissions for books paid in installments
+   - Uses FIRST payment date for commission eligibility (fair for partial payments)
+
+3. **Test Book Return Feature:**
    - Assign some books
    - Set a return deadline in the event settings
    - Mark books as returned
    - Check auto-flagging after deadline passes
 
-3. **For Excel Report (when ready):**
+4. **Test Commission Calculation:**
+   - Enable individual commission types (early/standard/extra books)
+   - Set appropriate dates in commission settings
+   - Mark some books as "extra books" during assignment
+   - Collect payments and verify commissions are calculated correctly
+   - Check commission report shows accurate data
+
+5. **For Excel Report (when ready):**
    - Install PHPSpreadsheet via Composer:
      ```bash
      composer require phpoffice/phpspreadsheet
@@ -162,20 +219,26 @@
 
 ## Files Modified
 
-1. `public/group-admin/lottery-books.php` - Added return status column and logic, level filters with client-side cascading, bulk assign button
+1. `public/group-admin/lottery-books.php` - Added return status column and logic, level filters with client-side cascading, bulk assign button, removed old inline bulk form
 2. `public/group-admin/lottery-payments.php` - Simplified table, added level filters with client-side cascading, added book return column
 3. `public/group-admin/lottery-reports.php` - Added filter UI (levels, payment status, payment method, return status) with client-side cascading, added book return column to member report
-4. `public/group-admin/book-return-toggle.php` - Handler for book return status (redirects to referring page)
-5. `public/group-admin/includes/footer.php` - Created new footer component
-6. 10+ pages - Added footer includes
+4. `public/group-admin/lottery-payment-collect.php` - Fixed commission calculation logic (full payment only, multiple types, distribution_id tracking)
+5. `public/group-admin/lottery-commission-report.php` - Added "Sync Commissions" button
+6. `public/group-admin/book-return-toggle.php` - Handler for book return status (redirects to referring page)
+7. `public/group-admin/includes/footer.php` - Created new footer component
+8. `public/group-admin/lottery-book-bulk-assign.php` - Made notes and mobile fields optional
+9. 10+ pages - Added footer includes
 
 ## Files Created
 
 1. `database/add_book_return_feature.sql` - Database migration
-2. `public/group-admin/book-return-toggle.php` - Return status handler
-3. `public/group-admin/includes/footer.php` - Footer component
-4. `public/group-admin/lottery-book-bulk-assign.php` - Bulk book assignment page
-5. `IMPLEMENTATION_SUMMARY.md` - This document
+2. `database/migrations/update_commission_individual_controls.sql` - Commission individual toggles
+3. `database/migrations/add_distribution_id_to_commission.sql` - Add distribution tracking to commission
+4. `public/group-admin/book-return-toggle.php` - Return status handler
+5. `public/group-admin/includes/footer.php` - Footer component
+6. `public/group-admin/lottery-book-bulk-assign.php` - Bulk book assignment page
+7. `public/group-admin/lottery-commission-sync.php` - Commission sync tool for partial payments
+8. `IMPLEMENTATION_SUMMARY.md` - This document
 
 ---
 
