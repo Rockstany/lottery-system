@@ -31,9 +31,12 @@ $stmt->bindParam(':event_id', $eventId);
 $stmt->execute();
 $levels = $stmt->fetchAll();
 
-// Get search parameter
+// Get search, filter, and pagination parameters
 $search = Validator::sanitizeString($_GET['search'] ?? '');
 $statusFilter = $_GET['status_filter'] ?? 'all';
+$perPage = isset($_GET['per_page']) ? (int)$_GET['per_page'] : 20; // Default 20 per page
+$page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+$offset = ($page - 1) * $perPage;
 
 // Build where clause for search
 $whereClause = "lb.event_id = :event_id";
@@ -62,7 +65,22 @@ if (!empty($search)) {
     }
 }
 
-// Get distributed books with payment info
+// First, get total count for pagination
+$countQuery = "SELECT COUNT(DISTINCT lb.book_id) as total
+          FROM lottery_books lb
+          JOIN book_distribution bd ON lb.book_id = bd.book_id
+          LEFT JOIN payment_collections pc ON bd.distribution_id = pc.distribution_id
+          WHERE {$whereClause}";
+$countStmt = $db->prepare($countQuery);
+$countStmt->bindParam(':event_id', $eventId);
+foreach ($searchParams as $key => $value) {
+    $countStmt->bindValue(':' . $key, $value);
+}
+$countStmt->execute();
+$totalDistributions = $countStmt->fetch()['total'];
+$totalPages = ceil($totalDistributions / $perPage);
+
+// Get distributed books with payment info (paginated)
 $query = "SELECT lb.*, bd.notes, bd.mobile_number, bd.distribution_path, bd.distribution_id,
           COALESCE(SUM(pc.amount_paid), 0) as total_paid,
           (lb.end_ticket_number - lb.start_ticket_number + 1) * :price_per_ticket as expected_amount
@@ -82,11 +100,14 @@ if ($statusFilter === 'paid') {
     $query .= " AND total_paid = 0";
 }
 
-$query .= " ORDER BY lb.start_ticket_number, bd.distribution_path ASC, bd.notes ASC";
+$query .= " ORDER BY lb.start_ticket_number, bd.distribution_path ASC, bd.notes ASC
+          LIMIT :limit OFFSET :offset";
 
 $stmt = $db->prepare($query);
 $stmt->bindParam(':event_id', $eventId);
 $stmt->bindParam(':price_per_ticket', $event['price_per_ticket']);
+$stmt->bindParam(':limit', $perPage, PDO::PARAM_INT);
+$stmt->bindParam(':offset', $offset, PDO::PARAM_INT);
 
 // Bind search parameters
 foreach ($searchParams as $key => $value) {
@@ -144,6 +165,44 @@ foreach ($distributions as $dist) {
         .stat-value {
             font-size: var(--font-size-2xl);
             font-weight: 700;
+        }
+
+        /* Mobile Responsiveness */
+        @media (max-width: 768px) {
+            .stats-bar {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .help-box-toggle {
+                font-size: 0.9rem;
+                padding: var(--spacing-sm) !important;
+            }
+
+            .card-header {
+                flex-direction: column;
+                align-items: flex-start !important;
+            }
+
+            .button-group-mobile {
+                display: flex;
+                flex-direction: column;
+                gap: var(--spacing-sm);
+            }
+
+            .button-group-mobile .btn {
+                width: 100%;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .stats-bar {
+                grid-template-columns: 1fr;
+            }
+
+            .btn-sm {
+                font-size: 0.75rem;
+                padding: 0.25rem 0.5rem;
+            }
         }
     </style>
 </head>
@@ -228,20 +287,57 @@ foreach ($distributions as $dist) {
             </div>
         </div>
 
-        <!-- Help Box -->
-        <div class="help-box mb-3">
-            <h4>💰 Payment Tracking</h4>
-            <p>Track all payments for distributed lottery books. Use search and filters above to find specific payments. Click "Collect Payment" to record partial or full payments.</p>
-            <ul>
-                <li><strong>Paid:</strong> Full payment received (₹<?php echo number_format($event['price_per_ticket'] * $event['tickets_per_book']); ?> per book)</li>
-                <li><strong>Partial:</strong> Some payment received, but not complete</li>
-                <li><strong>Unpaid:</strong> No payment received yet</li>
-            </ul>
+        <!-- Collapsible Help Box -->
+        <div class="help-box mb-3" style="border: 2px solid #16a34a; border-radius: var(--radius-md); overflow: hidden;">
+            <button type="button" class="help-box-toggle" onclick="toggleHelpBox()" style="width: 100%; text-align: left; background: #f0fdf4; border: none; padding: var(--spacing-md); cursor: pointer; display: flex; justify-content: space-between; align-items: center; font-weight: 600; color: #15803d;">
+                <span>💰 Instructions: How to Track Payments</span>
+                <span id="helpBoxIcon" style="font-size: 1.25rem;">▼</span>
+            </button>
+            <div id="helpBoxContent" style="display: none; padding: var(--spacing-md); background: white;">
+                <p style="margin: 0 0 var(--spacing-sm) 0;">Track all payments for distributed lottery books. Use search and filters above to find specific payments. Click "Collect Payment" to record partial or full payments.</p>
+                <ul style="margin: var(--spacing-sm) 0;">
+                    <li><strong>Paid:</strong> Full payment received (₹<?php echo number_format($event['price_per_ticket'] * $event['tickets_per_book']); ?> per book)</li>
+                    <li><strong>Partial:</strong> Some payment received, but not complete</li>
+                    <li><strong>Unpaid:</strong> No payment received yet</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Per Page Selector -->
+        <div class="card" style="margin-bottom: var(--spacing-sm); background: #f8fafc;">
+            <div class="card-body" style="padding: var(--spacing-md);">
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--spacing-sm);">
+                    <div style="display: flex; align-items: center; gap: var(--spacing-sm); flex-wrap: wrap;">
+                        <span style="font-weight: 600;">Show:</span>
+                        <?php
+                        $perPageOptions = [10, 20, 50, 100];
+                        foreach ($perPageOptions as $option):
+                            $isActive = $perPage == $option;
+                            $linkParams = http_build_query(array_filter([
+                                'id' => $eventId,
+                                'status_filter' => $statusFilter != 'all' ? $statusFilter : null,
+                                'search' => $search,
+                                'per_page' => $option,
+                                'page' => 1
+                            ]));
+                        ?>
+                            <a href="?<?php echo $linkParams; ?>"
+                               class="btn btn-sm <?php echo $isActive ? 'btn-primary' : 'btn-secondary'; ?>"
+                               style="min-width: 50px;">
+                                <?php echo $option; ?>
+                            </a>
+                        <?php endforeach; ?>
+                        <span style="color: var(--gray-600); margin-left: var(--spacing-sm);">
+                            Showing <?php echo min($offset + 1, $totalDistributions); ?>-<?php echo min($offset + $perPage, $totalDistributions); ?> of <?php echo $totalDistributions; ?> distributions
+                        </span>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <div class="card">
             <div class="card-header">
-                <h3 class="card-title">Payment Tracking (<?php echo count($distributions); ?> results)</h3>
+                <h3 class="card-title">Payment Tracking (<?php echo $totalDistributions; ?> total)</h3>
             </div>
             <div class="card-body" style="padding: 0;">
                 <?php if (count($distributions) === 0): ?>
@@ -334,10 +430,116 @@ foreach ($distributions as $dist) {
             </div>
         </div>
 
+        <!-- Pagination Controls -->
+        <?php if ($totalPages > 1): ?>
+        <div class="card" style="margin-top: var(--spacing-sm); background: #f8fafc;">
+            <div class="card-body" style="padding: var(--spacing-md);">
+                <div style="display: flex; justify-content: center; align-items: center; gap: var(--spacing-xs); flex-wrap: wrap;">
+                    <?php
+                    // Previous button
+                    if ($page > 1):
+                        $prevParams = http_build_query(array_filter([
+                            'id' => $eventId,
+                            'status_filter' => $statusFilter != 'all' ? $statusFilter : null,
+                            'search' => $search,
+                            'per_page' => $perPage,
+                            'page' => $page - 1
+                        ]));
+                    ?>
+                        <a href="?<?php echo $prevParams; ?>" class="btn btn-sm btn-secondary">« Previous</a>
+                    <?php endif; ?>
+
+                    <?php
+                    // Page numbers
+                    $startPage = max(1, $page - 2);
+                    $endPage = min($totalPages, $page + 2);
+
+                    if ($startPage > 1):
+                        $firstParams = http_build_query(array_filter([
+                            'id' => $eventId,
+                            'status_filter' => $statusFilter != 'all' ? $statusFilter : null,
+                            'search' => $search,
+                            'per_page' => $perPage,
+                            'page' => 1
+                        ]));
+                    ?>
+                        <a href="?<?php echo $firstParams; ?>" class="btn btn-sm btn-secondary">1</a>
+                        <?php if ($startPage > 2): ?>
+                            <span style="padding: 0 var(--spacing-xs);">...</span>
+                        <?php endif; ?>
+                    <?php endif; ?>
+
+                    <?php for ($i = $startPage; $i <= $endPage; $i++):
+                        $pageParams = http_build_query(array_filter([
+                            'id' => $eventId,
+                            'status_filter' => $statusFilter != 'all' ? $statusFilter : null,
+                            'search' => $search,
+                            'per_page' => $perPage,
+                            'page' => $i
+                        ]));
+                    ?>
+                        <a href="?<?php echo $pageParams; ?>"
+                           class="btn btn-sm <?php echo $i == $page ? 'btn-primary' : 'btn-secondary'; ?>"
+                           style="min-width: 40px;">
+                            <?php echo $i; ?>
+                        </a>
+                    <?php endfor; ?>
+
+                    <?php if ($endPage < $totalPages):
+                        if ($endPage < $totalPages - 1):
+                        ?>
+                            <span style="padding: 0 var(--spacing-xs);">...</span>
+                        <?php endif;
+                        $lastParams = http_build_query(array_filter([
+                            'id' => $eventId,
+                            'status_filter' => $statusFilter != 'all' ? $statusFilter : null,
+                            'search' => $search,
+                            'per_page' => $perPage,
+                            'page' => $totalPages
+                        ]));
+                    ?>
+                        <a href="?<?php echo $lastParams; ?>" class="btn btn-sm btn-secondary"><?php echo $totalPages; ?></a>
+                    <?php endif; ?>
+
+                    <?php
+                    // Next button
+                    if ($page < $totalPages):
+                        $nextParams = http_build_query(array_filter([
+                            'id' => $eventId,
+                            'status_filter' => $statusFilter != 'all' ? $statusFilter : null,
+                            'search' => $search,
+                            'per_page' => $perPage,
+                            'page' => $page + 1
+                        ]));
+                    ?>
+                        <a href="?<?php echo $nextParams; ?>" class="btn btn-sm btn-secondary">Next »</a>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
+        <?php endif; ?>
+
         <div class="button-group-mobile mt-3">
             <a href="/public/group-admin/lottery.php" class="btn btn-secondary">← Back to Events</a>
             <a href="/public/group-admin/lottery-books.php?id=<?php echo $eventId; ?>" class="btn btn-primary">View Books</a>
         </div>
     </div>
+
+    <?php include __DIR__ . '/includes/footer.php'; ?>
+
+    <script>
+        // Toggle help box
+        function toggleHelpBox() {
+            const content = document.getElementById('helpBoxContent');
+            const icon = document.getElementById('helpBoxIcon');
+            if (content.style.display === 'none') {
+                content.style.display = 'block';
+                icon.textContent = '▲';
+            } else {
+                content.style.display = 'none';
+                icon.textContent = '▼';
+            }
+        }
+    </script>
 </body>
 </html>

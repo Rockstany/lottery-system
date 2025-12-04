@@ -262,5 +262,7 @@ $success = $_GET['success'] ?? '';
             <?php endforeach; ?>
         <?php endif; ?>
     </div>
+
+    <?php include __DIR__ . '/includes/footer.php'; ?>
 </body>
 </html>

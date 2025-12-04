@@ -334,5 +334,7 @@ if ($communityId) {
         alert('You are not assigned to any community yet. Please contact your administrator.');
         <?php endif; ?>
     </script>
+
+    <?php include __DIR__ . '/includes/footer.php'; ?>
 </body>
 </html>

@@ -326,9 +326,11 @@ $outstanding = $expectedAmount - $totalPaid;
         }
 
         // Handle transaction deletion request form submission
+        let isSubmitting = false;
         document.getElementById('deleteTransactionRequestForm').addEventListener('submit', function(e) {
             e.preventDefault();
 
+            if (isSubmitting) return; // Prevent double submission
             if (!requestDeleteTransactionId) return;
 
             const reason = document.getElementById('transactionDeleteReason').value.trim();
@@ -336,6 +338,8 @@ $outstanding = $expectedAmount - $totalPaid;
                 alert('Please provide a reason for deletion');
                 return;
             }
+
+            isSubmitting = true;
 
             // Show loading state
             const modal = document.getElementById('requestDeleteTransactionModal');
@@ -375,5 +379,7 @@ $outstanding = $expectedAmount - $totalPaid;
             }
         });
     </script>
+
+    <?php include __DIR__ . '/includes/footer.php'; ?>
 </body>
 </html>

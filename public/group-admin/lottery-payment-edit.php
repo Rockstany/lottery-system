@@ -289,5 +289,7 @@ $expectedAmount = $payment['tickets_per_book'] * $payment['price_per_ticket'];
             </div>
         </div>
     </div>
+
+    <?php include __DIR__ . '/includes/footer.php'; ?>
 </body>
 </html>

@@ -168,9 +168,12 @@ if (isset($_GET['success'])) {
     };
 }
 
-// Get filter and search
+// Get filter, search, and pagination
 $filter = $_GET['filter'] ?? 'all';
 $search = Validator::sanitizeString($_GET['search'] ?? '');
+$perPage = isset($_GET['per_page']) ? (int)$_GET['per_page'] : 20; // Default 20 per page
+$page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+$offset = ($page - 1) * $perPage;
 
 // Build where clause
 $whereClause = "lb.event_id = :event_id";
@@ -206,13 +209,31 @@ if (!empty($search)) {
     }
 }
 
+// Count total books for pagination
+$countQuery = "SELECT COUNT(*) as total
+          FROM lottery_books lb
+          LEFT JOIN book_distribution bd ON lb.book_id = bd.book_id
+          WHERE {$whereClause}";
+$countStmt = $db->prepare($countQuery);
+$countStmt->bindParam(':event_id', $eventId);
+foreach ($searchParams as $key => $value) {
+    $countStmt->bindValue(':' . $key, $value);
+}
+$countStmt->execute();
+$totalBooks = $countStmt->fetch()['total'];
+$totalPages = ceil($totalBooks / $perPage);
+
+// Get paginated books
 $query = "SELECT lb.*, bd.notes, bd.mobile_number, bd.distribution_path, bd.distribution_id
           FROM lottery_books lb
           LEFT JOIN book_distribution bd ON lb.book_id = bd.book_id
           WHERE {$whereClause}
-          ORDER BY lb.start_ticket_number, lb.book_number";
+          ORDER BY lb.start_ticket_number, lb.book_number
+          LIMIT :limit OFFSET :offset";
 $stmt = $db->prepare($query);
 $stmt->bindParam(':event_id', $eventId);
+$stmt->bindParam(':limit', $perPage, PDO::PARAM_INT);
+$stmt->bindParam(':offset', $offset, PDO::PARAM_INT);
 
 // Bind search parameters
 foreach ($searchParams as $key => $value) {
@@ -318,6 +339,47 @@ $stats = $statsStmt->fetch();
         .add-new-field.show {
             display: block;
         }
+
+        /* Mobile Responsiveness */
+        @media (max-width: 768px) {
+            .stats-bar {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .tabs {
+                flex-direction: column;
+            }
+
+            .tab {
+                text-align: center;
+                border-bottom: 1px solid var(--gray-200);
+            }
+
+            .help-box-toggle {
+                font-size: 0.9rem;
+                padding: var(--spacing-sm) !important;
+            }
+
+            .card-header {
+                flex-direction: column !important;
+                align-items: flex-start !important;
+            }
+
+            .card-header h3 {
+                margin-bottom: var(--spacing-sm) !important;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .stats-bar {
+                grid-template-columns: 1fr;
+            }
+
+            .btn-sm {
+                font-size: 0.8rem;
+                padding: 0.375rem 0.625rem;
+            }
+        }
     </style>
     <script src="/public/js/toast.js"></script>
 </head>
@@ -384,32 +446,37 @@ $stats = $statsStmt->fetch();
             </div>
         </div>
 
-        <!-- Help Box -->
-        <div class="help-box mb-3">
-            <h4>💡 How to Assign & Reassign Books</h4>
-            <ul>
-                <li><strong>Assign Books (First Time):</strong>
-                    <ol style="margin: var(--spacing-xs) 0;">
-                        <li>Use search above to find specific books by ticket number or range</li>
-                        <li>Select available books using checkboxes</li>
-                        <?php if (count($levels) > 0): ?>
-                            <li>Fill in required distribution levels: <?php echo implode(', ', array_column($levels, 'level_name')); ?></li>
-                        <?php endif; ?>
-                        <li>Optionally add notes and mobile number</li>
-                        <li>Click "Assign Selected Books" to complete</li>
-                    </ol>
-                </li>
-                <li><strong>Reassign Books (Fix Wrong Assignment):</strong>
-                    <ol style="margin: var(--spacing-xs) 0;">
-                        <li>Find the incorrectly assigned book in the table</li>
-                        <li>Click the <span class="badge badge-warning" style="display: inline-block; padding: 4px 8px;">🔄 Reassign</span> button in the Actions column</li>
-                        <li>Select the correct distribution location</li>
-                        <li>Update mobile number and notes if needed</li>
-                        <li>Click "Reassign Book" to save changes</li>
-                    </ol>
-                </li>
-            </ul>
-            <p style="margin: 0;"><strong>Tip:</strong> Use filters below to view Available or Assigned books separately. Reassigning does NOT affect existing payment records.</p>
+        <!-- Collapsible Help Box -->
+        <div class="help-box mb-3" style="border: 2px solid #3b82f6; border-radius: var(--radius-md); overflow: hidden;">
+            <button type="button" class="help-box-toggle" onclick="toggleHelpBox()" style="width: 100%; text-align: left; background: #eff6ff; border: none; padding: var(--spacing-md); cursor: pointer; display: flex; justify-content: space-between; align-items: center; font-weight: 600; color: #1e40af;">
+                <span>💡 Instructions: How to Assign & Reassign Books</span>
+                <span id="helpBoxIcon" style="font-size: 1.25rem;">▼</span>
+            </button>
+            <div id="helpBoxContent" style="display: none; padding: var(--spacing-md); background: white;">
+                <ul style="margin: 0;">
+                    <li><strong>Assign Books (First Time):</strong>
+                        <ol style="margin: var(--spacing-xs) 0;">
+                            <li>Use search above to find specific books by ticket number or range</li>
+                            <li>Select available books using checkboxes</li>
+                            <?php if (count($levels) > 0): ?>
+                                <li>Fill in required distribution levels: <?php echo implode(', ', array_column($levels, 'level_name')); ?></li>
+                            <?php endif; ?>
+                            <li>Optionally add notes and mobile number</li>
+                            <li>Click "Assign Selected Books" to complete</li>
+                        </ol>
+                    </li>
+                    <li><strong>Reassign Books (Fix Wrong Assignment):</strong>
+                        <ol style="margin: var(--spacing-xs) 0;">
+                            <li>Find the incorrectly assigned book in the table</li>
+                            <li>Click the <span class="badge badge-warning" style="display: inline-block; padding: 4px 8px;">🔄 Reassign</span> button in the Actions column</li>
+                            <li>Select the correct distribution location</li>
+                            <li>Update mobile number and notes if needed</li>
+                            <li>Click "Reassign Book" to save changes</li>
+                        </ol>
+                    </li>
+                </ul>
+                <p style="margin: var(--spacing-sm) 0 0 0;"><strong>Tip:</strong> Use filters below to view Available or Assigned books separately. Reassigning does NOT affect existing payment records.</p>
+            </div>
         </div>
 
         <!-- Filter Tabs -->
@@ -519,21 +586,53 @@ $stats = $statsStmt->fetch();
             </form>
         </div>
 
+        <!-- Per Page Selector & Pagination Info -->
+        <div class="card" style="margin-bottom: var(--spacing-sm); background: #f8fafc;">
+            <div class="card-body" style="padding: var(--spacing-md);">
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--spacing-sm);">
+                    <div style="display: flex; align-items: center; gap: var(--spacing-sm);">
+                        <span style="font-weight: 600;">Show:</span>
+                        <?php
+                        $perPageOptions = [10, 20, 50, 100];
+                        foreach ($perPageOptions as $option):
+                            $isActive = $perPage == $option;
+                            $linkParams = http_build_query(array_filter([
+                                'id' => $eventId,
+                                'filter' => $filter,
+                                'search' => $search,
+                                'per_page' => $option,
+                                'page' => 1
+                            ]));
+                        ?>
+                            <a href="?<?php echo $linkParams; ?>"
+                               class="btn btn-sm <?php echo $isActive ? 'btn-primary' : 'btn-secondary'; ?>"
+                               style="min-width: 50px;">
+                                <?php echo $option; ?>
+                            </a>
+                        <?php endforeach; ?>
+                        <span style="color: var(--gray-600); margin-left: var(--spacing-sm);">
+                            Showing <?php echo min($offset + 1, $totalBooks); ?>-<?php echo min($offset + $perPage, $totalBooks); ?> of <?php echo $totalBooks; ?> books
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div class="card">
-            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--spacing-sm);">
                 <h3 class="card-title" style="margin: 0;">
                     <?php
                     if ($filter === 'available') {
-                        echo "Available Books (" . count($books) . ")";
+                        echo "Available Books (" . $totalBooks . " total)";
                     } elseif ($filter === 'assigned') {
-                        echo "Assigned Books (" . count($books) . ")";
+                        echo "Assigned Books (" . $totalBooks . " total)";
                     } else {
-                        echo "All Books (" . count($books) . ")";
+                        echo "All Books (" . $totalBooks . " total)";
                     }
                     ?>
                 </h3>
-                <div>
-                    <button type="button" class="btn btn-sm btn-primary" onclick="selectAll()">Select All Available</button>
+                <div style="display: flex; gap: var(--spacing-xs); flex-wrap: wrap;">
+                    <button type="button" class="btn btn-sm btn-primary" onclick="selectAll()">Select All on Page</button>
                     <button type="button" class="btn btn-sm btn-secondary" onclick="deselectAll()">Deselect All</button>
                 </div>
             </div>
@@ -630,7 +729,112 @@ $stats = $statsStmt->fetch();
             </div>
         </div>
 
+        <!-- Pagination Controls -->
+        <?php if ($totalPages > 1): ?>
+        <div class="card" style="margin-top: var(--spacing-sm); background: #f8fafc;">
+            <div class="card-body" style="padding: var(--spacing-md);">
+                <div style="display: flex; justify-content: center; align-items: center; gap: var(--spacing-xs); flex-wrap: wrap;">
+                    <?php
+                    // Previous button
+                    if ($page > 1):
+                        $prevParams = http_build_query(array_filter([
+                            'id' => $eventId,
+                            'filter' => $filter,
+                            'search' => $search,
+                            'per_page' => $perPage,
+                            'page' => $page - 1
+                        ]));
+                    ?>
+                        <a href="?<?php echo $prevParams; ?>" class="btn btn-sm btn-secondary">« Previous</a>
+                    <?php endif; ?>
+
+                    <?php
+                    // Page numbers
+                    $startPage = max(1, $page - 2);
+                    $endPage = min($totalPages, $page + 2);
+
+                    if ($startPage > 1):
+                        $firstParams = http_build_query(array_filter([
+                            'id' => $eventId,
+                            'filter' => $filter,
+                            'search' => $search,
+                            'per_page' => $perPage,
+                            'page' => 1
+                        ]));
+                    ?>
+                        <a href="?<?php echo $firstParams; ?>" class="btn btn-sm btn-secondary">1</a>
+                        <?php if ($startPage > 2): ?>
+                            <span style="padding: 0 var(--spacing-xs);">...</span>
+                        <?php endif; ?>
+                    <?php endif; ?>
+
+                    <?php for ($i = $startPage; $i <= $endPage; $i++):
+                        $pageParams = http_build_query(array_filter([
+                            'id' => $eventId,
+                            'filter' => $filter,
+                            'search' => $search,
+                            'per_page' => $perPage,
+                            'page' => $i
+                        ]));
+                    ?>
+                        <a href="?<?php echo $pageParams; ?>"
+                           class="btn btn-sm <?php echo $i == $page ? 'btn-primary' : 'btn-secondary'; ?>"
+                           style="min-width: 40px;">
+                            <?php echo $i; ?>
+                        </a>
+                    <?php endfor; ?>
+
+                    <?php if ($endPage < $totalPages):
+                        if ($endPage < $totalPages - 1):
+                        ?>
+                            <span style="padding: 0 var(--spacing-xs);">...</span>
+                        <?php endif;
+                        $lastParams = http_build_query(array_filter([
+                            'id' => $eventId,
+                            'filter' => $filter,
+                            'search' => $search,
+                            'per_page' => $perPage,
+                            'page' => $totalPages
+                        ]));
+                    ?>
+                        <a href="?<?php echo $lastParams; ?>" class="btn btn-sm btn-secondary"><?php echo $totalPages; ?></a>
+                    <?php endif; ?>
+
+                    <?php
+                    // Next button
+                    if ($page < $totalPages):
+                        $nextParams = http_build_query(array_filter([
+                            'id' => $eventId,
+                            'filter' => $filter,
+                            'search' => $search,
+                            'per_page' => $perPage,
+                            'page' => $page + 1
+                        ]));
+                    ?>
+                        <a href="?<?php echo $nextParams; ?>" class="btn btn-sm btn-secondary">Next »</a>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
+        <?php endif; ?>
+
     </div>
+
+    <?php include __DIR__ . '/includes/footer.php'; ?>
+
+    <script>
+        // Toggle help box
+        function toggleHelpBox() {
+            const content = document.getElementById('helpBoxContent');
+            const icon = document.getElementById('helpBoxIcon');
+            if (content.style.display === 'none') {
+                content.style.display = 'block';
+                icon.textContent = '▲';
+            } else {
+                content.style.display = 'none';
+                icon.textContent = '▼';
+            }
+        }
 
     <script>
         // Store all level data for cascading

@@ -471,5 +471,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Trigger initial selection
         document.querySelector('input[name="payment_method"]:checked').dispatchEvent(new Event('change'));
     </script>
+
+    <?php include __DIR__ . '/includes/footer.php'; ?>
 </body>
 </html>

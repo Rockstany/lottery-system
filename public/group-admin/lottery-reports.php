@@ -1154,5 +1154,7 @@ $commissionEnabled = $commissionSettings && (
             alert('Report copied to clipboard!');
         }
     </script>
+
+    <?php include __DIR__ . '/includes/footer.php'; ?>
 </body>
 </html>
