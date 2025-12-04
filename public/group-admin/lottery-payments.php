@@ -72,7 +72,7 @@ $countQuery = "SELECT COUNT(DISTINCT lb.book_id) as total
           LEFT JOIN payment_collections pc ON bd.distribution_id = pc.distribution_id
           WHERE {$whereClause}";
 $countStmt = $db->prepare($countQuery);
-$countStmt->bindParam(':event_id', $eventId);
+$countStmt->bindValue(':event_id', $eventId);
 foreach ($searchParams as $key => $value) {
     $countStmt->bindValue(':' . $key, $value);
 }
@@ -104,10 +104,10 @@ $query .= " ORDER BY lb.start_ticket_number, bd.distribution_path ASC, bd.notes 
           LIMIT :limit OFFSET :offset";
 
 $stmt = $db->prepare($query);
-$stmt->bindParam(':event_id', $eventId);
-$stmt->bindParam(':price_per_ticket', $event['price_per_ticket']);
-$stmt->bindParam(':limit', $perPage, PDO::PARAM_INT);
-$stmt->bindParam(':offset', $offset, PDO::PARAM_INT);
+$stmt->bindValue(':event_id', $eventId);
+$stmt->bindValue(':price_per_ticket', $event['price_per_ticket']);
+$stmt->bindValue(':limit', $perPage, PDO::PARAM_INT);
+$stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
 
 // Bind search parameters
 foreach ($searchParams as $key => $value) {
@@ -192,6 +192,15 @@ foreach ($distributions as $dist) {
             .button-group-mobile .btn {
                 width: 100%;
             }
+
+            .card-body > form > div {
+                flex-direction: column !important;
+            }
+
+            .card-body > form > div > div {
+                width: 100% !important;
+                min-width: 100% !important;
+            }
         }
 
         @media (max-width: 480px) {
@@ -202,6 +211,11 @@ foreach ($distributions as $dist) {
             .btn-sm {
                 font-size: 0.75rem;
                 padding: 0.25rem 0.5rem;
+                min-width: 35px !important;
+            }
+
+            .btn-sm span {
+                display: none;
             }
         }
     </style>

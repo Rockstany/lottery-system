@@ -215,7 +215,7 @@ $countQuery = "SELECT COUNT(*) as total
           LEFT JOIN book_distribution bd ON lb.book_id = bd.book_id
           WHERE {$whereClause}";
 $countStmt = $db->prepare($countQuery);
-$countStmt->bindParam(':event_id', $eventId);
+$countStmt->bindValue(':event_id', $eventId);
 foreach ($searchParams as $key => $value) {
     $countStmt->bindValue(':' . $key, $value);
 }
@@ -231,9 +231,9 @@ $query = "SELECT lb.*, bd.notes, bd.mobile_number, bd.distribution_path, bd.dist
           ORDER BY lb.start_ticket_number, lb.book_number
           LIMIT :limit OFFSET :offset";
 $stmt = $db->prepare($query);
-$stmt->bindParam(':event_id', $eventId);
-$stmt->bindParam(':limit', $perPage, PDO::PARAM_INT);
-$stmt->bindParam(':offset', $offset, PDO::PARAM_INT);
+$stmt->bindValue(':event_id', $eventId);
+$stmt->bindValue(':limit', $perPage, PDO::PARAM_INT);
+$stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
 
 // Bind search parameters
 foreach ($searchParams as $key => $value) {
@@ -368,6 +368,28 @@ $stats = $statsStmt->fetch();
             .card-header h3 {
                 margin-bottom: var(--spacing-sm) !important;
             }
+
+            .card-header > div {
+                width: 100%;
+                display: flex;
+                gap: var(--spacing-xs);
+                flex-wrap: wrap;
+            }
+
+            .card-header .btn {
+                flex: 1;
+                min-width: 120px;
+            }
+
+            .button-group-mobile {
+                display: flex;
+                flex-direction: column;
+                gap: var(--spacing-sm);
+            }
+
+            .button-group-mobile .btn {
+                width: 100%;
+            }
         }
 
         @media (max-width: 480px) {
@@ -376,8 +398,14 @@ $stats = $statsStmt->fetch();
             }
 
             .btn-sm {
+                font-size: 0.75rem;
+                padding: 0.25rem 0.5rem;
+                min-width: 35px !important;
+            }
+
+            .card-header .btn {
                 font-size: 0.8rem;
-                padding: 0.375rem 0.625rem;
+                padding: 0.375rem 0.5rem;
             }
         }
     </style>
@@ -836,7 +864,6 @@ $stats = $statsStmt->fetch();
             }
         }
 
-    <script>
         // Store all level data for cascading
         const allLevels = <?php echo json_encode($levels); ?>;
         const allLevelValues = <?php echo json_encode($allValues); ?>;
