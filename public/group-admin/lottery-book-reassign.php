@@ -79,8 +79,12 @@ $success = '';
 
 // Handle reassignment
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $notes = Validator::sanitizeString($_POST['notes'] ?? '');
-    $mobile = Validator::sanitizeString($_POST['mobile'] ?? '');
+    // BLOCK reassignment if any payment has been made
+    if ($paymentInfo['payment_count'] > 0) {
+        $error = 'Cannot reassign book - ₹' . number_format($paymentInfo['total_paid']) . ' has already been collected. You cannot reassign a book after payment.';
+    } else {
+        $notes = Validator::sanitizeString($_POST['notes'] ?? '');
+        $mobile = Validator::sanitizeString($_POST['mobile'] ?? '');
 
     // Get distribution level selections
     $distributionData = [];
@@ -157,7 +161,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             $error = 'Failed to reassign book';
         }
-    }
+    } // Close the payment check else
 }
 ?>
 <!DOCTYPE html>
@@ -217,12 +221,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <a href="/public/group-admin/lottery-books.php?id=<?php echo $eventId; ?>" class="btn btn-secondary">← Back to Books</a>
         </div>
 
-        <!-- Warning if payments exist -->
+        <!-- Block if payments exist -->
         <?php if ($paymentInfo['payment_count'] > 0): ?>
-            <div style="background: var(--danger-light); border-left: 4px solid var(--danger-color); padding: var(--spacing-lg); border-radius: var(--radius-md); margin-bottom: var(--spacing-lg);">
-                <h3 style="margin-top: 0; color: var(--danger-color);">⚠️ Warning: Payments Already Collected</h3>
-                <p style="margin: 0;">This book has <strong><?php echo $paymentInfo['payment_count']; ?> payment transaction(s)</strong> totaling <strong>₹<?php echo number_format($paymentInfo['total_paid']); ?></strong>.</p>
-                <p style="margin: var(--spacing-sm) 0 0 0; font-weight: 600;">Reassigning will NOT affect payment records, but ensure you're assigning to the correct unit.</p>
+            <div style="background: #fee2e2; border: 2px solid #dc2626; padding: var(--spacing-xl); border-radius: var(--radius-md); margin-bottom: var(--spacing-lg); text-align: center;">
+                <div style="font-size: 64px; margin-bottom: var(--spacing-md);">🚫</div>
+                <h2 style="margin-top: 0; color: #dc2626;">Reassignment Not Allowed</h2>
+                <p style="font-size: 1.1em; margin: var(--spacing-md) 0;">This book has <strong><?php echo $paymentInfo['payment_count']; ?> payment transaction(s)</strong> totaling <strong style="color: #dc2626;">₹<?php echo number_format($paymentInfo['total_paid']); ?></strong>.</p>
+                <p style="font-weight: 600; margin: var(--spacing-md) 0;">You cannot reassign a book after payment has been collected.</p>
+                <p style="color: var(--gray-600); margin: var(--spacing-sm) 0;">This protects financial integrity and commission calculations.</p>
+                <div style="margin-top: var(--spacing-lg);">
+                    <a href="/public/group-admin/lottery-books.php?id=<?php echo $eventId; ?>" class="btn btn-primary">← Back to Books</a>
+                </div>
+            </div>
+        <?php else: ?>
+            <!-- Warning Box -->
+            <div class="info-box">
+                <h3 style="margin-top: 0;">⚠️ Important</h3>
+                <p>You are about to reassign this book to a different location. Make sure this is correct before proceeding.</p>
             </div>
         <?php endif; ?>
 
@@ -335,6 +350,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </form>
             </div>
         </div>
+        <?php endif; // End payment check for form display ?>
     </div>
 
     <script>

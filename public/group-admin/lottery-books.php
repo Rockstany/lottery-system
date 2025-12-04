@@ -297,7 +297,7 @@ $totalPages = ceil($totalBooks / $perPage);
 
 // Get paginated books
 $query = "SELECT lb.*, bd.notes, bd.mobile_number, bd.distribution_path, bd.distribution_id,
-                 bd.is_returned, bd.returned_by, le.book_return_deadline
+                 bd.is_returned, bd.returned_by, bd.is_extra_book, le.book_return_deadline
           FROM lottery_books lb
           LEFT JOIN book_distribution bd ON lb.book_id = bd.book_id
           LEFT JOIN lottery_events le ON lb.event_id = le.event_id
@@ -762,6 +762,9 @@ $stats = $statsStmt->fetch();
                                                 <span class="badge badge-info">Distributed</span>
                                             <?php else: ?>
                                                 <span class="badge badge-danger">Collected</span>
+                                            <?php endif; ?>
+                                            <?php if ($book['is_extra_book'] == 1): ?>
+                                                <br><span class="badge badge-warning" style="margin-top: 4px;" title="This book qualifies for extra book commission">📚 Extra Book</span>
                                             <?php endif; ?>
                                         </td>
                                         <td>
