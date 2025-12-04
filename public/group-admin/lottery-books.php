@@ -506,8 +506,9 @@ $stats = $statsStmt->fetch();
 
     <div class="container main-content">
         <!-- Back Button at Top -->
-        <div style="margin-bottom: var(--spacing-lg);">
+        <div style="margin-bottom: var(--spacing-lg); display: flex; gap: var(--spacing-sm); flex-wrap: wrap;">
             <a href="/public/group-admin/lottery.php" class="btn btn-secondary">← Back to Events</a>
+            <a href="/public/group-admin/lottery-book-bulk-assign.php?id=<?php echo $eventId; ?>" class="btn btn-primary">📚 Bulk Assign Books</a>
             <a href="/public/group-admin/lottery-payments.php?id=<?php echo $eventId; ?>" class="btn btn-success">View Payments</a>
         </div>
 
