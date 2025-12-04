@@ -18,7 +18,7 @@ $database = new Database();
 $db = $database->getConnection();
 
 // Get distribution details
-$query = "SELECT lb.*, bd.notes, bd.mobile_number, bd.distribution_path, le.event_name, le.price_per_ticket, le.tickets_per_book, le.event_id
+$query = "SELECT lb.*, bd.notes, bd.mobile_number, bd.distribution_path, bd.is_extra_book, le.event_name, le.price_per_ticket, le.tickets_per_book, le.event_id
           FROM book_distribution bd
           JOIN lottery_books lb ON bd.book_id = lb.book_id
           JOIN lottery_events le ON lb.event_id = le.event_id
@@ -148,6 +148,9 @@ $outstanding = $expectedAmount - $totalPaid;
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--spacing-md);">
                 <div>
                     <strong>Book Number:</strong> #<?php echo $distribution['book_number']; ?>
+                    <?php if ($distribution['is_extra_book'] == 1): ?>
+                        <span class="badge badge-warning" style="margin-left: 8px;" title="This book qualifies for extra book commission">📚 Extra Book</span>
+                    <?php endif; ?>
                 </div>
                 <div>
                     <strong>Ticket Range:</strong> <?php echo $distribution['start_ticket_number']; ?> - <?php echo $distribution['end_ticket_number']; ?>

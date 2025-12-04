@@ -162,8 +162,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $error = 'Failed to reassign book';
         }
     }
-    } // Close the payment check else block
-} // Close the POST request if block
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
