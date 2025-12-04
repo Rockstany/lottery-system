@@ -143,13 +143,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
 
                 // Check if book was assigned after extra_books_date
-                $bookAssignedQuery = "SELECT assigned_at FROM book_distribution WHERE distribution_id = :dist_id";
+                $bookAssignedQuery = "SELECT distributed_at FROM book_distribution WHERE distribution_id = :dist_id";
                 $bookAssignedStmt = $db->prepare($bookAssignedQuery);
                 $bookAssignedStmt->bindParam(':dist_id', $book['distribution_id']);
                 $bookAssignedStmt->execute();
                 $bookAssigned = $bookAssignedStmt->fetch();
 
-                if ($bookAssigned && date('Y-m-d', strtotime($bookAssigned['assigned_at'])) > $commSettings['extra_books_date']) {
+                if ($bookAssigned && date('Y-m-d', strtotime($bookAssigned['distributed_at'])) > $commSettings['extra_books_date']) {
                     $commissionType = 'extra_books';
                     $commissionPercent = $commSettings['extra_books_commission_percent'];
                 }
