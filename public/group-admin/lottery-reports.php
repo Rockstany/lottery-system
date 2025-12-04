@@ -64,6 +64,8 @@ $level3Filter = isset($_GET['level3']) ? (int)$_GET['level3'] : 0;
 $paymentStatusFilter = $_GET['payment_status'] ?? 'all';
 $paymentMethodFilter = $_GET['payment_method'] ?? 'all';
 $returnStatusFilter = $_GET['return_status'] ?? 'all';
+$dateFromFilter = $_GET['date_from'] ?? '';
+$dateToFilter = $_GET['date_to'] ?? '';
 
 // Get comprehensive statistics
 $statsQuery = "SELECT
@@ -166,6 +168,16 @@ if ($level3Filter > 0) {
     }
 }
 
+// Apply date filters
+if (!empty($dateFromFilter)) {
+    $memberWhereClause .= " AND bd.distributed_at >= :date_from";
+    $memberSearchParams['date_from'] = $dateFromFilter . ' 00:00:00';
+}
+if (!empty($dateToFilter)) {
+    $memberWhereClause .= " AND bd.distributed_at <= :date_to";
+    $memberSearchParams['date_to'] = $dateToFilter . ' 23:59:59';
+}
+
 $memberQuery = "SELECT
     bd.notes,
     bd.distribution_path,
@@ -245,7 +257,68 @@ $distributionPercent = $event['total_books'] > 0
     ? ($stats['distributed_books'] / $event['total_books']) * 100
     : 0;
 
-// Get payment method-wise collection
+// Get payment method-wise collection WITH FILTERS
+$paymentMethodWhereClause = "lb.event_id = :event_id";
+$paymentMethodParams = [];
+
+// Apply level filters
+if ($level1Filter > 0) {
+    $level1ValueQuery = "SELECT value_name FROM distribution_level_values WHERE value_id = :value_id";
+    $level1ValueStmt = $db->prepare($level1ValueQuery);
+    $level1ValueStmt->bindValue(':value_id', $level1Filter, PDO::PARAM_INT);
+    $level1ValueStmt->execute();
+    $level1ValueName = $level1ValueStmt->fetchColumn();
+    if ($level1ValueName) {
+        $paymentMethodWhereClause .= " AND bd.distribution_path LIKE :pm_level1_filter";
+        $paymentMethodParams['pm_level1_filter'] = '%' . $level1ValueName . '%';
+    }
+}
+if ($level2Filter > 0) {
+    $level2ValueQuery = "SELECT value_name FROM distribution_level_values WHERE value_id = :value_id";
+    $level2ValueStmt = $db->prepare($level2ValueQuery);
+    $level2ValueStmt->bindValue(':value_id', $level2Filter, PDO::PARAM_INT);
+    $level2ValueStmt->execute();
+    $level2ValueName = $level2ValueStmt->fetchColumn();
+    if ($level2ValueName) {
+        $paymentMethodWhereClause .= " AND bd.distribution_path LIKE :pm_level2_filter";
+        $paymentMethodParams['pm_level2_filter'] = '%' . $level2ValueName . '%';
+    }
+}
+if ($level3Filter > 0) {
+    $level3ValueQuery = "SELECT value_name FROM distribution_level_values WHERE value_id = :value_id";
+    $level3ValueStmt = $db->prepare($level3ValueQuery);
+    $level3ValueStmt->bindValue(':value_id', $level3Filter, PDO::PARAM_INT);
+    $level3ValueStmt->execute();
+    $level3ValueName = $level3ValueStmt->fetchColumn();
+    if ($level3ValueName) {
+        $paymentMethodWhereClause .= " AND bd.distribution_path LIKE :pm_level3_filter";
+        $paymentMethodParams['pm_level3_filter'] = '%' . $level3ValueName . '%';
+    }
+}
+
+// Apply payment method filter
+if ($paymentMethodFilter !== 'all') {
+    $paymentMethodWhereClause .= " AND pc.payment_method = :pm_method_filter";
+    $paymentMethodParams['pm_method_filter'] = $paymentMethodFilter;
+}
+
+// Apply return status filter
+if ($returnStatusFilter === 'returned') {
+    $paymentMethodWhereClause .= " AND bd.is_returned = 1";
+} elseif ($returnStatusFilter === 'not_returned') {
+    $paymentMethodWhereClause .= " AND bd.is_returned = 0";
+}
+
+// Apply date filters for payment collection date
+if (!empty($dateFromFilter)) {
+    $paymentMethodWhereClause .= " AND DATE(pc.payment_date) >= :pm_date_from";
+    $paymentMethodParams['pm_date_from'] = $dateFromFilter;
+}
+if (!empty($dateToFilter)) {
+    $paymentMethodWhereClause .= " AND DATE(pc.payment_date) <= :pm_date_to";
+    $paymentMethodParams['pm_date_to'] = $dateToFilter;
+}
+
 $paymentMethodQuery = "SELECT
     pc.payment_method,
     COUNT(pc.payment_id) as transaction_count,
@@ -253,15 +326,18 @@ $paymentMethodQuery = "SELECT
     FROM payment_collections pc
     JOIN book_distribution bd ON pc.distribution_id = bd.distribution_id
     JOIN lottery_books lb ON bd.book_id = lb.book_id
-    WHERE lb.event_id = :event_id
+    WHERE {$paymentMethodWhereClause}
     GROUP BY pc.payment_method
     ORDER BY total_amount DESC";
 $stmt = $db->prepare($paymentMethodQuery);
 $stmt->bindParam(':event_id', $eventId);
+foreach ($paymentMethodParams as $key => $value) {
+    $stmt->bindValue(':' . $key, $value, PDO::PARAM_STR);
+}
 $stmt->execute();
 $paymentMethods = $stmt->fetchAll();
 
-// Get date-wise collection by payment method
+// Get date-wise collection by payment method WITH FILTERS (reuse same filters as payment method)
 $dateWiseQuery = "SELECT
     DATE(pc.payment_date) as payment_date,
     pc.payment_method,
@@ -270,42 +346,101 @@ $dateWiseQuery = "SELECT
     FROM payment_collections pc
     JOIN book_distribution bd ON pc.distribution_id = bd.distribution_id
     JOIN lottery_books lb ON bd.book_id = lb.book_id
-    WHERE lb.event_id = :event_id
+    WHERE {$paymentMethodWhereClause}
     GROUP BY DATE(pc.payment_date), pc.payment_method
     ORDER BY payment_date DESC, payment_method";
 $stmt = $db->prepare($dateWiseQuery);
 $stmt->bindParam(':event_id', $eventId);
+foreach ($paymentMethodParams as $key => $value) {
+    $stmt->bindValue(':' . $key, $value, PDO::PARAM_STR);
+}
 $stmt->execute();
 $dateWisePayments = $stmt->fetchAll();
 
-// Get commission statistics
+// Get commission statistics WITH FILTERS
+$commissionWhereClause = "ce.event_id = :event_id";
+$commissionParams = [];
+
+// Apply level filters for commission (filter by level_1_value)
+if ($level1Filter > 0) {
+    $level1ValueQuery = "SELECT value_name FROM distribution_level_values WHERE value_id = :value_id";
+    $level1ValueStmt = $db->prepare($level1ValueQuery);
+    $level1ValueStmt->bindValue(':value_id', $level1Filter, PDO::PARAM_INT);
+    $level1ValueStmt->execute();
+    $level1ValueName = $level1ValueStmt->fetchColumn();
+    if ($level1ValueName) {
+        $commissionWhereClause .= " AND ce.level_1_value = :comm_level1_filter";
+        $commissionParams['comm_level1_filter'] = $level1ValueName;
+    }
+}
+
+// Note: Commission table only has level_1_value, so level2 and level3 filters won't apply directly
+// But we can filter by checking the distribution path through JOIN
+if ($level2Filter > 0 || $level3Filter > 0) {
+    // Join with distribution table to filter by full path
+    $commissionJoinClause = " JOIN book_distribution bd ON ce.distribution_id = bd.distribution_id";
+
+    if ($level2Filter > 0) {
+        $level2ValueQuery = "SELECT value_name FROM distribution_level_values WHERE value_id = :value_id";
+        $level2ValueStmt = $db->prepare($level2ValueQuery);
+        $level2ValueStmt->bindValue(':value_id', $level2Filter, PDO::PARAM_INT);
+        $level2ValueStmt->execute();
+        $level2ValueName = $level2ValueStmt->fetchColumn();
+        if ($level2ValueName) {
+            $commissionWhereClause .= " AND bd.distribution_path LIKE :comm_level2_filter";
+            $commissionParams['comm_level2_filter'] = '%' . $level2ValueName . '%';
+        }
+    }
+    if ($level3Filter > 0) {
+        $level3ValueQuery = "SELECT value_name FROM distribution_level_values WHERE value_id = :value_id";
+        $level3ValueStmt = $db->prepare($level3ValueQuery);
+        $level3ValueStmt->bindValue(':value_id', $level3Filter, PDO::PARAM_INT);
+        $level3ValueStmt->execute();
+        $level3ValueName = $level3ValueStmt->fetchColumn();
+        if ($level3ValueName) {
+            $commissionWhereClause .= " AND bd.distribution_path LIKE :comm_level3_filter";
+            $commissionParams['comm_level3_filter'] = '%' . $level3ValueName . '%';
+        }
+    }
+} else {
+    $commissionJoinClause = "";
+}
+
 $commissionQuery = "SELECT
-    commission_type,
+    ce.commission_type,
     COUNT(*) as payment_count,
-    SUM(payment_amount) as total_payment_amount,
-    SUM(commission_amount) as total_commission_earned,
-    AVG(commission_percent) as avg_commission_percent
-    FROM commission_earned
-    WHERE event_id = :event_id
-    GROUP BY commission_type";
+    SUM(ce.payment_amount) as total_payment_amount,
+    SUM(ce.commission_amount) as total_commission_earned,
+    AVG(ce.commission_percent) as avg_commission_percent
+    FROM commission_earned ce
+    {$commissionJoinClause}
+    WHERE {$commissionWhereClause}
+    GROUP BY ce.commission_type";
 $stmt = $db->prepare($commissionQuery);
 $stmt->bindParam(':event_id', $eventId);
+foreach ($commissionParams as $key => $value) {
+    $stmt->bindValue(':' . $key, $value, PDO::PARAM_STR);
+}
 $stmt->execute();
 $commissionStats = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Get commission by Level 1
+// Get commission by Level 1 WITH FILTERS
 $commissionByLevelQuery = "SELECT
-    level_1_value,
-    commission_type,
+    ce.level_1_value,
+    ce.commission_type,
     COUNT(*) as payment_count,
-    SUM(payment_amount) as total_payment,
-    SUM(commission_amount) as total_commission
-    FROM commission_earned
-    WHERE event_id = :event_id
-    GROUP BY level_1_value, commission_type
-    ORDER BY level_1_value, commission_type";
+    SUM(ce.payment_amount) as total_payment,
+    SUM(ce.commission_amount) as total_commission
+    FROM commission_earned ce
+    {$commissionJoinClause}
+    WHERE {$commissionWhereClause}
+    GROUP BY ce.level_1_value, ce.commission_type
+    ORDER BY ce.level_1_value, ce.commission_type";
 $stmt = $db->prepare($commissionByLevelQuery);
 $stmt->bindParam(':event_id', $eventId);
+foreach ($commissionParams as $key => $value) {
+    $stmt->bindValue(':' . $key, $value, PDO::PARAM_STR);
+}
 $stmt->execute();
 $commissionByLevel = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -515,12 +650,12 @@ $commissionEnabled = $commissionSettings && (
             <button onclick="copyToClipboard()" class="btn btn-info">📋 Copy Data</button>
         </div>
 
-        <!-- Filter Section (applies to Member-Wise Report only) -->
+        <!-- Filter Section (applies to ALL reports except Summary) -->
         <?php if (count($levels) > 0 || true): ?>
         <div class="card" style="margin-bottom: var(--spacing-lg);">
             <div class="card-header">
                 <h3 class="card-title">🔍 Report Filters</h3>
-                <small style="color: var(--gray-600);">These filters apply only to the on-screen Member-Wise Report. Export functions will include ALL data.</small>
+                <small style="color: var(--gray-600);">These filters apply to all report tabs (Member-Wise, Payment Methods, Date-Wise, Payment Status, Book Status, and Commission). Export functions will include ALL data.</small>
             </div>
             <div class="card-body">
                 <form method="GET" action="" id="reportFilterForm">
@@ -588,11 +723,23 @@ $commissionEnabled = $commissionSettings && (
                                 <option value="not_returned" <?php echo $returnStatusFilter === 'not_returned' ? 'selected' : ''; ?>>⚠️ Not Returned Only</option>
                             </select>
                         </div>
+
+                        <!-- Date From Filter -->
+                        <div>
+                            <label class="form-label">Date From</label>
+                            <input type="date" name="date_from" class="form-control" value="<?php echo htmlspecialchars($dateFromFilter); ?>">
+                        </div>
+
+                        <!-- Date To Filter -->
+                        <div>
+                            <label class="form-label">Date To</label>
+                            <input type="date" name="date_to" class="form-control" value="<?php echo htmlspecialchars($dateToFilter); ?>">
+                        </div>
                     </div>
 
                     <div style="display: flex; gap: var(--spacing-sm); flex-wrap: wrap;">
                         <button type="submit" class="btn btn-primary">Apply Filters</button>
-                        <?php if ($level1Filter > 0 || $level2Filter > 0 || $level3Filter > 0 || $paymentStatusFilter !== 'all' || $paymentMethodFilter !== 'all' || $returnStatusFilter !== 'all'): ?>
+                        <?php if ($level1Filter > 0 || $level2Filter > 0 || $level3Filter > 0 || $paymentStatusFilter !== 'all' || $paymentMethodFilter !== 'all' || $returnStatusFilter !== 'all' || !empty($dateFromFilter) || !empty($dateToFilter)): ?>
                             <a href="?id=<?php echo $eventId; ?>" class="btn btn-secondary">Clear All Filters</a>
                         <?php endif; ?>
                     </div>

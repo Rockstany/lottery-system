@@ -42,7 +42,7 @@ $stmt->execute();
 $settings = $stmt->fetch();
 
 if (!$settings) {
-    header("Location: /public/group-admin/lottery-commission-report.php?id=$eventId&error=not_enabled");
+    header("Location: /public/group-admin/lottery-reports.php?id=$eventId");
     exit;
 }
 
@@ -348,7 +348,7 @@ $fullyPaidBooks = $previewStmt->fetchAll();
         </div>
 
         <div class="button-group-mobile">
-            <a href="/public/group-admin/lottery-commission-report.php?id=<?php echo $eventId; ?>" class="btn btn-secondary">← Back to Commission Report</a>
+            <a href="/public/group-admin/lottery-reports.php?id=<?php echo $eventId; ?>#commission" class="btn btn-secondary" onclick="setTimeout(() => document.querySelector('.tab[onclick*=commission]')?.click(), 100)">← Back to Commission Report</a>
             <a href="/public/group-admin/lottery.php" class="btn btn-secondary">All Events</a>
         </div>
     </div>

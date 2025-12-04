@@ -300,7 +300,7 @@ if (isset($_GET['success'])) {
         <!-- Back Button -->
         <div style="margin-bottom: var(--spacing-lg);">
             <a href="/public/group-admin/lottery.php" class="btn btn-secondary">← Back to Events</a>
-            <a href="/public/group-admin/lottery-commission-report.php?id=<?php echo $eventId; ?>" class="btn btn-success">View Commission Report →</a>
+            <a href="/public/group-admin/lottery-reports.php?id=<?php echo $eventId; ?>#commission" class="btn btn-success" onclick="setTimeout(() => document.querySelector('.tab[onclick*=commission]')?.click(), 100)">View Commission Report →</a>
         </div>
 
         <!-- Success/Error Messages -->
