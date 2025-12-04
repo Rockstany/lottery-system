@@ -15,36 +15,36 @@ try {
 
     $distributionId = Validator::sanitizeInt($_GET['dist_id'] ?? 0);
     $communityId = AuthMiddleware::getCommunityId();
+
+    if (!$distributionId || !$communityId) {
+        header("Location: /public/group-admin/lottery.php");
+        exit;
+    }
+
+    $database = new Database();
+    $db = $database->getConnection();
+
+    // Get distribution and book details
+    $query = "SELECT bd.*, lb.*, le.event_name, le.event_id
+              FROM book_distribution bd
+              JOIN lottery_books lb ON bd.book_id = lb.book_id
+              JOIN lottery_events le ON lb.event_id = le.event_id
+              WHERE bd.distribution_id = :dist_id AND le.community_id = :community_id";
+    $stmt = $db->prepare($query);
+    $stmt->bindParam(':dist_id', $distributionId);
+    $stmt->bindParam(':community_id', $communityId);
+    $stmt->execute();
+    $distribution = $stmt->fetch();
+
+    if (!$distribution) {
+        header("Location: /public/group-admin/lottery.php");
+        exit;
+    }
+
+    $eventId = $distribution['event_id'];
 } catch (Exception $e) {
     die("Error in initialization: " . $e->getMessage() . " in " . $e->getFile() . " on line " . $e->getLine());
 }
-
-if (!$distributionId || !$communityId) {
-    header("Location: /public/group-admin/lottery.php");
-    exit;
-}
-
-$database = new Database();
-$db = $database->getConnection();
-
-// Get distribution and book details
-$query = "SELECT bd.*, lb.*, le.event_name, le.event_id
-          FROM book_distribution bd
-          JOIN lottery_books lb ON bd.book_id = lb.book_id
-          JOIN lottery_events le ON lb.event_id = le.event_id
-          WHERE bd.distribution_id = :dist_id AND le.community_id = :community_id";
-$stmt = $db->prepare($query);
-$stmt->bindParam(':dist_id', $distributionId);
-$stmt->bindParam(':community_id', $communityId);
-$stmt->execute();
-$distribution = $stmt->fetch();
-
-if (!$distribution) {
-    header("Location: /public/group-admin/lottery.php");
-    exit;
-}
-
-$eventId = $distribution['event_id'];
 
 // Check if there are any payments collected for this distribution
 $paymentCheck = "SELECT COUNT(*) as payment_count, SUM(amount_paid) as total_paid
