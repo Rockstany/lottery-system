@@ -303,6 +303,35 @@ if (isset($_GET['success'])) {
             <a href="/public/group-admin/lottery-reports.php?id=<?php echo $eventId; ?>#commission" class="btn btn-success" onclick="setTimeout(() => document.querySelector('.tab[onclick*=commission]')?.click(), 100)">View Commission Report →</a>
         </div>
 
+        <!-- Commission Maintenance Tools -->
+        <?php if ($settings && $settings['commission_enabled']): ?>
+        <div class="card" style="margin-bottom: var(--spacing-lg); border-left: 4px solid var(--warning-color);">
+            <div class="card-body">
+                <h3 style="margin-top: 0;">🛠️ Commission Maintenance Tools</h3>
+                <p style="color: var(--gray-600);">Administrative tools for managing commission data. Use these tools carefully.</p>
+
+                <div style="display: flex; gap: var(--spacing-md); flex-wrap: wrap; margin-top: var(--spacing-md);">
+                    <a href="/public/group-admin/lottery-commission-sync.php?id=<?php echo $eventId; ?>" class="btn" style="background: var(--warning-color); color: white;">
+                        🔄 Recalculate Commissions
+                    </a>
+                    <a href="/public/group-admin/lottery-commission-cleanup-duplicates.php?id=<?php echo $eventId; ?>" class="btn" style="background: var(--error-color); color: white;">
+                        🧹 Cleanup Duplicates
+                    </a>
+                </div>
+
+                <div style="background: #fef2f2; padding: var(--spacing-md); border-radius: var(--radius-md); margin-top: var(--spacing-md); border: 1px solid #fecaca;">
+                    <small>
+                        <strong>⚠️ Use with caution:</strong>
+                        <ul style="margin: var(--spacing-xs) 0 0 var(--spacing-lg);">
+                            <li><strong>Recalculate:</strong> Deletes all commission records and recalculates them from payment data</li>
+                            <li><strong>Cleanup:</strong> Removes duplicate commission records (one-time fix for data issues)</li>
+                        </ul>
+                    </small>
+                </div>
+            </div>
+        </div>
+        <?php endif; ?>
+
         <!-- Success/Error Messages -->
         <?php if ($success): ?>
             <div class="alert alert-success"><?php echo $success; ?></div>
