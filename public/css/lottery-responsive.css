@@ -612,3 +612,85 @@
         width: 33.333%;
     }
 }
+
+/* ===================================
+   BUTTON HOVER CONSISTENCY FIX
+   Ensures all buttons maintain white text on hover
+   =================================== */
+
+/* Primary buttons - keep white text on hover */
+.btn-primary,
+.btn-primary:hover,
+.btn-primary:focus,
+.btn-primary:active {
+    color: white !important;
+    text-decoration: none !important;
+}
+
+/* Success buttons - keep white text on hover */
+.btn-success,
+.btn-success:hover,
+.btn-success:focus,
+.btn-success:active {
+    color: white !important;
+    text-decoration: none !important;
+}
+
+/* Danger buttons - keep white text on hover */
+.btn-danger,
+.btn-danger:hover,
+.btn-danger:focus,
+.btn-danger:active {
+    color: white !important;
+    text-decoration: none !important;
+}
+
+/* Warning buttons - keep white text on hover */
+.btn-warning,
+.btn-warning:hover,
+.btn-warning:focus,
+.btn-warning:active {
+    color: white !important;
+    text-decoration: none !important;
+}
+
+/* Info buttons - keep white text on hover */
+.btn-info,
+.btn-info:hover,
+.btn-info:focus,
+.btn-info:active {
+    color: white !important;
+    text-decoration: none !important;
+}
+
+/* Custom colored buttons with inline styles - keep white text */
+.btn[style*="background"],
+.btn[style*="background"]:hover,
+.btn[style*="background"]:focus,
+.btn[style*="background"]:active {
+    text-decoration: none !important;
+}
+
+/* Link-style buttons (a tags) - ensure no underline on hover */
+a.btn,
+a.btn:hover,
+a.btn:focus,
+a.btn:active,
+a.btn:visited {
+    text-decoration: none !important;
+}
+
+/* Small buttons - maintain white text consistency */
+.btn-sm.btn-primary,
+.btn-sm.btn-primary:hover,
+.btn-sm.btn-success,
+.btn-sm.btn-success:hover,
+.btn-sm.btn-danger,
+.btn-sm.btn-danger:hover,
+.btn-sm.btn-warning,
+.btn-sm.btn-warning:hover,
+.btn-sm.btn-info,
+.btn-sm.btn-info:hover {
+    color: white !important;
+    text-decoration: none !important;
+}
