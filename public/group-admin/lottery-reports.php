@@ -757,7 +757,7 @@ $commissionEnabled = $commissionSettings && (
                 <button class="tab" onclick="switchTab(event, 'payment-status')">Payment Status</button>
                 <button class="tab" onclick="switchTab(event, 'book-status')">Book Status</button>
                 <?php if ($commissionEnabled): ?>
-                    <button class="tab" onclick="switchTab(event, 'commission')">💰 Commission</button>
+                    <button class="tab" onclick="switchTab(event, 'commission')">Commission</button>
                 <?php endif; ?>
                 <button class="tab" onclick="switchTab(event, 'summary')">Summary</button>
             </div>
