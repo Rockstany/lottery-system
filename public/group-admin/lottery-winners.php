@@ -41,6 +41,35 @@ $levels = $stmt->fetchAll();
 $error = '';
 $success = '';
 
+// Handle edit winner
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_winner'])) {
+    $winnerId = Validator::sanitizeInt($_POST['winner_id'] ?? 0);
+    $winnerName = Validator::sanitizeString($_POST['winner_name'] ?? '');
+    $winnerContact = Validator::sanitizeString($_POST['winner_contact'] ?? '');
+
+    if (!$winnerId) {
+        $error = 'Invalid winner ID';
+    } else {
+        // Update only name and contact
+        $updateQuery = "UPDATE lottery_winners SET
+                       winner_name = :winner_name,
+                       winner_contact = :winner_contact
+                       WHERE winner_id = :winner_id AND event_id = :event_id";
+        $updateStmt = $db->prepare($updateQuery);
+        $updateStmt->bindParam(':winner_name', $winnerName);
+        $updateStmt->bindParam(':winner_contact', $winnerContact);
+        $updateStmt->bindParam(':winner_id', $winnerId);
+        $updateStmt->bindParam(':event_id', $eventId);
+
+        if ($updateStmt->execute()) {
+            header("Location: ?id=$eventId&success=updated");
+            exit;
+        } else {
+            $error = 'Failed to update winner details';
+        }
+    }
+}
+
 // Handle form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_winner'])) {
     $ticketNumber = Validator::sanitizeInt($_POST['ticket_number'] ?? 0);
@@ -116,8 +145,12 @@ if (isset($_GET['delete'])) {
     }
 }
 
-if (isset($_GET['success']) && $_GET['success'] === 'deleted') {
-    $success = 'Winner deleted successfully';
+if (isset($_GET['success'])) {
+    $success = match($_GET['success']) {
+        'deleted' => 'Winner deleted successfully',
+        'updated' => 'Winner details updated successfully',
+        default => ''
+    };
 }
 
 // Get all winners
@@ -151,6 +184,56 @@ $prizeCounts = [
     <link rel="stylesheet" href="/public/css/enhancements.css">
     <link rel="stylesheet" href="/public/css/lottery-responsive.css">
     <script src="/public/js/toast.js"></script>
+    <style>
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.5);
+        }
+
+        .modal.active {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background-color: white;
+            padding: var(--spacing-xl);
+            border-radius: var(--radius-lg);
+            max-width: 500px;
+            width: 90%;
+            box-shadow: var(--shadow-xl);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: var(--spacing-lg);
+        }
+
+        .modal-close {
+            font-size: 28px;
+            font-weight: bold;
+            color: var(--gray-500);
+            cursor: pointer;
+            border: none;
+            background: none;
+            padding: 0;
+            line-height: 1;
+        }
+
+        .modal-close:hover {
+            color: var(--gray-800);
+        }
+    </style>
 </head>
 <body>
     <?php include __DIR__ . '/includes/navigation.php'; ?>
@@ -303,7 +386,10 @@ $prizeCounts = [
                                         ?>
                                         <td><?php echo htmlspecialchars($winner['winner_name'] ?? '-'); ?></td>
                                         <td><?php echo htmlspecialchars($winner['winner_contact'] ?? '-'); ?></td>
-                                        <td>
+                                        <td style="white-space: nowrap;">
+                                            <button class="btn btn-sm btn-primary" onclick="openEditModal(<?php echo htmlspecialchars(json_encode($winner)); ?>)">
+                                                Edit
+                                            </button>
                                             <a href="?id=<?php echo $eventId; ?>&delete=<?php echo $winner['winner_id']; ?>"
                                                class="btn btn-sm btn-danger"
                                                onclick="return confirm('Delete this winner?')">
@@ -319,6 +405,70 @@ $prizeCounts = [
             </div>
         </div>
     </div>
+
+    <!-- Edit Winner Modal -->
+    <div id="editModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 style="margin: 0;">Edit Winner Details</h3>
+                <button class="modal-close" onclick="closeEditModal()">&times;</button>
+            </div>
+            <form method="POST" id="editForm">
+                <input type="hidden" name="edit_winner" value="1">
+                <input type="hidden" name="winner_id" id="edit_winner_id">
+
+                <div class="form-group" style="margin-bottom: var(--spacing-md);">
+                    <label class="form-label">Ticket Number</label>
+                    <input type="text" id="edit_ticket_number" class="form-control" disabled style="background: var(--gray-100); cursor: not-allowed;">
+                    <small class="form-text" style="color: var(--gray-600);">Ticket number cannot be changed</small>
+                </div>
+
+                <div class="form-group" style="margin-bottom: var(--spacing-md);">
+                    <label class="form-label">Winner Name</label>
+                    <input type="text" name="winner_name" id="edit_winner_name" class="form-control" placeholder="Enter winner's name">
+                </div>
+
+                <div class="form-group" style="margin-bottom: var(--spacing-lg);">
+                    <label class="form-label">Contact Number</label>
+                    <input type="tel" name="winner_contact" id="edit_winner_contact" class="form-control" placeholder="10-digit mobile" maxlength="10">
+                </div>
+
+                <div style="display: flex; gap: var(--spacing-md);">
+                    <button type="submit" class="btn btn-success">Save Changes</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeEditModal()">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        function openEditModal(winner) {
+            document.getElementById('edit_winner_id').value = winner.winner_id;
+            document.getElementById('edit_ticket_number').value = winner.ticket_number;
+            document.getElementById('edit_winner_name').value = winner.winner_name || '';
+            document.getElementById('edit_winner_contact').value = winner.winner_contact || '';
+            document.getElementById('editModal').classList.add('active');
+        }
+
+        function closeEditModal() {
+            document.getElementById('editModal').classList.remove('active');
+        }
+
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modal = document.getElementById('editModal');
+            if (event.target === modal) {
+                closeEditModal();
+            }
+        }
+
+        // Close modal with Escape key
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape') {
+                closeEditModal();
+            }
+        });
+    </script>
 
     <?php include __DIR__ . '/includes/footer.php'; ?>
 </body>
