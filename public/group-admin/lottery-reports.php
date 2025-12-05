@@ -647,7 +647,6 @@ $commissionEnabled = $commissionSettings && (
         <div class="export-buttons">
             <button onclick="exportToCSV()" class="btn btn-success">📥 Export to CSV</button>
             <button onclick="window.print()" class="btn btn-secondary">🖨️ Print Report</button>
-            <button onclick="copyToClipboard()" class="btn btn-info">📋 Copy Data</button>
         </div>
 
         <!-- Filter Section (applies to ALL reports except Summary) -->
