@@ -334,7 +334,6 @@ foreach ($distributions as $dist) {
         <div style="margin-bottom: var(--spacing-lg);">
             <a href="/public/group-admin/lottery.php" class="btn btn-secondary">← Back to Events</a>
             <a href="/public/group-admin/lottery-books.php?id=<?php echo $eventId; ?>" class="btn btn-primary">View Books</a>
-            <a href="/public/group-admin/lottery-reports.php?id=<?php echo $eventId; ?>" class="btn btn-info">📊 View Reports</a>
         </div>
 
         <?php
