@@ -46,12 +46,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['preview'])) {
     $level1Filter = Validator::sanitizeInt($_POST['level_1_filter'] ?? 0);
     $level2Filter = Validator::sanitizeInt($_POST['level_2_filter'] ?? 0);
     $level3Filter = Validator::sanitizeInt($_POST['level_3_filter'] ?? 0);
+    $returnStatusFilter = $_POST['return_status_filter'] ?? 'not_returned';
     $paymentMethod = Validator::sanitizeString($_POST['payment_method'] ?? 'cash');
     $paymentDate = $_POST['payment_date'] ?? date('Y-m-d');
 
     // Build query to find unpaid/partially paid books
     $whereClause = "lb.event_id = :event_id AND bd.book_id IS NOT NULL";
     $params = ['event_id' => $eventId];
+
+    // Add return status filter
+    if ($returnStatusFilter === 'not_returned') {
+        $whereClause .= " AND (bd.is_returned IS NULL OR bd.is_returned = 0)";
+    } elseif ($returnStatusFilter === 'returned') {
+        $whereClause .= " AND bd.is_returned = 1";
+    }
+    // 'all' = no additional filter
 
     // Add level filters (filter by level value names in distribution_path)
     if ($level1Filter > 0) {
@@ -128,6 +137,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['preview'])) {
             'books' => $unpaidBooks,
             'payment_method' => $paymentMethod,
             'payment_date' => $paymentDate,
+            'return_status_filter' => $returnStatusFilter,
             'level_1_filter' => $level1Filter,
             'level_2_filter' => $level2Filter,
             'level_3_filter' => $level3Filter,
@@ -324,6 +334,20 @@ foreach ($levels as $level) {
                             <?php endforeach; ?>
                         </div>
 
+                        <div class="row" style="margin-top: var(--spacing-md);">
+                            <div class="col-12">
+                                <div class="form-group">
+                                    <label class="form-label">Return Status Filter</label>
+                                    <select name="return_status_filter" class="form-control">
+                                        <option value="not_returned">Not Returned Only</option>
+                                        <option value="returned">Returned Only</option>
+                                        <option value="all">All (Including Returned)</option>
+                                    </select>
+                                    <small class="form-text">Filter books based on return status</small>
+                                </div>
+                            </div>
+                        </div>
+
                         <hr style="margin: var(--spacing-lg) 0;">
 
                         <h4>Payment Details</h4>
@@ -363,6 +387,10 @@ foreach ($levels as $level) {
                     <strong><?php echo $previewData['total_books']; ?></strong>
                 </div>
                 <div class="calc-row">
+                    <span>Selected Books:</span>
+                    <strong id="selected-count">0</strong>
+                </div>
+                <div class="calc-row">
                     <span>Payment Method:</span>
                     <strong><?php
                         $methods = [
@@ -380,34 +408,47 @@ foreach ($levels as $level) {
                 </div>
                 <div class="calc-row" style="border-top: 2px solid var(--success-color); margin-top: var(--spacing-md); padding-top: var(--spacing-md);">
                     <span style="font-size: var(--font-size-xl);">Total Amount to Collect:</span>
-                    <strong style="font-size: var(--font-size-2xl); color: var(--success-color);">
-                        ₹<?php echo number_format($previewData['total_amount'], 2); ?>
+                    <strong style="font-size: var(--font-size-2xl); color: var(--success-color);" id="total-amount">
+                        ₹0.00
                     </strong>
                 </div>
             </div>
 
             <div class="card">
-                <div class="card-header">
-                    <h3 class="card-title">Step 2: Review Books (<?php echo $previewData['total_books']; ?>)</h3>
+                <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                    <h3 class="card-title">Step 2: Select Books to Collect Payment (<?php echo $previewData['total_books']; ?>)</h3>
+                    <div style="display: flex; gap: var(--spacing-sm);">
+                        <button type="button" class="btn btn-sm btn-primary" onclick="selectAll()">Select All</button>
+                        <button type="button" class="btn btn-sm btn-secondary" onclick="deselectAll()">Deselect All</button>
+                    </div>
                 </div>
                 <div class="card-body">
                     <div style="max-height: 400px; overflow-y: auto; padding: var(--spacing-sm);">
-                        <?php foreach ($previewData['books'] as $book): ?>
+                        <?php foreach ($previewData['books'] as $index => $book):
+                            $dueAmount = $book['book_value'] - $book['paid_amount'];
+                        ?>
                             <div class="book-item">
                                 <div class="book-header">
-                                    <span>📖 Book #<?php echo $book['book_number']; ?>
-                                        (Tickets: <?php echo $book['start_ticket_number']; ?>-<?php echo $book['end_ticket_number']; ?>)
-                                    </span>
+                                    <label style="display: flex; align-items: center; gap: var(--spacing-sm); cursor: pointer; margin: 0;">
+                                        <input type="checkbox" class="book-checkbox"
+                                               data-distribution-id="<?php echo $book['distribution_id']; ?>"
+                                               data-amount="<?php echo $dueAmount; ?>"
+                                               onchange="updateTotal()"
+                                               style="width: 18px; height: 18px; cursor: pointer;">
+                                        <span>📖 Book #<?php echo $book['book_number']; ?>
+                                            (Tickets: <?php echo $book['start_ticket_number']; ?>-<?php echo $book['end_ticket_number']; ?>)
+                                        </span>
+                                    </label>
                                     <span class="badge-unpaid">
-                                        ₹<?php echo number_format($book['book_value'] - $book['paid_amount'], 2); ?> Due
+                                        ₹<?php echo number_format($dueAmount, 2); ?> Due
                                     </span>
                                 </div>
-                                <div class="book-details">
+                                <div class="book-details" style="padding-left: 26px;">
                                     <strong>Assigned to:</strong> <?php echo htmlspecialchars($book['distribution_path'] ?? 'Unassigned'); ?>
                                     <br>
                                     <strong>Book Value:</strong> ₹<?php echo number_format($book['book_value'], 2); ?>
                                     | <strong>Paid:</strong> ₹<?php echo number_format($book['paid_amount'], 2); ?>
-                                    | <strong>Balance:</strong> ₹<?php echo number_format($book['book_value'] - $book['paid_amount'], 2); ?>
+                                    | <strong>Balance:</strong> ₹<?php echo number_format($dueAmount, 2); ?>
                                 </div>
                             </div>
                         <?php endforeach; ?>
@@ -415,21 +456,14 @@ foreach ($levels as $level) {
                 </div>
             </div>
 
-            <form method="POST">
-                <input type="hidden" name="book_ids" value="<?php
-                    echo htmlspecialchars(json_encode(array_map(function($b) {
-                        return [
-                            'distribution_id' => $b['distribution_id'],
-                            'amount' => $b['book_value'] - $b['paid_amount']
-                        ];
-                    }, $previewData['books'])));
-                ?>">
+            <form method="POST" id="bulkPaymentForm" onsubmit="return validateSelection()">
+                <input type="hidden" name="book_ids" id="selectedBooksInput" value="">
                 <input type="hidden" name="payment_method" value="<?php echo htmlspecialchars($previewData['payment_method']); ?>">
                 <input type="hidden" name="payment_date" value="<?php echo htmlspecialchars($previewData['payment_date']); ?>">
 
                 <div style="display: flex; gap: var(--spacing-md); margin-top: var(--spacing-lg);">
-                    <button type="submit" name="confirm" class="btn btn-success btn-lg">
-                        ✓ Confirm & Collect ₹<?php echo number_format($previewData['total_amount'], 2); ?> →
+                    <button type="submit" name="confirm" class="btn btn-success btn-lg" id="confirmButton">
+                        ✓ Confirm & Collect <span id="confirm-amount">₹0.00</span> →
                     </button>
                     <a href="/public/group-admin/lottery-payment-bulk.php?id=<?php echo $eventId; ?>" class="btn btn-secondary btn-lg">
                         ← Change Filters
@@ -440,5 +474,73 @@ foreach ($levels as $level) {
     </div>
 
     <?php include __DIR__ . '/includes/footer.php'; ?>
+
+    <script>
+        // Select all checkboxes
+        function selectAll() {
+            const checkboxes = document.querySelectorAll('.book-checkbox');
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = true;
+            });
+            updateTotal();
+        }
+
+        // Deselect all checkboxes
+        function deselectAll() {
+            const checkboxes = document.querySelectorAll('.book-checkbox');
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = false;
+            });
+            updateTotal();
+        }
+
+        // Update total selected count and amount
+        function updateTotal() {
+            const checkboxes = document.querySelectorAll('.book-checkbox:checked');
+            let totalAmount = 0;
+            let selectedCount = 0;
+            const selectedBooks = [];
+
+            checkboxes.forEach(checkbox => {
+                selectedCount++;
+                const amount = parseFloat(checkbox.getAttribute('data-amount'));
+                totalAmount += amount;
+                selectedBooks.push({
+                    distribution_id: parseInt(checkbox.getAttribute('data-distribution-id')),
+                    amount: amount
+                });
+            });
+
+            // Update displayed values
+            document.getElementById('selected-count').textContent = selectedCount;
+            document.getElementById('total-amount').textContent = '₹' + totalAmount.toLocaleString('en-IN', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            });
+            document.getElementById('confirm-amount').textContent = '₹' + totalAmount.toLocaleString('en-IN', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            });
+
+            // Update hidden input with selected books JSON
+            document.getElementById('selectedBooksInput').value = JSON.stringify(selectedBooks);
+        }
+
+        // Validate that at least one book is selected
+        function validateSelection() {
+            const checkboxes = document.querySelectorAll('.book-checkbox:checked');
+            if (checkboxes.length === 0) {
+                alert('Please select at least one book to collect payment.');
+                return false;
+            }
+            return true;
+        }
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            // Automatically select all books on initial load
+            selectAll();
+        });
+    </script>
 </body>
 </html>
