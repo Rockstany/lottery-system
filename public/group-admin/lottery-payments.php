@@ -331,9 +331,10 @@ foreach ($distributions as $dist) {
 
     <div class="container main-content">
         <!-- Back Button at Top -->
-        <div style="margin-bottom: var(--spacing-lg);">
+        <div style="margin-bottom: var(--spacing-lg); display: flex; gap: var(--spacing-md); flex-wrap: wrap;">
             <a href="/public/group-admin/lottery.php" class="btn btn-secondary">← Back to Events</a>
             <a href="/public/group-admin/lottery-books.php?id=<?php echo $eventId; ?>" class="btn btn-primary">View Books</a>
+            <a href="/public/group-admin/lottery-payment-bulk.php?id=<?php echo $eventId; ?>" class="btn btn-success">💰 Bulk Payment Collection</a>
         </div>
 
         <?php

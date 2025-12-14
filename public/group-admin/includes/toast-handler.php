@@ -22,7 +22,8 @@ $successMessages = [
     'deleted' => 'Deleted successfully!',
     'created' => 'Created successfully!',
     'updated' => 'Updated successfully!',
-    'password_reset' => 'Password reset successfully!'
+    'password_reset' => 'Password reset successfully!',
+    'bulk_collected' => 'Bulk payment collected successfully for ' . ($_GET['count'] ?? '0') . ' books!'
 ];
 
 if ($toastError && isset($errorMessages[$toastError])) {
