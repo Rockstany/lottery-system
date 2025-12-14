@@ -74,8 +74,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['preview'])) {
                     lb.start_ticket_number,
                     lb.end_ticket_number,
                     bd.distribution_path,
-                    (SELECT COALESCE(SUM(pc.amount), 0)
-                     FROM payment_collection pc
+                    (SELECT COALESCE(SUM(pc.amount_paid), 0)
+                     FROM payment_collections pc
                      WHERE pc.distribution_id = bd.distribution_id) as paid_amount,
                     (lb.end_ticket_number - lb.start_ticket_number + 1) * :price_per_ticket as book_value
                    FROM book_distribution bd
@@ -132,12 +132,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirm'])) {
                 $amount = $bookData['amount'];
 
                 // Insert payment record
-                $insertQuery = "INSERT INTO payment_collection
-                               (distribution_id, amount, payment_method, payment_date, collected_by)
-                               VALUES (:distribution_id, :amount, :payment_method, :payment_date, :collected_by)";
+                $insertQuery = "INSERT INTO payment_collections
+                               (distribution_id, amount_paid, payment_method, payment_date, collected_by)
+                               VALUES (:distribution_id, :amount_paid, :payment_method, :payment_date, :collected_by)";
                 $stmt = $db->prepare($insertQuery);
                 $stmt->bindParam(':distribution_id', $distributionId);
-                $stmt->bindParam(':amount', $amount);
+                $stmt->bindParam(':amount_paid', $amount);
                 $stmt->bindParam(':payment_method', $paymentMethod);
                 $stmt->bindParam(':payment_date', $paymentDate);
                 $collectedBy = AuthMiddleware::getUserId();
