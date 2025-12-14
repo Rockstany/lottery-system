@@ -50,7 +50,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['preview'])) {
     $paymentDate = $_POST['payment_date'] ?? date('Y-m-d');
 
     // Build query to find unpaid/partially paid books
-    $whereClause = "bd.event_id = :event_id AND bd.book_id IS NOT NULL";
+    $whereClause = "lb.event_id = :event_id AND bd.book_id IS NOT NULL";
     $params = ['event_id' => $eventId];
 
     if ($level1Filter > 0) {
