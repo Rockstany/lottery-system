@@ -643,9 +643,101 @@ $commissionEnabled = $commissionSettings && (
             </div>
         </div>
 
+        <!-- Excel Upload/Download Section -->
+        <div class="card" style="margin-bottom: var(--spacing-xl); background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);">
+            <div class="card-header" style="background: linear-gradient(135deg, #0891b2 0%, #0e7490 100%); color: white;">
+                <h3 class="card-title" style="color: white;">📊 Excel Upload/Download Manager</h3>
+                <small style="opacity: 0.9;">Import or export level-wise reports in standardized Excel format</small>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <!-- Download Section -->
+                    <div class="col-6">
+                        <h4 style="color: var(--primary-color); margin-bottom: var(--spacing-md);">⬇️ Download Templates</h4>
+                        <p style="color: var(--gray-600); font-size: var(--font-size-sm); margin-bottom: var(--spacing-md);">
+                            Download Excel templates to edit offline and upload back
+                        </p>
+                        <div style="display: flex; flex-direction: column; gap: var(--spacing-sm);">
+                            <a href="/public/group-admin/lottery-reports-excel-template.php?id=<?php echo $eventId; ?>&type=with_data" class="btn btn-primary" style="width: 100%;">
+                                📥 Download with Current Data
+                            </a>
+                            <a href="/public/group-admin/lottery-reports-excel-template.php?id=<?php echo $eventId; ?>&type=blank" class="btn btn-secondary" style="width: 100%;">
+                                📄 Download Blank Template
+                            </a>
+                            <a href="/public/group-admin/lottery-reports-excel-export.php?id=<?php echo $eventId; ?>" class="btn btn-success" style="width: 100%;">
+                                📊 Download Full Report (Read-Only)
+                            </a>
+                        </div>
+                    </div>
+
+                    <!-- Upload Section -->
+                    <div class="col-6">
+                        <h4 style="color: var(--success-color); margin-bottom: var(--spacing-md);">⬆️ Upload Updated File</h4>
+                        <p style="color: var(--gray-600); font-size: var(--font-size-sm); margin-bottom: var(--spacing-md);">
+                            Upload edited Excel file to update book distributions and payments
+                        </p>
+                        <form action="/public/group-admin/lottery-reports-excel-upload.php" method="POST" enctype="multipart/form-data" id="uploadForm" style="background: white; padding: var(--spacing-lg); border-radius: var(--radius-md); box-shadow: var(--shadow-sm);">
+                            <input type="hidden" name="event_id" value="<?php echo $eventId; ?>">
+
+                            <div class="form-group">
+                                <label class="form-label">Select Excel File (.xls or .xlsx)</label>
+                                <input type="file" name="excel_file" id="excelFile" class="form-control" accept=".xls,.xlsx" required>
+                            </div>
+
+                            <button type="submit" class="btn btn-success" style="width: 100%;" onclick="return confirmUpload()">
+                                ⬆️ Upload and Update Data
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Instructions -->
+                <div style="margin-top: var(--spacing-lg); padding: var(--spacing-md); background: #FFF4CE; border-left: 4px solid #FFA000; border-radius: var(--radius-sm);">
+                    <strong style="color: #856404;">⚠️ Important Instructions:</strong>
+                    <ol style="margin: var(--spacing-sm) 0 0 var(--spacing-lg); color: var(--gray-700); font-size: var(--font-size-sm);">
+                        <li>Download a template (with data or blank) to get the correct format</li>
+                        <li>Edit the Excel file offline - add/update member details, payments, and return status</li>
+                        <li>Do NOT modify column headers or their order</li>
+                        <li>Book numbers must match existing books in the system</li>
+                        <li>Follow the format instructions in the template's instruction sheet</li>
+                        <li>Save and upload the file - system will automatically update the database</li>
+                        <li>Upload will create/update distributions and add new payments if specified</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+
+        <?php if (isset($_SESSION['upload_errors']) || isset($_SESSION['upload_updates'])): ?>
+        <div class="card" style="margin-bottom: var(--spacing-xl);">
+            <div class="card-header">
+                <h3 class="card-title">📋 Upload Results</h3>
+            </div>
+            <div class="card-body">
+                <?php if (isset($_SESSION['upload_updates'])): ?>
+                    <h4 style="color: var(--success-color);">✅ Successful Updates:</h4>
+                    <ul style="max-height: 200px; overflow-y: auto; font-size: var(--font-size-sm);">
+                        <?php foreach ($_SESSION['upload_updates'] as $update): ?>
+                            <li><?php echo htmlspecialchars($update); ?></li>
+                        <?php endforeach; ?>
+                    </ul>
+                    <?php unset($_SESSION['upload_updates']); ?>
+                <?php endif; ?>
+
+                <?php if (isset($_SESSION['upload_errors'])): ?>
+                    <h4 style="color: var(--danger-color); margin-top: var(--spacing-md);">❌ Errors:</h4>
+                    <ul style="max-height: 200px; overflow-y: auto; font-size: var(--font-size-sm); color: var(--danger-color);">
+                        <?php foreach ($_SESSION['upload_errors'] as $error): ?>
+                            <li><?php echo htmlspecialchars($error); ?></li>
+                        <?php endforeach; ?>
+                    </ul>
+                    <?php unset($_SESSION['upload_errors']); ?>
+                <?php endif; ?>
+            </div>
+        </div>
+        <?php endif; ?>
+
         <!-- Export Buttons -->
         <div class="export-buttons">
-            <a href="/public/group-admin/lottery-reports-excel-export.php?id=<?php echo $eventId; ?>" class="btn btn-success">📊 Export Level-Wise Report to Excel</a>
             <button onclick="exportToCSV()" class="btn btn-success">📥 Export to CSV</button>
             <button onclick="window.print()" class="btn btn-secondary">🖨️ Print Report</button>
         </div>
@@ -1448,6 +1540,24 @@ $commissionEnabled = $commissionSettings && (
     </div>
 
     <script>
+        function confirmUpload() {
+            const fileInput = document.getElementById('excelFile');
+            if (!fileInput.files.length) {
+                alert('Please select a file to upload');
+                return false;
+            }
+
+            const fileName = fileInput.files[0].name;
+            const fileSize = (fileInput.files[0].size / 1024).toFixed(2);
+
+            return confirm(
+                `Are you sure you want to upload this file?\n\n` +
+                `File: ${fileName}\n` +
+                `Size: ${fileSize} KB\n\n` +
+                `This will update book distributions and payments in the database.`
+            );
+        }
+
         function switchTab(event, tabId) {
             // Hide all tabs
             document.querySelectorAll('.tab-content').forEach(tab => {
