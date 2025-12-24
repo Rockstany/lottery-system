@@ -645,6 +645,7 @@ $commissionEnabled = $commissionSettings && (
 
         <!-- Export Buttons -->
         <div class="export-buttons">
+            <a href="/public/group-admin/lottery-reports-excel-export.php?id=<?php echo $eventId; ?>" class="btn btn-success">📊 Export Level-Wise Report to Excel</a>
             <button onclick="exportToCSV()" class="btn btn-success">📥 Export to CSV</button>
             <button onclick="window.print()" class="btn btn-secondary">🖨️ Print Report</button>
         </div>
