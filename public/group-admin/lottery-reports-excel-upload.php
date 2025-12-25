@@ -324,7 +324,10 @@ try {
     }
 
 } catch (Exception $e) {
-    $db->rollBack();
+    // Only rollback if there's an active transaction
+    if ($db->inTransaction()) {
+        $db->rollBack();
+    }
     $_SESSION['error'] = "Error processing Excel file: " . $e->getMessage();
 
     SystemLogger::log(
