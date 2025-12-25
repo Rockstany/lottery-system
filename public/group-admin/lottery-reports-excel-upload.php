@@ -306,12 +306,20 @@ try {
     // Commit transaction
     $db->commit();
 
-    // Log the activity
-    SystemLogger::log(
-        'lottery_upload',
-        'Uploaded Excel report',
-        "Event: {$event['event_name']}, Success: $successCount, Errors: $errorCount"
-    );
+    // Log the activity (optional - fail silently if logger not available)
+    try {
+        if (class_exists('SystemLogger')) {
+            $logger = new SystemLogger();
+            $logger->log(
+                'lottery_upload',
+                'medium',
+                "Uploaded Excel report - Event: {$event['event_name']}, Success: $successCount, Errors: $errorCount"
+            );
+        }
+    } catch (Exception $logError) {
+        // Logging failed, but continue with success message
+        error_log("SystemLogger error: " . $logError->getMessage());
+    }
 
     $_SESSION['success'] = "Excel upload completed! Successfully updated $successCount records." .
                           ($errorCount > 0 ? " $errorCount errors occurred." : "");
@@ -330,11 +338,20 @@ try {
     }
     $_SESSION['error'] = "Error processing Excel file: " . $e->getMessage();
 
-    SystemLogger::log(
-        'lottery_upload_error',
-        'Excel upload failed',
-        "Event: {$event['event_name']}, Error: " . $e->getMessage()
-    );
+    // Log the error (optional - fail silently if logger not available)
+    try {
+        if (class_exists('SystemLogger')) {
+            $logger = new SystemLogger();
+            $logger->log(
+                'lottery_upload_error',
+                'high',
+                "Excel upload failed - Event: {$event['event_name']}, Error: " . $e->getMessage()
+            );
+        }
+    } catch (Exception $logError) {
+        // Logging failed, but error message is already set
+        error_log("SystemLogger error: " . $logError->getMessage());
+    }
 }
 
 header("Location: /public/group-admin/lottery-reports.php?id=" . $eventId);
