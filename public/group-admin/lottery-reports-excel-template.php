@@ -106,27 +106,30 @@ if ($templateType === 'with_data') {
     }
 }
 
-// Set headers for Excel download (HTML format compatible)
+// Set headers for Excel download
 $filename = $templateType === 'blank'
     ? 'Level_Wise_Template_Blank_' . date('Y-m-d') . '.xls'
     : 'Level_Wise_Template_' . $event['event_name'] . '_' . date('Y-m-d') . '.xls';
 
-header('Content-Type: application/vnd.ms-excel; charset=UTF-8');
+// Clean filename - remove special characters that might cause issues
+$filename = preg_replace('/[^A-Za-z0-9_\-\.]/', '_', $filename);
+
+header('Content-Type: application/vnd.ms-excel');
 header('Content-Disposition: attachment;filename="' . $filename . '"');
 header('Cache-Control: max-age=0');
+header('Cache-Control: max-age=1');
+header('Expires: Mon, 26 Jul 1997 05:00:00 GMT');
+header('Last-Modified: ' . gmdate('D, d M Y H:i:s') . ' GMT');
+header('Cache-Control: cache, must-revalidate');
 header('Pragma: public');
 
-// Start Excel-compatible HTML (Microsoft Excel HTML format)
-echo '<?xml version="1.0" encoding="UTF-8"?>
-<html xmlns:o="urn:schemas-microsoft-com:office:office"
-      xmlns:x="urn:schemas-microsoft-com:office:excel"
-      xmlns="http://www.w3.org/TR/REC-html40">
+// Start HTML (simplified, without XML declaration that causes issues)
+?>
+<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
 <head>
-    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
     <meta name="ProgId" content="Excel.Sheet">
-    <meta name="Generator" content="GetToKnow Lottery System">
-    <!--[if gte mso 9]>
-    <xml>
+    <!--[if gte mso 9]><xml>
         <x:ExcelWorkbook>
             <x:ExcelWorksheets>
                 <x:ExcelWorksheet>
@@ -137,8 +140,7 @@ echo '<?xml version="1.0" encoding="UTF-8"?>
                 </x:ExcelWorksheet>
             </x:ExcelWorksheets>
         </x:ExcelWorkbook>
-    </xml>
-    <![endif]-->
+    </xml><![endif]-->
     <style>
         table { border-collapse: collapse; }
         th { background-color: #4472C4; color: white; font-weight: bold; padding: 10px; border: 1px solid #000; text-align: center; }
@@ -149,7 +151,8 @@ echo '<?xml version="1.0" encoding="UTF-8"?>
         .sample { background-color: #E7F3FF; }
     </style>
 </head>
-<body>';
+<body>
+<?php
 
 // Instructions Sheet
 echo '<h2>📋 INSTRUCTIONS - READ BEFORE EDITING</h2>';

@@ -82,23 +82,27 @@ foreach ($members as $member) {
     $memberPayments[$member['distribution_id']] = $payments;
 }
 
-// Set headers for Excel download (HTML format compatible)
-header('Content-Type: application/vnd.ms-excel; charset=UTF-8');
-header('Content-Disposition: attachment;filename="Level_Wise_Report_' . $event['event_name'] . '_' . date('Y-m-d') . '.xls"');
+// Set headers for Excel download
+$filename = 'Level_Wise_Report_' . $event['event_name'] . '_' . date('Y-m-d') . '.xls';
+// Clean filename - remove special characters that might cause issues
+$filename = preg_replace('/[^A-Za-z0-9_\-\.]/', '_', $filename);
+
+header('Content-Type: application/vnd.ms-excel');
+header('Content-Disposition: attachment;filename="' . $filename . '"');
 header('Cache-Control: max-age=0');
+header('Cache-Control: max-age=1');
+header('Expires: Mon, 26 Jul 1997 05:00:00 GMT');
+header('Last-Modified: ' . gmdate('D, d M Y H:i:s') . ' GMT');
+header('Cache-Control: cache, must-revalidate');
 header('Pragma: public');
 
-// Start Excel-compatible HTML (Microsoft Excel HTML format)
-echo '<?xml version="1.0" encoding="UTF-8"?>
-<html xmlns:o="urn:schemas-microsoft-com:office:office"
-      xmlns:x="urn:schemas-microsoft-com:office:excel"
-      xmlns="http://www.w3.org/TR/REC-html40">
+// Start HTML (simplified, without XML declaration that causes issues)
+?>
+<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
 <head>
-    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
     <meta name="ProgId" content="Excel.Sheet">
-    <meta name="Generator" content="GetToKnow Lottery System">
-    <!--[if gte mso 9]>
-    <xml>
+    <!--[if gte mso 9]><xml>
         <x:ExcelWorkbook>
             <x:ExcelWorksheets>
                 <x:ExcelWorksheet>
@@ -109,8 +113,7 @@ echo '<?xml version="1.0" encoding="UTF-8"?>
                 </x:ExcelWorksheet>
             </x:ExcelWorksheets>
         </x:ExcelWorkbook>
-    </xml>
-    <![endif]-->
+    </xml><![endif]-->
     <style>
         table { border-collapse: collapse; width: 100%; }
         th { background-color: #4472C4; color: white; font-weight: bold; padding: 10px; border: 1px solid #000; }
@@ -125,7 +128,8 @@ echo '<?xml version="1.0" encoding="UTF-8"?>
         .right { text-align: right; }
     </style>
 </head>
-<body>';
+<body>
+<?php
 
 echo '<h2>Level-Wise Lottery Report: ' . htmlspecialchars($event['event_name']) . '</h2>';
 echo '<p>Generated on: ' . date('d-M-Y h:i A') . '</p>';

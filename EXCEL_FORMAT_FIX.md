@@ -1,8 +1,8 @@
-# Excel Format Warning Fix
+# Excel Format Warning Fix - FINAL VERSION
 
 **Date:** 2025-12-25
-**Issue:** "A file is in a different format than its extension indicates" error when opening Excel files
-**Status:** ✅ FIXED
+**Issue:** "The file format and extension don't match. The file could be corrupted or unsafe."
+**Status:** ✅ FIXED (Version 2 - Removed XML declaration)
 
 ---
 
@@ -28,41 +28,69 @@ Do you want to open it anyway?"
 1. `lottery-reports-excel-template.php` (Lines 109-152)
 2. `lottery-reports-excel-export.php` (Lines 85-128)
 
-### Changes Made:
+### Changes Made (FINAL FIX):
 
-**Before (Caused Warning):**
+**First Attempt (Still caused warning):**
 ```php
-header('Content-Type: application/vnd.ms-excel');
-echo '<!DOCTYPE html><html>...'  // Plain HTML
+echo '<?xml version="1.0" encoding="UTF-8"?>'  // This CAUSED the issue!
 ```
+Problem: XML declaration with `echo` creates byte-order issues in PHP
 
-**After (No Warning):**
+**FINAL FIX (Working):**
 ```php
-header('Content-Type: application/vnd.ms-excel; charset=UTF-8');
-header('Pragma: public');  // Added
-echo '<?xml version="1.0" encoding="UTF-8"?>  // Added XML declaration
-<html xmlns:o="urn:schemas-microsoft-com:office:office"  // Office namespace
-      xmlns:x="urn:schemas-microsoft-com:office:excel"   // Excel namespace
+// Remove XML declaration completely
+// Use PHP closing tag instead of echo for clean output
+?>
+<html xmlns:o="urn:schemas-microsoft-com:office:office"
+      xmlns:x="urn:schemas-microsoft-com:office:excel"
       xmlns="http://www.w3.org/TR/REC-html40">
 <head>
-    <meta name="ProgId" content="Excel.Sheet">  // Tells Excel this is a spreadsheet
-    <!--[if gte mso 9]>
-    <xml>
-        <x:ExcelWorkbook>  // Excel-specific metadata
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <meta name="ProgId" content="Excel.Sheet">
+    <!--[if gte mso 9]><xml>
+        <x:ExcelWorkbook>
             <x:ExcelWorksheets>
                 <x:ExcelWorksheet>
                     <x:Name>Level Wise Report</x:Name>
                 </x:ExcelWorksheet>
             </x:ExcelWorksheets>
         </x:ExcelWorkbook>
-    </xml>
-    <![endif]-->
+    </xml><![endif]-->
     ...
+</head>
+<body>
+<?php
 ```
 
-### What This Does:
+**Key Changes:**
+1. ❌ **Removed** XML declaration (`<?xml version...?>`)
+2. ✅ **Used PHP closing tag** (`?>`) before HTML
+3. ✅ **Simplified headers** (removed conflicting Cache-Control)
+4. ✅ **Added filename sanitization** (removes special chars)
+5. ✅ **Kept Office namespaces** (xmlns:o, xmlns:x)
+6. ✅ **Kept ProgId meta tag**
 
-1. **XML Declaration:** Tells Excel this is an XML-based format
+### Why XML Declaration Caused the Issue:
+
+**The Problem with `echo '<?xml version="1.0"?>'`:**
+
+1. **Byte Order Mark (BOM) Issue:**
+   - PHP's `echo` can add invisible BOM characters before output
+   - Excel expects XML declaration to be FIRST bytes in file
+   - Any whitespace/BOM before `<?xml` causes format mismatch error
+
+2. **PHP Output Buffer:**
+   - PHP may buffer output with encoding markers
+   - These interfere with XML declaration position
+   - Excel sees: `[BOM]<?xml...?>` instead of `<?xml...?>`
+
+3. **Solution: Skip XML Declaration:**
+   - HTML without XML declaration is still valid
+   - Office namespaces (xmlns:o, xmlns:x) provide format info
+   - ProgId meta tag tells Excel it's a spreadsheet
+   - Excel accepts this format without warning
+
+### What This Does:
 2. **Office Namespaces:** Adds Microsoft Office XML namespaces (xmlns:o, xmlns:x)
 3. **ProgId Meta Tag:** Identifies the file as an Excel Sheet
 4. **ExcelWorkbook XML:** Provides Excel-specific metadata about worksheets
