@@ -48,16 +48,38 @@ if (!in_array($fileExtension, $allowedExtensions)) {
     exit;
 }
 
-// Install PhpSpreadsheet if not available (check for composer autoload)
-require_once __DIR__ . '/../../vendor/autoload.php';
-
-use PhpOffice\PhpSpreadsheet\IOFactory;
-use PhpOffice\PhpSpreadsheet\Shared\Date;
-
+// Since we're using HTML-format Excel files, parse as HTML
 try {
-    // Load the uploaded file
-    $spreadsheet = IOFactory::load($file['tmp_name']);
-    $sheet = $spreadsheet->getActiveSheet();
+    // Read the uploaded file content
+    $fileContent = file_get_contents($file['tmp_name']);
+
+    // Load HTML into DOMDocument
+    $dom = new DOMDocument();
+    @$dom->loadHTML($fileContent, LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
+
+    // Find the main data table (skip instructions and reference tables)
+    $tables = $dom->getElementsByTagName('table');
+    $dataTable = null;
+
+    // The main data table is usually the last table or has specific headers
+    foreach ($tables as $table) {
+        $rows = $table->getElementsByTagName('tr');
+        if ($rows->length > 0) {
+            $firstRow = $rows->item(0);
+            $cells = $firstRow->getElementsByTagName('th');
+            // Check if this table has "Book Number" header
+            foreach ($cells as $cell) {
+                if (stripos($cell->textContent, 'Book Number') !== false) {
+                    $dataTable = $table;
+                    break 2;
+                }
+            }
+        }
+    }
+
+    if (!$dataTable) {
+        throw new Exception("Could not find data table in Excel file. Please use the correct template format.");
+    }
 
     // Get distribution levels for this event
     $levelsQuery = "SELECT * FROM distribution_levels WHERE event_id = :event_id ORDER BY level_number";
@@ -82,19 +104,37 @@ try {
     $errors = [];
     $updates = [];
 
-    // Start from row 2 (skip header)
-    $rowNumber = 2;
-    $maxRows = $sheet->getHighestRow();
-
     // Begin transaction
     $db->beginTransaction();
 
-    while ($rowNumber <= $maxRows) {
-        $row = $sheet->rangeToArray('A' . $rowNumber . ':Z' . $rowNumber, NULL, TRUE, FALSE)[0];
+    // Get all rows from the data table
+    $rows = $dataTable->getElementsByTagName('tr');
+    $rowNumber = 1; // For error messages
+    $headerSkipped = false;
+
+    foreach ($rows as $tr) {
+        $cells = $tr->getElementsByTagName('td');
+
+        // Skip header row (has th elements instead of td)
+        if ($cells->length === 0) {
+            continue;
+        }
+
+        if (!$headerSkipped) {
+            $headerSkipped = true;
+            continue; // Skip first data row if it's still a header
+        }
+
+        $rowNumber++;
+
+        // Convert cells to array
+        $row = [];
+        foreach ($cells as $cell) {
+            $row[] = trim($cell->textContent);
+        }
 
         // Skip empty rows
         if (empty(array_filter($row))) {
-            $rowNumber++;
             continue;
         }
 
@@ -102,7 +142,6 @@ try {
         $bookNumber = trim($row[$bookNumberCol] ?? '');
 
         if (empty($bookNumber)) {
-            $rowNumber++;
             continue;
         }
 
@@ -120,7 +159,6 @@ try {
         if (!$bookData) {
             $errors[] = "Row $rowNumber: Book number '$bookNumber' not found";
             $errorCount++;
-            $rowNumber++;
             continue;
         }
 
@@ -158,10 +196,14 @@ try {
             // Try to parse date in DD-MM-YYYY format
             if (preg_match('/^(\d{1,2})-(\d{1,2})-(\d{4})$/', $paymentDateStr, $matches)) {
                 $paymentDate = $matches[3] . '-' . str_pad($matches[2], 2, '0', STR_PAD_LEFT) . '-' . str_pad($matches[1], 2, '0', STR_PAD_LEFT);
+            } elseif (preg_match('/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/', $paymentDateStr, $matches)) {
+                // Try DD/MM/YYYY format
+                $paymentDate = $matches[3] . '-' . str_pad($matches[2], 2, '0', STR_PAD_LEFT) . '-' . str_pad($matches[1], 2, '0', STR_PAD_LEFT);
             } else {
-                // Try Excel date format
-                if (is_numeric($paymentDateStr)) {
-                    $paymentDate = Date::excelToDateTimeObject($paymentDateStr)->format('Y-m-d');
+                // Try standard strtotime
+                $timestamp = strtotime($paymentDateStr);
+                if ($timestamp !== false) {
+                    $paymentDate = date('Y-m-d', $timestamp);
                 }
             }
         }
