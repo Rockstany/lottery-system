@@ -57,6 +57,9 @@ try {
     // Load the Excel file
     $spreadsheet = IOFactory::load($file['tmp_name']);
 
+    // Debug: Log file loading
+    error_log("Excel Upload: File loaded successfully - " . $file['name']);
+
     // Find the "Data" worksheet (it's the 3rd sheet in our template)
     $dataSheet = null;
     foreach ($spreadsheet->getAllSheets() as $sheet) {
@@ -70,6 +73,8 @@ try {
     if (!$dataSheet) {
         $dataSheet = $spreadsheet->getSheet($spreadsheet->getSheetCount() - 1);
     }
+
+    error_log("Excel Upload: Using sheet - " . $dataSheet->getTitle());
 
     // Get distribution levels for this event
     $levelsQuery = "SELECT * FROM distribution_levels WHERE event_id = :event_id ORDER BY level_number";
@@ -293,12 +298,18 @@ try {
         $_SESSION['upload_updates'] = $updates;
     }
 
+    // Debug log
+    error_log("Excel Upload: Success! Processed $successCount records, $errorCount errors, " . count($updates) . " updates, " . count($errors) . " error messages");
+
 } catch (Exception $e) {
     // Only rollback if there's an active transaction
     if ($db->inTransaction()) {
         $db->rollBack();
     }
     $_SESSION['error'] = "Error processing Excel file: " . $e->getMessage();
+
+    // Debug log
+    error_log("Excel Upload: ERROR - " . $e->getMessage() . " in " . $e->getFile() . ":" . $e->getLine());
 
     // Log the error (optional - fail silently if logger not available)
     try {

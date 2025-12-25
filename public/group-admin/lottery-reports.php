@@ -589,6 +589,21 @@ $commissionEnabled = $commissionSettings && (
             <a href="/public/group-admin/lottery-payments.php?id=<?php echo $eventId; ?>" class="btn btn-success">Track Payments</a>
         </div>
 
+        <!-- Success/Error Messages -->
+        <?php if (isset($_SESSION['success'])): ?>
+            <div class="alert alert-success" style="margin-bottom: var(--spacing-lg); padding: var(--spacing-md); background: #D4EDDA; border: 1px solid #C3E6CB; border-radius: var(--radius-sm); color: #155724;">
+                ✅ <?php echo htmlspecialchars($_SESSION['success']); ?>
+            </div>
+            <?php unset($_SESSION['success']); ?>
+        <?php endif; ?>
+
+        <?php if (isset($_SESSION['error'])): ?>
+            <div class="alert alert-danger" style="margin-bottom: var(--spacing-lg); padding: var(--spacing-md); background: #F8D7DA; border: 1px solid #F5C6CB; border-radius: var(--radius-sm); color: #721C24;">
+                ❌ <?php echo htmlspecialchars($_SESSION['error']); ?>
+            </div>
+            <?php unset($_SESSION['error']); ?>
+        <?php endif; ?>
+
         <!-- Summary Statistics -->
         <div class="stats-grid">
             <div class="stat-card">
