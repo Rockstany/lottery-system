@@ -104,11 +104,18 @@ try {
     $errors = [];
     $updates = [];
 
+    // Debug info
+    $updates[] = "🔍 DEBUG: Found data table. Level count: $levelCount";
+    $updates[] = "🔍 DEBUG: Expected Book Number at column index: $bookNumberCol";
+
     // Begin transaction
     $db->beginTransaction();
 
     // Get all rows from the data table
     $rows = $dataTable->getElementsByTagName('tr');
+    $totalRows = $rows->length;
+    $updates[] = "🔍 DEBUG: Total rows in table: $totalRows";
+
     $rowNumber = 1; // For error messages
     $headerSkipped = false;
 
@@ -143,6 +150,11 @@ try {
             $row[] = trim($cell->textContent);
         }
 
+        // Debug: Show first data row
+        if ($rowNumber == 2) {
+            $updates[] = "🔍 DEBUG Row $rowNumber: Columns = " . count($row) . ", Data = [" . implode('] [', array_slice($row, 0, 10)) . "]";
+        }
+
         // Skip empty rows
         if (empty(array_filter($row))) {
             $updates[] = "Row $rowNumber: Skipped (empty row)";
@@ -153,7 +165,7 @@ try {
         $bookNumber = trim($row[$bookNumberCol] ?? '');
 
         if (empty($bookNumber)) {
-            $updates[] = "Row $rowNumber: Skipped (no book number) - Columns: " . count($row) . ", Expected col: " . $bookNumberCol;
+            $updates[] = "Row $rowNumber: Skipped (no book number) - Columns: " . count($row) . ", Expected col: $bookNumberCol, Value at that col: '" . ($row[$bookNumberCol] ?? 'NOT SET') . "'";
             continue;
         }
 

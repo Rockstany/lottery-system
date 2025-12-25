@@ -1,0 +1,27 @@
+# Composer dependencies
+/vendor/
+composer.lock
+
+# Environment files
+.env
+.env.local
+
+# IDE files
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Temporary files
+*.log
+*.tmp
+*.temp
+
+# Upload folders (if containing user data)
+/public/uploads/*
+!/public/uploads/.htaccess
