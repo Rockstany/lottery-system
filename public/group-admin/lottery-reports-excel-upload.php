@@ -216,20 +216,34 @@ try {
 
         // Handle payment if amount > 0
         if ($paymentAmount > 0 && $paymentDate && !empty($paymentMethod)) {
-            // Check if payment already exists for this date and amount
-            $checkPaymentQuery = "SELECT payment_id FROM payment_collections
+            // Check if payment already exists for this distribution and date (ignore amount to allow updates)
+            $checkPaymentQuery = "SELECT payment_id, amount_paid FROM payment_collections
                                  WHERE distribution_id = :dist_id
                                  AND DATE(payment_date) = :payment_date
-                                 AND amount_paid = :amount";
+                                 LIMIT 1";
             $checkPaymentStmt = $db->prepare($checkPaymentQuery);
             $checkPaymentStmt->bindValue(':dist_id', $distributionId, PDO::PARAM_INT);
             $checkPaymentStmt->bindValue(':payment_date', $paymentDate, PDO::PARAM_STR);
-            $checkPaymentStmt->bindValue(':amount', $paymentAmount, PDO::PARAM_STR);
             $checkPaymentStmt->execute();
             $existingPayment = $checkPaymentStmt->fetch();
 
-            if (!$existingPayment) {
-                // Insert new payment
+            if ($existingPayment) {
+                // UPDATE existing payment if amount has changed
+                if ($existingPayment['amount_paid'] != $paymentAmount) {
+                    $updatePaymentQuery = "UPDATE payment_collections
+                                          SET amount_paid = :amount,
+                                              payment_method = :method,
+                                              notes = 'Updated from Excel'
+                                          WHERE payment_id = :payment_id";
+                    $updatePaymentStmt = $db->prepare($updatePaymentQuery);
+                    $updatePaymentStmt->bindValue(':amount', $paymentAmount, PDO::PARAM_STR);
+                    $updatePaymentStmt->bindValue(':method', $paymentMethod, PDO::PARAM_STR);
+                    $updatePaymentStmt->bindValue(':payment_id', $existingPayment['payment_id'], PDO::PARAM_INT);
+                    $updatePaymentStmt->execute();
+                }
+                // If amount is same, no need to update (prevents unnecessary writes)
+            } else {
+                // Insert new payment (first time or different date)
                 $insertPaymentQuery = "INSERT INTO payment_collections
                                       (distribution_id, amount_paid, payment_date, payment_method, notes)
                                       VALUES (:dist_id, :amount, :payment_date, :method, 'Imported from Excel')";

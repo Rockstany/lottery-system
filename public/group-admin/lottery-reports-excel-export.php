@@ -82,16 +82,35 @@ foreach ($members as $member) {
     $memberPayments[$member['distribution_id']] = $payments;
 }
 
-// Set headers for Excel download
-header('Content-Type: application/vnd.ms-excel');
+// Set headers for Excel download (HTML format compatible)
+header('Content-Type: application/vnd.ms-excel; charset=UTF-8');
 header('Content-Disposition: attachment;filename="Level_Wise_Report_' . $event['event_name'] . '_' . date('Y-m-d') . '.xls"');
 header('Cache-Control: max-age=0');
+header('Pragma: public');
 
-// Start HTML table for Excel
-echo '<!DOCTYPE html>
-<html>
+// Start Excel-compatible HTML (Microsoft Excel HTML format)
+echo '<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns:o="urn:schemas-microsoft-com:office:office"
+      xmlns:x="urn:schemas-microsoft-com:office:excel"
+      xmlns="http://www.w3.org/TR/REC-html40">
 <head>
-    <meta charset="UTF-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <meta name="ProgId" content="Excel.Sheet">
+    <meta name="Generator" content="GetToKnow Lottery System">
+    <!--[if gte mso 9]>
+    <xml>
+        <x:ExcelWorkbook>
+            <x:ExcelWorksheets>
+                <x:ExcelWorksheet>
+                    <x:Name>Level Wise Report</x:Name>
+                    <x:WorksheetOptions>
+                        <x:DisplayGridlines/>
+                    </x:WorksheetOptions>
+                </x:ExcelWorksheet>
+            </x:ExcelWorksheets>
+        </x:ExcelWorkbook>
+    </xml>
+    <![endif]-->
     <style>
         table { border-collapse: collapse; width: 100%; }
         th { background-color: #4472C4; color: white; font-weight: bold; padding: 10px; border: 1px solid #000; }
