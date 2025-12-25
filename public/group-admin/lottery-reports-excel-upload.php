@@ -117,12 +117,22 @@ try {
 
         // Skip header row (has th elements instead of td)
         if ($cells->length === 0) {
+            $rowNumber++;
             continue;
         }
 
+        // Skip the first data row only if it looks like a header (all uppercase or "Sr No")
         if (!$headerSkipped) {
+            $firstCell = trim($cells->item(0)->textContent ?? '');
+            if (strtoupper($firstCell) === 'SR NO' || strtoupper($firstCell) === '1') {
+                $headerSkipped = true;
+                // Only skip if it's actually a header row
+                if (strtoupper($firstCell) === 'SR NO') {
+                    $rowNumber++;
+                    continue;
+                }
+            }
             $headerSkipped = true;
-            continue; // Skip first data row if it's still a header
         }
 
         $rowNumber++;
@@ -135,6 +145,7 @@ try {
 
         // Skip empty rows
         if (empty(array_filter($row))) {
+            $updates[] = "Row $rowNumber: Skipped (empty row)";
             continue;
         }
 
@@ -142,6 +153,7 @@ try {
         $bookNumber = trim($row[$bookNumberCol] ?? '');
 
         if (empty($bookNumber)) {
+            $updates[] = "Row $rowNumber: Skipped (no book number) - Columns: " . count($row) . ", Expected col: " . $bookNumberCol;
             continue;
         }
 
