@@ -1,10 +1,19 @@
 <?php
 /**
- * Excel Template Generator for Level-Wise Report
- * Downloads a standardized Excel template with current data or blank template
+ * Excel Template Generator for Level-Wise Report (XLSX Format)
+ * Downloads a standardized Excel template with current data or blank template using PHPSpreadsheet
  */
 
 require_once __DIR__ . '/../../config/config.php';
+require_once __DIR__ . '/../../vendor/autoload.php';
+
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Style\Border;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
+use PhpOffice\PhpSpreadsheet\Style\Font;
+
 AuthMiddleware::requireRole('group_admin');
 
 $eventId = Validator::sanitizeInt($_GET['id'] ?? 0);
@@ -83,7 +92,6 @@ if ($templateType === 'with_data') {
     $members = $stmt->fetchAll();
 
     // Get payment details for each member
-    $memberPayments = [];
     foreach ($members as &$member) {
         $paymentQuery = "SELECT payment_date, payment_method, amount_paid
                          FROM payment_collections
@@ -106,15 +114,261 @@ if ($templateType === 'with_data') {
     }
 }
 
-// Set headers for Excel download
-$filename = $templateType === 'blank'
-    ? 'Level_Wise_Template_Blank_' . date('Y-m-d') . '.xls'
-    : 'Level_Wise_Template_' . $event['event_name'] . '_' . date('Y-m-d') . '.xls';
+// Create new Spreadsheet
+$spreadsheet = new Spreadsheet();
 
-// Clean filename - remove special characters that might cause issues
+// ===== SHEET 1: Instructions =====
+$instructionSheet = $spreadsheet->getActiveSheet();
+$instructionSheet->setTitle('Instructions');
+
+$row = 1;
+$instructionSheet->setCellValue('A' . $row, '📋 INSTRUCTIONS - READ BEFORE EDITING');
+$instructionSheet->mergeCells('A' . $row . ':B' . $row);
+$instructionSheet->getStyle('A' . $row)->getFont()->setBold(true)->setSize(16);
+$instructionSheet->getStyle('A' . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+$row++;
+
+$instructions = [
+    ['IMPORTANT:', 'Follow this format exactly for upload to work correctly'],
+    ['Step 1:', 'Do NOT modify column headers or their order'],
+    ['Step 2:', 'Fill distribution levels exactly as shown in the Reference Data sheet'],
+    ['Step 3:', 'Book Number must match existing books in the system'],
+    ['Step 4:', 'Payment Amount should be the TOTAL paid (system will calculate outstanding)'],
+    ['Step 5:', 'Payment Date format: DD-MM-YYYY (e.g., 25-12-2025)'],
+    ['Step 6:', 'Payment Status: Use exactly "Fully Paid", "Partially Paid", or "Unpaid"'],
+    ['Step 7:', 'Payment Method: Use exactly "Cash", "UPI", "Bank Transfer", or "Cheque"'],
+    ['Step 8:', 'Book Returned Status: Use exactly "Returned" or "Not Returned"'],
+    ['Step 9:', 'Mobile numbers should be 10 digits (system will auto-format)'],
+    ['Step 10:', 'Save as .xlsx and upload through the Reports page']
+];
+
+foreach ($instructions as $instruction) {
+    $instructionSheet->setCellValue('A' . $row, $instruction[0]);
+    $instructionSheet->setCellValue('B' . $row, $instruction[1]);
+    $instructionSheet->getStyle('A' . $row)->getFont()->setBold(true);
+    $instructionSheet->getStyle('A' . $row . ':B' . $row)->applyFromArray([
+        'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN]],
+        'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'FFF4CE']]
+    ]);
+    $row++;
+}
+
+$instructionSheet->getColumnDimension('A')->setWidth(20);
+$instructionSheet->getColumnDimension('B')->setWidth(70);
+
+// ===== SHEET 2: Reference Data =====
+$refSheet = $spreadsheet->createSheet();
+$refSheet->setTitle('Reference Data');
+
+$row = 1;
+$refSheet->setCellValue('A' . $row, '📚 REFERENCE DATA - Valid Values');
+$refSheet->mergeCells('A' . $row . ':B' . $row);
+$refSheet->getStyle('A' . $row)->getFont()->setBold(true)->setSize(16);
+$refSheet->getStyle('A' . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+$row += 2;
+
+// Level values
+foreach ($allLevelValues as $levelName => $values) {
+    $refSheet->setCellValue('A' . $row, $levelName . ' Values');
+    $refSheet->mergeCells('A' . $row . ':B' . $row);
+    $refSheet->getStyle('A' . $row)->applyFromArray([
+        'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
+        'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => '4472C4']],
+        'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
+        'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN]]
+    ]);
+    $row++;
+
+    foreach ($values as $value) {
+        $refSheet->setCellValue('A' . $row, $value['value_name']);
+        $refSheet->setCellValue('B' . $row, $value['parent_value_id'] ? 'Parent Required' : 'Root Level');
+        $refSheet->getStyle('A' . $row . ':B' . $row)->applyFromArray([
+            'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN]]
+        ]);
+        $row++;
+    }
+    $row++;
+}
+
+// Payment Status Values
+$statusData = [
+    ['Payment Status Values', ''],
+    ['Fully Paid', 'Book amount completely paid'],
+    ['Partially Paid', 'Some amount paid, balance remaining'],
+    ['Unpaid', 'No payment received'],
+    ['', ''],
+    ['Payment Method Values', ''],
+    ['Cash', 'Cash payment'],
+    ['UPI', 'UPI/Digital payment'],
+    ['Bank Transfer', 'Bank transfer/NEFT/IMPS'],
+    ['Cheque', 'Cheque payment'],
+    ['', ''],
+    ['Book Return Status Values', ''],
+    ['Returned', 'Book has been returned'],
+    ['Not Returned', 'Book not yet returned']
+];
+
+foreach ($statusData as $data) {
+    if (strpos($data[0], 'Values') !== false && !empty($data[0])) {
+        $refSheet->setCellValue('A' . $row, $data[0]);
+        $refSheet->mergeCells('A' . $row . ':B' . $row);
+        $refSheet->getStyle('A' . $row)->applyFromArray([
+            'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
+            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => '4472C4']],
+            'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
+            'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN]]
+        ]);
+    } elseif (!empty($data[0])) {
+        $refSheet->setCellValue('A' . $row, $data[0]);
+        $refSheet->setCellValue('B' . $row, $data[1]);
+        $refSheet->getStyle('A' . $row . ':B' . $row)->applyFromArray([
+            'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN]]
+        ]);
+    }
+    $row++;
+}
+
+$refSheet->getColumnDimension('A')->setWidth(30);
+$refSheet->getColumnDimension('B')->setWidth(40);
+
+// ===== SHEET 3: Data Sheet =====
+$dataSheet = $spreadsheet->createSheet();
+$dataSheet->setTitle('Data');
+
+// Title
+$row = 1;
+$dataSheet->setCellValue('A' . $row, '📊 LEVEL-WISE REPORT DATA - ' . $event['event_name']);
+$dataSheet->mergeCells('A' . $row . ':' . chr(65 + count($levels) + 7) . $row);
+$dataSheet->getStyle('A' . $row)->getFont()->setBold(true)->setSize(14);
+$dataSheet->getStyle('A' . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+$row++;
+
+// Info
+$dataSheet->setCellValue('A' . $row, 'Event: ' . $event['event_name'] . ' | Type: ' . ($templateType === 'blank' ? 'Blank Template' : 'With Current Data') . ' | Generated: ' . date('d-M-Y h:i A'));
+$dataSheet->mergeCells('A' . $row . ':' . chr(65 + count($levels) + 7) . $row);
+$dataSheet->getStyle('A' . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+$row += 2;
+
+// Headers
+$col = 0;
+$headers = ['Sr No'];
+foreach ($levels as $level) {
+    $headers[] = $level['level_name'];
+}
+$headers = array_merge($headers, [
+    'Member Name',
+    'Mobile Number',
+    'Book Number',
+    'Payment Amount (₹)',
+    'Payment Date',
+    'Payment Status',
+    'Payment Method',
+    'Book Returned Status'
+]);
+
+foreach ($headers as $header) {
+    $cell = chr(65 + $col) . $row;
+    $dataSheet->setCellValue($cell, $header);
+    $dataSheet->getStyle($cell)->applyFromArray([
+        'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF'], 'size' => 11],
+        'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => '4472C4']],
+        'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER],
+        'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN]]
+    ]);
+    $dataSheet->getColumnDimension(chr(65 + $col))->setWidth(15);
+    $col++;
+}
+$row++;
+
+// Data rows
+if ($templateType === 'with_data' && count($members) > 0) {
+    foreach ($members as $index => $member) {
+        $col = 0;
+        $levelValues = [];
+        if (!empty($member['distribution_path'])) {
+            $levelValues = explode(' > ', $member['distribution_path']);
+        }
+
+        // Sr No
+        $dataSheet->setCellValue(chr(65 + $col) . $row, $index + 1);
+        $dataSheet->getStyle(chr(65 + $col) . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+        $col++;
+
+        // Level values
+        for ($i = 0; $i < count($levels); $i++) {
+            $dataSheet->setCellValue(chr(65 + $col) . $row, $levelValues[$i] ?? '');
+            $col++;
+        }
+
+        // Member details
+        $dataSheet->setCellValue(chr(65 + $col) . $row, $member['notes'] ?? ''); $col++;
+        $dataSheet->setCellValue(chr(65 + $col) . $row, $member['mobile_number'] ?? ''); $col++;
+        $dataSheet->setCellValue(chr(65 + $col) . $row, $member['book_number']); $col++;
+        $dataSheet->setCellValue(chr(65 + $col) . $row, $member['total_paid']);
+        $dataSheet->getStyle(chr(65 + $col) . $row)->getNumberFormat()->setFormatCode('#,##0');
+        $col++;
+        $dataSheet->setCellValue(chr(65 + $col) . $row, $member['payment_dates']); $col++;
+        $dataSheet->setCellValue(chr(65 + $col) . $row, $member['payment_status']); $col++;
+        $dataSheet->setCellValue(chr(65 + $col) . $row, $member['payment_methods']); $col++;
+        $dataSheet->setCellValue(chr(65 + $col) . $row, $member['is_returned'] == 1 ? 'Returned' : 'Not Returned');
+
+        // Borders
+        $dataSheet->getStyle('A' . $row . ':' . chr(65 + $col) . $row)->applyFromArray([
+            'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN]]
+        ]);
+
+        $row++;
+    }
+} else {
+    // Blank template with sample row
+    $col = 0;
+
+    // Sample row (highlighted)
+    $dataSheet->setCellValue(chr(65 + $col) . $row, 1); $col++;
+    foreach ($levels as $level) {
+        $sampleValues = $allLevelValues[$level['level_name']] ?? [];
+        $sampleValue = !empty($sampleValues) ? $sampleValues[0]['value_name'] : 'Sample';
+        $dataSheet->setCellValue(chr(65 + $col) . $row, $sampleValue);
+        $col++;
+    }
+    $dataSheet->setCellValue(chr(65 + $col) . $row, 'John Doe'); $col++;
+    $dataSheet->setCellValue(chr(65 + $col) . $row, '9876543210'); $col++;
+    $dataSheet->setCellValue(chr(65 + $col) . $row, 'BK0001'); $col++;
+    $dataSheet->setCellValue(chr(65 + $col) . $row, 1000); $col++;
+    $dataSheet->setCellValue(chr(65 + $col) . $row, '25-12-2025'); $col++;
+    $dataSheet->setCellValue(chr(65 + $col) . $row, 'Fully Paid'); $col++;
+    $dataSheet->setCellValue(chr(65 + $col) . $row, 'Cash'); $col++;
+    $dataSheet->setCellValue(chr(65 + $col) . $row, 'Not Returned');
+
+    $dataSheet->getStyle('A' . $row . ':' . chr(65 + $col) . $row)->applyFromArray([
+        'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'E7F3FF']],
+        'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN]]
+    ]);
+    $row++;
+
+    // 5 empty rows
+    for ($i = 2; $i <= 6; $i++) {
+        $col = 0;
+        $dataSheet->setCellValue(chr(65 + $col) . $row, $i);
+        $totalCols = count($headers);
+        $dataSheet->getStyle('A' . $row . ':' . chr(65 + $totalCols - 1) . $row)->applyFromArray([
+            'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN]]
+        ]);
+        $row++;
+    }
+}
+
+// Set active sheet to Data sheet
+$spreadsheet->setActiveSheetIndex(2);
+
+// Generate filename
+$filename = $templateType === 'blank'
+    ? 'Level_Wise_Template_Blank_' . date('Y-m-d') . '.xlsx'
+    : 'Level_Wise_Template_' . $event['event_name'] . '_' . date('Y-m-d') . '.xlsx';
 $filename = preg_replace('/[^A-Za-z0-9_\-\.]/', '_', $filename);
 
-header('Content-Type: application/vnd.ms-excel');
+// Set headers for download
+header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
 header('Content-Disposition: attachment;filename="' . $filename . '"');
 header('Cache-Control: max-age=0');
 header('Cache-Control: max-age=1');
@@ -123,180 +377,8 @@ header('Last-Modified: ' . gmdate('D, d M Y H:i:s') . ' GMT');
 header('Cache-Control: cache, must-revalidate');
 header('Pragma: public');
 
-// Start HTML (simplified, without XML declaration that causes issues)
-?>
-<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
-<head>
-    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <meta name="ProgId" content="Excel.Sheet">
-    <!--[if gte mso 9]><xml>
-        <x:ExcelWorkbook>
-            <x:ExcelWorksheets>
-                <x:ExcelWorksheet>
-                    <x:Name>Level Wise Report</x:Name>
-                    <x:WorksheetOptions>
-                        <x:DisplayGridlines/>
-                    </x:WorksheetOptions>
-                </x:ExcelWorksheet>
-            </x:ExcelWorksheets>
-        </x:ExcelWorkbook>
-    </xml><![endif]-->
-    <style>
-        table { border-collapse: collapse; }
-        th { background-color: #4472C4; color: white; font-weight: bold; padding: 10px; border: 1px solid #000; text-align: center; }
-        td { padding: 8px; border: 1px solid #000; }
-        .header-row { background-color: #4472C4; color: white; font-weight: bold; }
-        .instruction { background-color: #FFF4CE; color: #856404; font-weight: bold; }
-        .center { text-align: center; }
-        .sample { background-color: #E7F3FF; }
-    </style>
-</head>
-<body>
-<?php
-
-// Instructions Sheet
-echo '<h2>📋 INSTRUCTIONS - READ BEFORE EDITING</h2>';
-echo '<table border="1" style="width: 100%; margin-bottom: 20px;">';
-echo '<tr class="instruction"><td colspan="2">IMPORTANT: Follow this format exactly for upload to work correctly</td></tr>';
-echo '<tr><td width="30%"><strong>Step 1:</strong></td><td>Do NOT modify column headers or their order</td></tr>';
-echo '<tr><td><strong>Step 2:</strong></td><td>Fill distribution levels exactly as shown in the Reference Data sheet</td></tr>';
-echo '<tr><td><strong>Step 3:</strong></td><td>Book Number must match existing books in the system</td></tr>';
-echo '<tr><td><strong>Step 4:</strong></td><td>Payment Amount should be the TOTAL paid (system will calculate outstanding)</td></tr>';
-echo '<tr><td><strong>Step 5:</strong></td><td>Payment Date format: DD-MM-YYYY (e.g., 25-12-2025)</td></tr>';
-echo '<tr><td><strong>Step 6:</strong></td><td>Payment Status: Use exactly "Fully Paid", "Partially Paid", or "Unpaid"</td></tr>';
-echo '<tr><td><strong>Step 7:</strong></td><td>Payment Method: Use exactly "Cash", "UPI", "Bank Transfer", or "Cheque"</td></tr>';
-echo '<tr><td><strong>Step 8:</strong></td><td>Book Returned Status: Use exactly "Returned" or "Not Returned"</td></tr>';
-echo '<tr><td><strong>Step 9:</strong></td><td>Mobile numbers should be 10 digits (system will auto-format)</td></tr>';
-echo '<tr><td><strong>Step 10:</strong></td><td>Save as .xls or .xlsx and upload through the Reports page</td></tr>';
-echo '</table>';
-
-// Reference Data Sheet
-echo '<h2>📚 REFERENCE DATA - Valid Values</h2>';
-echo '<table border="1" style="margin-bottom: 30px;">';
-
-foreach ($allLevelValues as $levelName => $values) {
-    echo '<tr class="header-row"><td colspan="2">' . htmlspecialchars($levelName) . ' Values</td></tr>';
-    foreach ($values as $value) {
-        echo '<tr><td width="50%">' . htmlspecialchars($value['value_name']) . '</td>';
-        echo '<td>' . ($value['parent_value_id'] ? 'Parent Required' : 'Root Level') . '</td></tr>';
-    }
-}
-
-echo '<tr class="header-row"><td colspan="2">Payment Status Values</td></tr>';
-echo '<tr><td>Fully Paid</td><td>Book amount completely paid</td></tr>';
-echo '<tr><td>Partially Paid</td><td>Some amount paid, balance remaining</td></tr>';
-echo '<tr><td>Unpaid</td><td>No payment received</td></tr>';
-
-echo '<tr class="header-row"><td colspan="2">Payment Method Values</td></tr>';
-echo '<tr><td>Cash</td><td>Cash payment</td></tr>';
-echo '<tr><td>UPI</td><td>UPI/Digital payment</td></tr>';
-echo '<tr><td>Bank Transfer</td><td>Bank transfer/NEFT/IMPS</td></tr>';
-echo '<tr><td>Cheque</td><td>Cheque payment</td></tr>';
-
-echo '<tr class="header-row"><td colspan="2">Book Return Status Values</td></tr>';
-echo '<tr><td>Returned</td><td>Book has been returned</td></tr>';
-echo '<tr><td>Not Returned</td><td>Book not yet returned</td></tr>';
-
-echo '</table>';
-
-// Main Data Sheet
-echo '<h2>📊 LEVEL-WISE REPORT DATA - ' . htmlspecialchars($event['event_name']) . '</h2>';
-echo '<p><strong>Event:</strong> ' . htmlspecialchars($event['event_name']) . ' | ';
-echo '<strong>Template Type:</strong> ' . ($templateType === 'blank' ? 'Blank Template' : 'With Current Data') . ' | ';
-echo '<strong>Generated:</strong> ' . date('d-M-Y h:i A') . '</p>';
-
-echo '<table border="1">';
-echo '<thead>';
-echo '<tr class="header-row">';
-echo '<th>Sr No</th>';
-
-// Dynamic level headers
-foreach ($levels as $level) {
-    echo '<th>' . htmlspecialchars($level['level_name']) . '</th>';
-}
-
-echo '<th>Member Name</th>';
-echo '<th>Mobile Number</th>';
-echo '<th>Book Number</th>';
-echo '<th>Payment Amount (₹)</th>';
-echo '<th>Payment Date</th>';
-echo '<th>Payment Status</th>';
-echo '<th>Payment Method</th>';
-echo '<th>Book Returned Status</th>';
-echo '</tr>';
-echo '</thead>';
-echo '<tbody>';
-
-if ($templateType === 'with_data' && count($members) > 0) {
-    // Export existing data
-    foreach ($members as $index => $member) {
-        $levelValues = [];
-        if (!empty($member['distribution_path'])) {
-            $levelValues = explode(' > ', $member['distribution_path']);
-        }
-
-        echo '<tr>';
-        echo '<td class="center">' . ($index + 1) . '</td>';
-
-        // Level values
-        for ($i = 0; $i < count($levels); $i++) {
-            echo '<td>' . htmlspecialchars($levelValues[$i] ?? '') . '</td>';
-        }
-
-        echo '<td>' . htmlspecialchars($member['notes'] ?? '') . '</td>';
-        echo '<td>' . htmlspecialchars($member['mobile_number'] ?? '') . '</td>';
-        echo '<td class="center">' . htmlspecialchars($member['book_number']) . '</td>';
-        echo '<td class="center">' . number_format($member['total_paid'], 0) . '</td>';
-        echo '<td class="center">' . htmlspecialchars($member['payment_dates']) . '</td>';
-        echo '<td class="center">' . htmlspecialchars($member['payment_status']) . '</td>';
-        echo '<td class="center">' . htmlspecialchars($member['payment_methods']) . '</td>';
-        echo '<td class="center">' . ($member['is_returned'] == 1 ? 'Returned' : 'Not Returned') . '</td>';
-        echo '</tr>';
-    }
-} else {
-    // Blank template with sample row
-    echo '<tr class="sample">';
-    echo '<td class="center">1</td>';
-
-    // Sample level values
-    foreach ($levels as $index => $level) {
-        $sampleValues = $allLevelValues[$level['level_name']] ?? [];
-        $sampleValue = !empty($sampleValues) ? $sampleValues[0]['value_name'] : 'Sample';
-        echo '<td>' . htmlspecialchars($sampleValue) . '</td>';
-    }
-
-    echo '<td>John Doe</td>';
-    echo '<td>9876543210</td>';
-    echo '<td>BK0001</td>';
-    echo '<td>1000</td>';
-    echo '<td>25-12-2025</td>';
-    echo '<td>Fully Paid</td>';
-    echo '<td>Cash</td>';
-    echo '<td>Not Returned</td>';
-    echo '</tr>';
-
-    // Add 5 empty rows
-    for ($i = 2; $i <= 6; $i++) {
-        echo '<tr>';
-        echo '<td class="center">' . $i . '</td>';
-        foreach ($levels as $level) {
-            echo '<td></td>';
-        }
-        echo '<td></td>'; // Member name
-        echo '<td></td>'; // Mobile
-        echo '<td></td>'; // Book number
-        echo '<td></td>'; // Payment amount
-        echo '<td></td>'; // Payment date
-        echo '<td></td>'; // Payment status
-        echo '<td></td>'; // Payment method
-        echo '<td></td>'; // Return status
-        echo '</tr>';
-    }
-}
-
-echo '</tbody>';
-echo '</table>';
-
-echo '</body></html>';
+// Write file
+$writer = new Xlsx($spreadsheet);
+$writer->save('php://output');
 exit;
 ?>

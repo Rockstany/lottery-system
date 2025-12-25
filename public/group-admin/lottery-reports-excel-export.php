@@ -1,10 +1,19 @@
 <?php
 /**
- * Level-Wise Report Excel Export
- * Exports detailed book distribution with payment information
+ * Level-Wise Report Excel Export (XLSX Format)
+ * Exports detailed book distribution with payment information using PHPSpreadsheet
  */
 
 require_once __DIR__ . '/../../config/config.php';
+require_once __DIR__ . '/../../vendor/autoload.php';
+
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Style\Border;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
+use PhpOffice\PhpSpreadsheet\Style\NumberFormat;
+
 AuthMiddleware::requireRole('group_admin');
 
 $eventId = Validator::sanitizeInt($_GET['id'] ?? 0);
@@ -82,89 +91,73 @@ foreach ($members as $member) {
     $memberPayments[$member['distribution_id']] = $payments;
 }
 
-// Set headers for Excel download
-$filename = 'Level_Wise_Report_' . $event['event_name'] . '_' . date('Y-m-d') . '.xls';
-// Clean filename - remove special characters that might cause issues
-$filename = preg_replace('/[^A-Za-z0-9_\-\.]/', '_', $filename);
+// Create new Spreadsheet
+$spreadsheet = new Spreadsheet();
+$sheet = $spreadsheet->getActiveSheet();
+$sheet->setTitle('Level Wise Report');
 
-header('Content-Type: application/vnd.ms-excel');
-header('Content-Disposition: attachment;filename="' . $filename . '"');
-header('Cache-Control: max-age=0');
-header('Cache-Control: max-age=1');
-header('Expires: Mon, 26 Jul 1997 05:00:00 GMT');
-header('Last-Modified: ' . gmdate('D, d M Y H:i:s') . ' GMT');
-header('Cache-Control: cache, must-revalidate');
-header('Pragma: public');
+// Set page orientation to landscape
+$sheet->getPageSetup()->setOrientation(\PhpOffice\PhpSpreadsheet\Worksheet\PageSetup::ORIENTATION_LANDSCAPE);
+$sheet->getPageSetup()->setPaperSize(\PhpOffice\PhpSpreadsheet\Worksheet\PageSetup::PAPERSIZE_A4);
 
-// Start HTML (simplified, without XML declaration that causes issues)
-?>
-<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
-<head>
-    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <meta name="ProgId" content="Excel.Sheet">
-    <!--[if gte mso 9]><xml>
-        <x:ExcelWorkbook>
-            <x:ExcelWorksheets>
-                <x:ExcelWorksheet>
-                    <x:Name>Level Wise Report</x:Name>
-                    <x:WorksheetOptions>
-                        <x:DisplayGridlines/>
-                    </x:WorksheetOptions>
-                </x:ExcelWorksheet>
-            </x:ExcelWorksheets>
-        </x:ExcelWorkbook>
-    </xml><![endif]-->
-    <style>
-        table { border-collapse: collapse; width: 100%; }
-        th { background-color: #4472C4; color: white; font-weight: bold; padding: 10px; border: 1px solid #000; }
-        td { padding: 8px; border: 1px solid #000; }
-        .header-row { background-color: #4472C4; color: white; font-weight: bold; }
-        .paid { background-color: #C6EFCE; color: #006100; }
-        .partial { background-color: #FFEB9C; color: #9C6500; }
-        .unpaid { background-color: #FFC7CE; color: #9C0006; }
-        .returned { background-color: #C6EFCE; color: #006100; }
-        .not-returned { background-color: #FFEB9C; color: #9C6500; }
-        .center { text-align: center; }
-        .right { text-align: right; }
-    </style>
-</head>
-<body>
-<?php
+// Title row
+$sheet->setCellValue('A1', 'Level-Wise Lottery Report: ' . $event['event_name']);
+$sheet->mergeCells('A1:' . chr(65 + count($levels) + 11) . '1');
+$sheet->getStyle('A1')->getFont()->setBold(true)->setSize(16);
+$sheet->getStyle('A1')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
 
-echo '<h2>Level-Wise Lottery Report: ' . htmlspecialchars($event['event_name']) . '</h2>';
-echo '<p>Generated on: ' . date('d-M-Y h:i A') . '</p>';
-echo '<br>';
+// Date row
+$sheet->setCellValue('A2', 'Generated on: ' . date('d-M-Y h:i A'));
+$sheet->mergeCells('A2:' . chr(65 + count($levels) + 11) . '2');
+$sheet->getStyle('A2')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
 
-// Main table
-echo '<table border="1">';
-echo '<thead>';
-echo '<tr class="header-row">';
-echo '<th>Sr. No.</th>';
+// Header row (row 4)
+$row = 4;
+$col = 0;
 
-// Dynamic level headers
+// Define headers
+$headers = ['Sr. No.'];
 foreach ($levels as $level) {
-    echo '<th>' . htmlspecialchars($level['level_name']) . '</th>';
+    $headers[] = $level['level_name'];
+}
+$headers = array_merge($headers, [
+    'Member Name',
+    'Mobile Number',
+    'Book Number',
+    'Ticket Range',
+    'Expected Amount (₹)',
+    'Total Paid (₹)',
+    'Outstanding (₹)',
+    'Payment Status',
+    'Payment Date(s)',
+    'Payment Method(s)',
+    'Book Returned Status',
+    'Distribution Date'
+]);
+
+// Write headers
+foreach ($headers as $header) {
+    $cell = chr(65 + $col) . $row;
+    $sheet->setCellValue($cell, $header);
+
+    // Style header
+    $sheet->getStyle($cell)->applyFromArray([
+        'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF'], 'size' => 11],
+        'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => '4472C4']],
+        'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER],
+        'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN]]
+    ]);
+
+    // Set column width
+    $sheet->getColumnDimension(chr(65 + $col))->setWidth(15);
+    $col++;
 }
 
-echo '<th>Member Name</th>';
-echo '<th>Mobile Number</th>';
-echo '<th>Book Number</th>';
-echo '<th>Ticket Range</th>';
-echo '<th>Expected Amount (₹)</th>';
-echo '<th>Total Paid (₹)</th>';
-echo '<th>Outstanding (₹)</th>';
-echo '<th>Payment Status</th>';
-echo '<th>Payment Date(s)</th>';
-echo '<th>Payment Method(s)</th>';
-echo '<th>Book Returned Status</th>';
-echo '<th>Distribution Date</th>';
-echo '</tr>';
-echo '</thead>';
-echo '<tbody>';
-
+// Data rows
 $totalExpected = 0;
 $totalPaid = 0;
 $totalOutstanding = 0;
+$dataRow = 5;
 
 foreach ($members as $index => $member) {
     $totalExpected += $member['expected_amount'];
@@ -190,73 +183,150 @@ foreach ($members as $index => $member) {
     $paymentDateStr = !empty($paymentDates) ? implode(', ', $paymentDates) : 'N/A';
     $paymentMethodStr = !empty($paymentMethods) ? implode(', ', $paymentMethods) : 'N/A';
 
-    // Determine cell classes
-    $statusClass = '';
-    if ($member['payment_status'] === 'Fully Paid') {
-        $statusClass = 'paid';
-    } elseif ($member['payment_status'] === 'Partially Paid') {
-        $statusClass = 'partial';
-    } else {
-        $statusClass = 'unpaid';
-    }
+    // Write data
+    $col = 0;
 
-    $returnClass = $member['is_returned'] == 1 ? 'returned' : 'not-returned';
+    // Sr No
+    $sheet->setCellValue(chr(65 + $col) . $dataRow, $index + 1);
+    $sheet->getStyle(chr(65 + $col) . $dataRow)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+    $col++;
 
-    echo '<tr>';
-    echo '<td class="center">' . ($index + 1) . '</td>';
-
-    // Display level values
+    // Level values
     for ($i = 0; $i < count($levels); $i++) {
-        echo '<td>' . htmlspecialchars($levelValues[$i] ?? '-') . '</td>';
+        $sheet->setCellValue(chr(65 + $col) . $dataRow, $levelValues[$i] ?? '-');
+        $col++;
     }
 
-    echo '<td>' . htmlspecialchars($member['notes'] ?? '-') . '</td>';
-    echo '<td>' . htmlspecialchars($member['mobile_number'] ?? '-') . '</td>';
-    echo '<td class="center">' . htmlspecialchars($member['book_number']) . '</td>';
-    echo '<td class="center">' . $member['start_ticket_number'] . ' - ' . $member['end_ticket_number'] . '</td>';
-    echo '<td class="right">' . number_format($member['expected_amount'], 0) . '</td>';
-    echo '<td class="right">' . number_format($member['total_paid'], 0) . '</td>';
-    echo '<td class="right">' . number_format($member['outstanding'], 0) . '</td>';
-    echo '<td class="center ' . $statusClass . '">' . $member['payment_status'] . '</td>';
-    echo '<td>' . htmlspecialchars($paymentDateStr) . '</td>';
-    echo '<td>' . htmlspecialchars($paymentMethodStr) . '</td>';
-    echo '<td class="center ' . $returnClass . '">' . ($member['is_returned'] == 1 ? 'Returned' : 'Not Returned') . '</td>';
-    echo '<td class="center">' . date('d-M-Y', strtotime($member['distributed_at'])) . '</td>';
-    echo '</tr>';
+    // Member details
+    $sheet->setCellValue(chr(65 + $col) . $dataRow, $member['notes'] ?? '-'); $col++;
+    $sheet->setCellValue(chr(65 + $col) . $dataRow, $member['mobile_number'] ?? '-'); $col++;
+    $sheet->setCellValue(chr(65 + $col) . $dataRow, $member['book_number']);
+    $sheet->getStyle(chr(65 + $col) . $dataRow)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+    $col++;
+
+    $sheet->setCellValue(chr(65 + $col) . $dataRow, $member['start_ticket_number'] . ' - ' . $member['end_ticket_number']);
+    $sheet->getStyle(chr(65 + $col) . $dataRow)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+    $col++;
+
+    // Amounts
+    $sheet->setCellValue(chr(65 + $col) . $dataRow, $member['expected_amount']);
+    $sheet->getStyle(chr(65 + $col) . $dataRow)->getNumberFormat()->setFormatCode('#,##0');
+    $sheet->getStyle(chr(65 + $col) . $dataRow)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+    $col++;
+
+    $sheet->setCellValue(chr(65 + $col) . $dataRow, $member['total_paid']);
+    $sheet->getStyle(chr(65 + $col) . $dataRow)->getNumberFormat()->setFormatCode('#,##0');
+    $sheet->getStyle(chr(65 + $col) . $dataRow)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+    $col++;
+
+    $sheet->setCellValue(chr(65 + $col) . $dataRow, $member['outstanding']);
+    $sheet->getStyle(chr(65 + $col) . $dataRow)->getNumberFormat()->setFormatCode('#,##0');
+    $sheet->getStyle(chr(65 + $col) . $dataRow)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+    $col++;
+
+    // Payment status with color coding
+    $statusCell = chr(65 + $col) . $dataRow;
+    $sheet->setCellValue($statusCell, $member['payment_status']);
+    $sheet->getStyle($statusCell)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+
+    if ($member['payment_status'] === 'Fully Paid') {
+        $sheet->getStyle($statusCell)->applyFromArray([
+            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'C6EFCE']],
+            'font' => ['color' => ['rgb' => '006100']]
+        ]);
+    } elseif ($member['payment_status'] === 'Partially Paid') {
+        $sheet->getStyle($statusCell)->applyFromArray([
+            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'FFEB9C']],
+            'font' => ['color' => ['rgb' => '9C6500']]
+        ]);
+    } else {
+        $sheet->getStyle($statusCell)->applyFromArray([
+            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'FFC7CE']],
+            'font' => ['color' => ['rgb' => '9C0006']]
+        ]);
+    }
+    $col++;
+
+    // Payment details
+    $sheet->setCellValue(chr(65 + $col) . $dataRow, $paymentDateStr); $col++;
+    $sheet->setCellValue(chr(65 + $col) . $dataRow, $paymentMethodStr); $col++;
+
+    // Return status with color coding
+    $returnCell = chr(65 + $col) . $dataRow;
+    $returnStatus = $member['is_returned'] == 1 ? 'Returned' : 'Not Returned';
+    $sheet->setCellValue($returnCell, $returnStatus);
+    $sheet->getStyle($returnCell)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+
+    if ($member['is_returned'] == 1) {
+        $sheet->getStyle($returnCell)->applyFromArray([
+            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'C6EFCE']],
+            'font' => ['color' => ['rgb' => '006100']]
+        ]);
+    } else {
+        $sheet->getStyle($returnCell)->applyFromArray([
+            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'FFEB9C']],
+            'font' => ['color' => ['rgb' => '9C6500']]
+        ]);
+    }
+    $col++;
+
+    // Distribution date
+    $sheet->setCellValue(chr(65 + $col) . $dataRow, date('d-M-Y', strtotime($member['distributed_at'])));
+    $sheet->getStyle(chr(65 + $col) . $dataRow)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+
+    // Apply borders to entire row
+    $sheet->getStyle('A' . $dataRow . ':' . chr(65 + $col) . $dataRow)->applyFromArray([
+        'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN]]
+    ]);
+
+    $dataRow++;
 }
 
 // Total row
-echo '<tr style="background-color: #f0f0f0; font-weight: bold;">';
-echo '<td colspan="' . (count($levels) + 4) . '" class="right">TOTAL:</td>';
-echo '<td class="right">' . number_format($totalExpected, 0) . '</td>';
-echo '<td class="right">' . number_format($totalPaid, 0) . '</td>';
-echo '<td class="right">' . number_format($totalOutstanding, 0) . '</td>';
-echo '<td colspan="5"></td>';
-echo '</tr>';
+$totalRow = $dataRow;
+$totalLabelCol = count($levels) + 4; // After Sr No + Levels + Member Name + Mobile + Book Number
+$sheet->setCellValue(chr(65 + $totalLabelCol) . $totalRow, 'TOTAL:');
+$sheet->getStyle(chr(65 + $totalLabelCol) . $totalRow)->getFont()->setBold(true);
+$sheet->getStyle(chr(65 + $totalLabelCol) . $totalRow)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
 
-echo '</tbody>';
-echo '</table>';
+$totalAmountCol = $totalLabelCol + 1;
+$sheet->setCellValue(chr(65 + $totalAmountCol) . $totalRow, $totalExpected);
+$sheet->getStyle(chr(65 + $totalAmountCol) . $totalRow)->getFont()->setBold(true);
+$sheet->getStyle(chr(65 + $totalAmountCol) . $totalRow)->getNumberFormat()->setFormatCode('#,##0');
+$sheet->getStyle(chr(65 + $totalAmountCol) . $totalRow)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+
+$sheet->setCellValue(chr(65 + $totalAmountCol + 1) . $totalRow, $totalPaid);
+$sheet->getStyle(chr(65 + $totalAmountCol + 1) . $totalRow)->getFont()->setBold(true);
+$sheet->getStyle(chr(65 + $totalAmountCol + 1) . $totalRow)->getNumberFormat()->setFormatCode('#,##0');
+$sheet->getStyle(chr(65 + $totalAmountCol + 1) . $totalRow)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+
+$sheet->setCellValue(chr(65 + $totalAmountCol + 2) . $totalRow, $totalOutstanding);
+$sheet->getStyle(chr(65 + $totalAmountCol + 2) . $totalRow)->getFont()->setBold(true);
+$sheet->getStyle(chr(65 + $totalAmountCol + 2) . $totalRow)->getNumberFormat()->setFormatCode('#,##0');
+$sheet->getStyle(chr(65 + $totalAmountCol + 2) . $totalRow)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+
+$sheet->getStyle('A' . $totalRow . ':' . chr(65 + count($headers) - 1) . $totalRow)->applyFromArray([
+    'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'F0F0F0']],
+    'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN]]
+]);
 
 // Summary section
-echo '<br><br>';
-echo '<h3>Summary</h3>';
-echo '<table border="1" style="width: 50%;">';
-echo '<tr><td><strong>Event Name:</strong></td><td>' . htmlspecialchars($event['event_name']) . '</td></tr>';
-echo '<tr><td><strong>Total Books Distributed:</strong></td><td>' . count($members) . '</td></tr>';
-echo '<tr><td><strong>Total Expected Amount:</strong></td><td>₹' . number_format($totalExpected, 0) . '</td></tr>';
-echo '<tr><td><strong>Total Collected:</strong></td><td>₹' . number_format($totalPaid, 0) . '</td></tr>';
-echo '<tr><td><strong>Total Outstanding:</strong></td><td>₹' . number_format($totalOutstanding, 0) . '</td></tr>';
+$summaryRow = $totalRow + 3;
+$sheet->setCellValue('A' . $summaryRow, 'Summary');
+$sheet->getStyle('A' . $summaryRow)->getFont()->setBold(true)->setSize(14);
 
-$collectionPercent = $totalExpected > 0 ? ($totalPaid / $totalExpected) * 100 : 0;
-echo '<tr><td><strong>Collection %:</strong></td><td>' . number_format($collectionPercent, 2) . '%</td></tr>';
+$summaryRow++;
+$summaryData = [
+    ['Event Name:', $event['event_name']],
+    ['Total Books Distributed:', count($members)],
+    ['Total Expected Amount:', '₹' . number_format($totalExpected, 0)],
+    ['Total Collected:', '₹' . number_format($totalPaid, 0)],
+    ['Total Outstanding:', '₹' . number_format($totalOutstanding, 0)],
+    ['Collection %:', number_format($totalExpected > 0 ? ($totalPaid / $totalExpected) * 100 : 0, 2) . '%']
+];
 
-// Count payment statuses
-$paidCount = 0;
-$partialCount = 0;
-$unpaidCount = 0;
-$returnedCount = 0;
-$notReturnedCount = 0;
-
+// Count statuses
+$paidCount = $partialCount = $unpaidCount = $returnedCount = $notReturnedCount = 0;
 foreach ($members as $member) {
     if ($member['payment_status'] === 'Fully Paid') $paidCount++;
     elseif ($member['payment_status'] === 'Partially Paid') $partialCount++;
@@ -266,13 +336,43 @@ foreach ($members as $member) {
     else $notReturnedCount++;
 }
 
-echo '<tr><td><strong>Fully Paid:</strong></td><td>' . $paidCount . '</td></tr>';
-echo '<tr><td><strong>Partially Paid:</strong></td><td>' . $partialCount . '</td></tr>';
-echo '<tr><td><strong>Unpaid:</strong></td><td>' . $unpaidCount . '</td></tr>';
-echo '<tr><td><strong>Books Returned:</strong></td><td>' . $returnedCount . '</td></tr>';
-echo '<tr><td><strong>Books Not Returned:</strong></td><td>' . $notReturnedCount . '</td></tr>';
-echo '</table>';
+$summaryData[] = ['Fully Paid:', $paidCount];
+$summaryData[] = ['Partially Paid:', $partialCount];
+$summaryData[] = ['Unpaid:', $unpaidCount];
+$summaryData[] = ['Books Returned:', $returnedCount];
+$summaryData[] = ['Books Not Returned:', $notReturnedCount];
 
-echo '</body></html>';
+foreach ($summaryData as $data) {
+    $sheet->setCellValue('A' . $summaryRow, $data[0]);
+    $sheet->setCellValue('B' . $summaryRow, $data[1]);
+    $sheet->getStyle('A' . $summaryRow)->getFont()->setBold(true);
+    $sheet->getStyle('A' . $summaryRow . ':B' . $summaryRow)->applyFromArray([
+        'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN]]
+    ]);
+    $summaryRow++;
+}
+
+// Auto-size columns
+foreach (range('A', chr(65 + count($headers) - 1)) as $col) {
+    $sheet->getColumnDimension($col)->setAutoSize(true);
+}
+
+// Generate filename
+$filename = 'Level_Wise_Report_' . $event['event_name'] . '_' . date('Y-m-d') . '.xlsx';
+$filename = preg_replace('/[^A-Za-z0-9_\-\.]/', '_', $filename);
+
+// Set headers for download
+header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+header('Content-Disposition: attachment;filename="' . $filename . '"');
+header('Cache-Control: max-age=0');
+header('Cache-Control: max-age=1');
+header('Expires: Mon, 26 Jul 1997 05:00:00 GMT');
+header('Last-Modified: ' . gmdate('D, d M Y H:i:s') . ' GMT');
+header('Cache-Control: cache, must-revalidate');
+header('Pragma: public');
+
+// Write file
+$writer = new Xlsx($spreadsheet);
+$writer->save('php://output');
 exit;
 ?>

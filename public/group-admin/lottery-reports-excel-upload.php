@@ -1,10 +1,15 @@
 <?php
 /**
- * Excel Upload Processor for Level-Wise Report
- * Processes uploaded Excel files and updates the database
+ * Excel Upload Processor for Level-Wise Report (XLSX Format)
+ * Processes uploaded Excel files and updates the database using PHPSpreadsheet
  */
 
 require_once __DIR__ . '/../../config/config.php';
+require_once __DIR__ . '/../../vendor/autoload.php';
+
+use PhpOffice\PhpSpreadsheet\IOFactory;
+use PhpOffice\PhpSpreadsheet\Shared\Date;
+
 AuthMiddleware::requireRole('group_admin');
 
 $eventId = Validator::sanitizeInt($_POST['event_id'] ?? 0);
@@ -48,37 +53,22 @@ if (!in_array($fileExtension, $allowedExtensions)) {
     exit;
 }
 
-// Since we're using HTML-format Excel files, parse as HTML
 try {
-    // Read the uploaded file content
-    $fileContent = file_get_contents($file['tmp_name']);
+    // Load the Excel file
+    $spreadsheet = IOFactory::load($file['tmp_name']);
 
-    // Load HTML into DOMDocument
-    $dom = new DOMDocument();
-    @$dom->loadHTML($fileContent, LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
-
-    // Find the main data table (skip instructions and reference tables)
-    $tables = $dom->getElementsByTagName('table');
-    $dataTable = null;
-
-    // The main data table is usually the last table or has specific headers
-    foreach ($tables as $table) {
-        $rows = $table->getElementsByTagName('tr');
-        if ($rows->length > 0) {
-            $firstRow = $rows->item(0);
-            $cells = $firstRow->getElementsByTagName('th');
-            // Check if this table has "Book Number" header
-            foreach ($cells as $cell) {
-                if (stripos($cell->textContent, 'Book Number') !== false) {
-                    $dataTable = $table;
-                    break 2;
-                }
-            }
+    // Find the "Data" worksheet (it's the 3rd sheet in our template)
+    $dataSheet = null;
+    foreach ($spreadsheet->getAllSheets() as $sheet) {
+        if ($sheet->getTitle() === 'Data') {
+            $dataSheet = $sheet;
+            break;
         }
     }
 
-    if (!$dataTable) {
-        throw new Exception("Could not find data table in Excel file. Please use the correct template format.");
+    // If "Data" sheet not found, use the last sheet (backward compatibility)
+    if (!$dataSheet) {
+        $dataSheet = $spreadsheet->getSheet($spreadsheet->getSheetCount() - 1);
     }
 
     // Get distribution levels for this event
@@ -89,7 +79,12 @@ try {
     $levels = $stmt->fetchAll();
     $levelCount = count($levels);
 
-    // Expected column positions (after level columns)
+    // Column positions (1-indexed in PHPSpreadsheet, but we'll use 0-indexed for array access)
+    // Column A (0) = Sr No
+    // Columns B onwards (1+) = Levels
+    // Then: Member Name, Mobile, Book Number, Payment Amount, Payment Date, Payment Status, Payment Method, Return Status
+    $srNoCol = 0;
+    $firstLevelCol = 1;
     $memberNameCol = $levelCount + 1;
     $mobileCol = $levelCount + 2;
     $bookNumberCol = $levelCount + 3;
@@ -104,69 +99,90 @@ try {
     $errors = [];
     $updates = [];
 
-    // Debug info
-    $updates[] = "🔍 DEBUG: Found data table. Level count: $levelCount";
-    $updates[] = "🔍 DEBUG: Expected Book Number at column index: $bookNumberCol";
-
     // Begin transaction
     $db->beginTransaction();
 
-    // Get all rows from the data table
-    $rows = $dataTable->getElementsByTagName('tr');
-    $totalRows = $rows->length;
-    $updates[] = "🔍 DEBUG: Total rows in table: $totalRows";
+    // Get the highest row number
+    $highestRow = $dataSheet->getHighestRow();
 
-    $rowNumber = 1; // For error messages
-    $headerSkipped = false;
+    // Find the header row (looking for "Sr No" or "Book Number")
+    $headerRow = 0;
+    for ($row = 1; $row <= min($highestRow, 10); $row++) {
+        $cellValue = $dataSheet->getCellByColumnAndRow(1, $row)->getValue();
+        if (stripos($cellValue, 'Sr No') !== false || stripos($cellValue, 'Book Number') !== false) {
+            $headerRow = $row;
+            break;
+        }
+    }
 
-    foreach ($rows as $tr) {
-        $cells = $tr->getElementsByTagName('td');
+    if ($headerRow === 0) {
+        throw new Exception("Could not find header row in Excel file. Please use the correct template format.");
+    }
 
-        // Skip header row (has th elements instead of td)
-        if ($cells->length === 0) {
-            $rowNumber++;
+    $updates[] = "📊 Processing Excel file with $levelCount distribution levels";
+    $updates[] = "🔍 Found header at row $headerRow, processing " . ($highestRow - $headerRow) . " data rows";
+
+    // Process data rows (start from row after header)
+    for ($row = $headerRow + 1; $row <= $highestRow; $row++) {
+        // Get all cell values for this row
+        $rowData = [];
+        for ($col = 0; $col <= $returnStatusCol; $col++) {
+            $cellValue = $dataSheet->getCellByColumnAndRow($col + 1, $row)->getValue(); // +1 because PHPSpreadsheet columns are 1-indexed
+            $rowData[$col] = trim((string)$cellValue);
+        }
+
+        // Skip empty rows (no book number)
+        $bookNumber = $rowData[$bookNumberCol] ?? '';
+        if (empty($bookNumber)) {
             continue;
         }
 
-        // Skip the first data row only if it looks like a header (all uppercase or "Sr No")
-        if (!$headerSkipped) {
-            $firstCell = trim($cells->item(0)->textContent ?? '');
-            if (strtoupper($firstCell) === 'SR NO' || strtoupper($firstCell) === '1') {
-                $headerSkipped = true;
-                // Only skip if it's actually a header row
-                if (strtoupper($firstCell) === 'SR NO') {
-                    $rowNumber++;
-                    continue;
+        // Get payment data
+        $paymentAmount = $rowData[$paymentAmountCol] ?? 0;
+        $paymentDateRaw = $rowData[$paymentDateCol] ?? '';
+        $paymentStatus = $rowData[$paymentStatusCol] ?? '';
+        $paymentMethod = strtolower($rowData[$paymentMethodCol] ?? 'cash');
+        $returnStatus = $rowData[$returnStatusCol] ?? '';
+
+        // Parse payment amount (remove commas and currency symbols)
+        $paymentAmount = (float) preg_replace('/[^\d.]/', '', $paymentAmount);
+
+        // Parse payment date
+        $paymentDate = null;
+        if (!empty($paymentDateRaw)) {
+            // Try to parse Excel date serial number
+            if (is_numeric($paymentDateRaw) && $paymentDateRaw > 25569) { // Excel epoch starts at 1900-01-01
+                try {
+                    $dateTime = Date::excelToDateTimeObject($paymentDateRaw);
+                    $paymentDate = $dateTime->format('Y-m-d');
+                } catch (Exception $e) {
+                    // Not an Excel date, try text parsing
                 }
             }
-            $headerSkipped = true;
+
+            // If not Excel date, try parsing as text (DD-MM-YYYY or DD/MM/YYYY)
+            if (!$paymentDate) {
+                $paymentDateRaw = trim($paymentDateRaw);
+                // Handle DD-MM-YYYY or DD/MM/YYYY format
+                if (preg_match('/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/', $paymentDateRaw, $matches)) {
+                    $day = str_pad($matches[1], 2, '0', STR_PAD_LEFT);
+                    $month = str_pad($matches[2], 2, '0', STR_PAD_LEFT);
+                    $year = $matches[3];
+                    $paymentDate = "$year-$month-$day";
+                } else {
+                    // Try strtotime as last resort
+                    $timestamp = strtotime($paymentDateRaw);
+                    if ($timestamp) {
+                        $paymentDate = date('Y-m-d', $timestamp);
+                    }
+                }
+            }
         }
 
-        $rowNumber++;
-
-        // Convert cells to array
-        $row = [];
-        foreach ($cells as $cell) {
-            $row[] = trim($cell->textContent);
-        }
-
-        // Debug: Show first data row
-        if ($rowNumber == 2) {
-            $updates[] = "🔍 DEBUG Row $rowNumber: Columns = " . count($row) . ", Data = [" . implode('] [', array_slice($row, 0, 10)) . "]";
-        }
-
-        // Skip empty rows
-        if (empty(array_filter($row))) {
-            $updates[] = "Row $rowNumber: Skipped (empty row)";
-            continue;
-        }
-
-        // Get book number
-        $bookNumber = trim($row[$bookNumberCol] ?? '');
-
-        if (empty($bookNumber)) {
-            $updates[] = "Row $rowNumber: Skipped (no book number) - Columns: " . count($row) . ", Expected col: $bookNumberCol, Value at that col: '" . ($row[$bookNumberCol] ?? 'NOT SET') . "'";
-            continue;
+        // Use today's date if payment date is still invalid and there's a payment amount
+        if (!$paymentDate && $paymentAmount > 0) {
+            $paymentDate = date('Y-m-d');
+            $updates[] = "⚠️ Row $row (Book $bookNumber): Using today's date for payment (date field was empty/invalid)";
         }
 
         // Find the book in database
@@ -181,150 +197,72 @@ try {
         $bookData = $bookStmt->fetch();
 
         if (!$bookData) {
-            $errors[] = "Row $rowNumber: Book number '$bookNumber' not found";
+            $errors[] = "Row $row: Book number '$bookNumber' not found in system";
             $errorCount++;
             continue;
         }
 
-        $bookId = $bookData['book_id'];
+        if (!$bookData['distribution_id']) {
+            $errors[] = "Row $row: Book '$bookNumber' has not been distributed yet";
+            $errorCount++;
+            continue;
+        }
+
         $distributionId = $bookData['distribution_id'];
 
-        // Extract data from row
-        $levelPath = [];
-        for ($i = 0; $i < $levelCount; $i++) {
-            $levelValue = trim($row[$i] ?? '');
-            if (!empty($levelValue)) {
-                $levelPath[] = $levelValue;
-            }
-        }
-        $distributionPath = implode(' > ', $levelPath);
-
-        $memberName = trim($row[$memberNameCol] ?? '');
-        $mobile = trim($row[$mobileCol] ?? '');
-
-        // Clean mobile number (remove spaces, dashes, +91, etc.)
-        $mobile = preg_replace('/[^0-9]/', '', $mobile);
-        if (strlen($mobile) > 10) {
-            $mobile = substr($mobile, -10); // Take last 10 digits
-        }
-
-        $paymentAmount = floatval($row[$paymentAmountCol] ?? 0);
-        $paymentDateStr = trim($row[$paymentDateCol] ?? '');
-        $paymentStatus = trim($row[$paymentStatusCol] ?? '');
-        $paymentMethod = strtolower(trim($row[$paymentMethodCol] ?? ''));
-        $returnStatus = trim($row[$returnStatusCol] ?? '');
-
-        // Parse payment date
-        $paymentDate = null;
-        if (!empty($paymentDateStr)) {
-            // Try to parse date in DD-MM-YYYY format
-            if (preg_match('/^(\d{1,2})-(\d{1,2})-(\d{4})$/', $paymentDateStr, $matches)) {
-                $paymentDate = $matches[3] . '-' . str_pad($matches[2], 2, '0', STR_PAD_LEFT) . '-' . str_pad($matches[1], 2, '0', STR_PAD_LEFT);
-            } elseif (preg_match('/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/', $paymentDateStr, $matches)) {
-                // Try DD/MM/YYYY format
-                $paymentDate = $matches[3] . '-' . str_pad($matches[2], 2, '0', STR_PAD_LEFT) . '-' . str_pad($matches[1], 2, '0', STR_PAD_LEFT);
-            } else {
-                // Try standard strtotime
-                $timestamp = strtotime($paymentDateStr);
-                if ($timestamp !== false) {
-                    $paymentDate = date('Y-m-d', $timestamp);
-                }
-            }
-        }
-
-        // Validate payment method
-        $validMethods = ['cash', 'upi', 'bank transfer', 'cheque'];
-        if (!empty($paymentMethod) && !in_array($paymentMethod, $validMethods)) {
-            $paymentMethod = 'cash'; // Default to cash if invalid
-        }
-
-        // Determine if book is returned
-        $isReturned = (strtolower($returnStatus) === 'returned') ? 1 : 0;
-
-        // Update or insert distribution
-        if ($distributionId) {
-            // Update existing distribution
-            $updateDistQuery = "UPDATE book_distribution
-                               SET notes = :notes,
-                                   mobile_number = :mobile,
-                                   distribution_path = :dist_path,
-                                   is_returned = :is_returned
-                               WHERE distribution_id = :dist_id";
-            $updateStmt = $db->prepare($updateDistQuery);
-            $updateStmt->bindValue(':notes', $memberName, PDO::PARAM_STR);
-            $updateStmt->bindValue(':mobile', $mobile, PDO::PARAM_STR);
-            $updateStmt->bindValue(':dist_path', $distributionPath, PDO::PARAM_STR);
-            $updateStmt->bindValue(':is_returned', $isReturned, PDO::PARAM_INT);
-            $updateStmt->bindValue(':dist_id', $distributionId, PDO::PARAM_INT);
-            $updateStmt->execute();
-
-        } else {
-            // Create new distribution
-            $insertDistQuery = "INSERT INTO book_distribution
-                               (book_id, notes, mobile_number, distribution_path, is_returned, distributed_at)
-                               VALUES (:book_id, :notes, :mobile, :dist_path, :is_returned, NOW())";
-            $insertStmt = $db->prepare($insertDistQuery);
-            $insertStmt->bindValue(':book_id', $bookId, PDO::PARAM_INT);
-            $insertStmt->bindValue(':notes', $memberName, PDO::PARAM_STR);
-            $insertStmt->bindValue(':mobile', $mobile, PDO::PARAM_STR);
-            $insertStmt->bindValue(':dist_path', $distributionPath, PDO::PARAM_STR);
-            $insertStmt->bindValue(':is_returned', $isReturned, PDO::PARAM_INT);
-            $insertStmt->execute();
-
-            $distributionId = $db->lastInsertId();
-
-            // Update book status
-            $updateBookQuery = "UPDATE lottery_books SET book_status = 'distributed' WHERE book_id = :book_id";
-            $updateBookStmt = $db->prepare($updateBookQuery);
-            $updateBookStmt->bindValue(':book_id', $bookId, PDO::PARAM_INT);
-            $updateBookStmt->execute();
-        }
-
-        // Handle payment if amount > 0
-        if ($paymentAmount > 0 && $paymentDate && !empty($paymentMethod)) {
-            // Check if payment already exists for this distribution and date (ignore amount to allow updates)
+        // Update payment information if payment amount > 0 and valid date
+        if ($paymentAmount > 0 && $paymentDate) {
+            // Check if payment already exists for this distribution and date
             $checkPaymentQuery = "SELECT payment_id, amount_paid FROM payment_collections
                                  WHERE distribution_id = :dist_id
                                  AND DATE(payment_date) = :payment_date
                                  LIMIT 1";
-            $checkPaymentStmt = $db->prepare($checkPaymentQuery);
-            $checkPaymentStmt->bindValue(':dist_id', $distributionId, PDO::PARAM_INT);
-            $checkPaymentStmt->bindValue(':payment_date', $paymentDate, PDO::PARAM_STR);
-            $checkPaymentStmt->execute();
-            $existingPayment = $checkPaymentStmt->fetch();
+            $checkStmt = $db->prepare($checkPaymentQuery);
+            $checkStmt->bindValue(':dist_id', $distributionId, PDO::PARAM_INT);
+            $checkStmt->bindValue(':payment_date', $paymentDate, PDO::PARAM_STR);
+            $checkStmt->execute();
+            $existingPayment = $checkStmt->fetch();
 
             if ($existingPayment) {
-                // UPDATE existing payment if amount has changed
+                // Update existing payment if amount changed
                 if ($existingPayment['amount_paid'] != $paymentAmount) {
                     $updatePaymentQuery = "UPDATE payment_collections
                                           SET amount_paid = :amount,
-                                              payment_method = :method,
-                                              notes = 'Updated from Excel'
+                                              payment_method = :method
                                           WHERE payment_id = :payment_id";
-                    $updatePaymentStmt = $db->prepare($updatePaymentQuery);
-                    $updatePaymentStmt->bindValue(':amount', $paymentAmount, PDO::PARAM_STR);
-                    $updatePaymentStmt->bindValue(':method', $paymentMethod, PDO::PARAM_STR);
-                    $updatePaymentStmt->bindValue(':payment_id', $existingPayment['payment_id'], PDO::PARAM_INT);
-                    $updatePaymentStmt->execute();
+                    $updateStmt = $db->prepare($updatePaymentQuery);
+                    $updateStmt->bindValue(':amount', $paymentAmount, PDO::PARAM_STR);
+                    $updateStmt->bindValue(':method', $paymentMethod, PDO::PARAM_STR);
+                    $updateStmt->bindValue(':payment_id', $existingPayment['payment_id'], PDO::PARAM_INT);
+                    $updateStmt->execute();
+
+                    $updates[] = "✅ Row $row (Book $bookNumber): Updated payment from ₹{$existingPayment['amount_paid']} to ₹$paymentAmount";
                 }
-                // If amount is same, no need to update (prevents unnecessary writes)
             } else {
-                // Insert new payment (first time or different date)
+                // Insert new payment
                 $insertPaymentQuery = "INSERT INTO payment_collections
-                                      (distribution_id, amount_paid, payment_date, payment_method, notes)
-                                      VALUES (:dist_id, :amount, :payment_date, :method, 'Imported from Excel')";
-                $insertPaymentStmt = $db->prepare($insertPaymentQuery);
-                $insertPaymentStmt->bindValue(':dist_id', $distributionId, PDO::PARAM_INT);
-                $insertPaymentStmt->bindValue(':amount', $paymentAmount, PDO::PARAM_STR);
-                $insertPaymentStmt->bindValue(':payment_date', $paymentDate, PDO::PARAM_STR);
-                $insertPaymentStmt->bindValue(':method', $paymentMethod, PDO::PARAM_STR);
-                $insertPaymentStmt->execute();
+                                      (distribution_id, amount_paid, payment_date, payment_method)
+                                      VALUES (:dist_id, :amount, :payment_date, :method)";
+                $insertStmt = $db->prepare($insertPaymentQuery);
+                $insertStmt->bindValue(':dist_id', $distributionId, PDO::PARAM_INT);
+                $insertStmt->bindValue(':amount', $paymentAmount, PDO::PARAM_STR);
+                $insertStmt->bindValue(':payment_date', $paymentDate, PDO::PARAM_STR);
+                $insertStmt->bindValue(':method', $paymentMethod, PDO::PARAM_STR);
+                $insertStmt->execute();
+
+                $updates[] = "✅ Row $row (Book $bookNumber): Added new payment of ₹$paymentAmount on $paymentDate";
             }
         }
 
-        $updates[] = "Row $rowNumber: Book '$bookNumber' - $memberName - Updated successfully";
+        // Update return status
+        $isReturned = (stripos($returnStatus, 'returned') !== false && stripos($returnStatus, 'not') === false) ? 1 : 0;
+        $updateReturnQuery = "UPDATE book_distribution SET is_returned = :is_returned WHERE distribution_id = :dist_id";
+        $returnStmt = $db->prepare($updateReturnQuery);
+        $returnStmt->bindValue(':is_returned', $isReturned, PDO::PARAM_INT);
+        $returnStmt->bindValue(':dist_id', $distributionId, PDO::PARAM_INT);
+        $returnStmt->execute();
+
         $successCount++;
-        $rowNumber++;
     }
 
     // Commit transaction
@@ -345,7 +283,7 @@ try {
         error_log("SystemLogger error: " . $logError->getMessage());
     }
 
-    $_SESSION['success'] = "Excel upload completed! Successfully updated $successCount records." .
+    $_SESSION['success'] = "Excel upload completed! Successfully processed $successCount records." .
                           ($errorCount > 0 ? " $errorCount errors occurred." : "");
 
     if (!empty($errors)) {
