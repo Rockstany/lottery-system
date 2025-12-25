@@ -271,6 +271,161 @@ try {
         $successCount++;
     }
 
+    // ===== PROCESS MULTIPLE PAYMENTS SHEET (if exists) =====
+    $multiPaymentSheet = null;
+    foreach ($spreadsheet->getAllSheets() as $sheet) {
+        if ($sheet->getTitle() === 'Multiple Payments') {
+            $multiPaymentSheet = $sheet;
+            break;
+        }
+    }
+
+    if ($multiPaymentSheet) {
+        $updates[] = "📋 Processing Multiple Payments sheet...";
+
+        $multiHighestRow = $multiPaymentSheet->getHighestRow();
+
+        // Find header row in Multiple Payments sheet
+        $multiHeaderRow = 0;
+        for ($row = 1; $row <= 10; $row++) {
+            $cellValue = $multiPaymentSheet->getCellByColumnAndRow(1, $row)->getValue();
+            if (stripos($cellValue, 'Book Number') !== false) {
+                $multiHeaderRow = $row;
+                break;
+            }
+        }
+
+        if ($multiHeaderRow > 0) {
+            $multiPaymentCount = 0;
+
+            for ($row = $multiHeaderRow + 1; $row <= $multiHighestRow; $row++) {
+                // Columns: Book Number (A/1), Payment Amount (B/2), Payment Date (C/3), Payment Method (D/4), Notes (E/5)
+                $bookNumber = trim($multiPaymentSheet->getCellByColumnAndRow(1, $row)->getValue());
+                $paymentAmount = trim($multiPaymentSheet->getCellByColumnAndRow(2, $row)->getValue());
+                $paymentDateRaw = trim($multiPaymentSheet->getCellByColumnAndRow(3, $row)->getValue());
+                $paymentMethod = strtolower(trim($multiPaymentSheet->getCellByColumnAndRow(4, $row)->getValue()));
+                $notes = trim($multiPaymentSheet->getCellByColumnAndRow(5, $row)->getValue());
+
+                // Skip empty rows
+                if (empty($bookNumber) || empty($paymentAmount)) {
+                    continue;
+                }
+
+                // Parse payment amount
+                $paymentAmount = (float) preg_replace('/[^\d.]/', '', $paymentAmount);
+                if ($paymentAmount <= 0) {
+                    continue;
+                }
+
+                // Parse payment date (same logic as main sheet)
+                $paymentDate = null;
+                if (!empty($paymentDateRaw)) {
+                    if (is_numeric($paymentDateRaw) && $paymentDateRaw > 25569) {
+                        try {
+                            $dateTime = Date::excelToDateTimeObject($paymentDateRaw);
+                            $paymentDate = $dateTime->format('Y-m-d');
+                        } catch (Exception $e) {
+                            // Try text parsing
+                        }
+                    }
+
+                    if (!$paymentDate) {
+                        if (preg_match('/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/', $paymentDateRaw, $matches)) {
+                            $day = str_pad($matches[1], 2, '0', STR_PAD_LEFT);
+                            $month = str_pad($matches[2], 2, '0', STR_PAD_LEFT);
+                            $year = $matches[3];
+                            $paymentDate = "$year-$month-$day";
+                        } else {
+                            $timestamp = strtotime($paymentDateRaw);
+                            if ($timestamp) {
+                                $paymentDate = date('Y-m-d', $timestamp);
+                            }
+                        }
+                    }
+                }
+
+                if (!$paymentDate) {
+                    $errors[] = "Multiple Payments Row $row: Invalid payment date '$paymentDateRaw'";
+                    $errorCount++;
+                    continue;
+                }
+
+                // Find book in database
+                $bookQuery = "SELECT lb.book_id, bd.distribution_id
+                              FROM lottery_books lb
+                              LEFT JOIN book_distribution bd ON lb.book_id = bd.book_id
+                              WHERE lb.event_id = :event_id AND lb.book_number = :book_number";
+                $bookStmt = $db->prepare($bookQuery);
+                $bookStmt->bindValue(':event_id', $eventId, PDO::PARAM_INT);
+                $bookStmt->bindValue(':book_number', $bookNumber, PDO::PARAM_STR);
+                $bookStmt->execute();
+                $bookData = $bookStmt->fetch();
+
+                if (!$bookData) {
+                    $errors[] = "Multiple Payments Row $row: Book '$bookNumber' not found";
+                    $errorCount++;
+                    continue;
+                }
+
+                if (!$bookData['distribution_id']) {
+                    $errors[] = "Multiple Payments Row $row: Book '$bookNumber' not distributed";
+                    $errorCount++;
+                    continue;
+                }
+
+                $distributionId = $bookData['distribution_id'];
+
+                // Check if payment exists
+                $checkPaymentQuery = "SELECT payment_id, amount_paid FROM payment_collections
+                                     WHERE distribution_id = :dist_id
+                                     AND DATE(payment_date) = :payment_date
+                                     LIMIT 1";
+                $checkStmt = $db->prepare($checkPaymentQuery);
+                $checkStmt->bindValue(':dist_id', $distributionId, PDO::PARAM_INT);
+                $checkStmt->bindValue(':payment_date', $paymentDate, PDO::PARAM_STR);
+                $checkStmt->execute();
+                $existingPayment = $checkStmt->fetch();
+
+                if ($existingPayment) {
+                    // Update existing
+                    if ($existingPayment['amount_paid'] != $paymentAmount) {
+                        $updatePaymentQuery = "UPDATE payment_collections
+                                              SET amount_paid = :amount,
+                                                  payment_method = :method
+                                              WHERE payment_id = :payment_id";
+                        $updateStmt = $db->prepare($updatePaymentQuery);
+                        $updateStmt->bindValue(':amount', $paymentAmount, PDO::PARAM_STR);
+                        $updateStmt->bindValue(':method', $paymentMethod, PDO::PARAM_STR);
+                        $updateStmt->bindValue(':payment_id', $existingPayment['payment_id'], PDO::PARAM_INT);
+                        $updateStmt->execute();
+
+                        $updates[] = "💰 Row $row (Book $bookNumber): Updated payment from ₹{$existingPayment['amount_paid']} to ₹$paymentAmount" . (!empty($notes) ? " ($notes)" : "");
+                    }
+                } else {
+                    // Insert new payment
+                    $insertPaymentQuery = "INSERT INTO payment_collections
+                                          (distribution_id, amount_paid, payment_date, payment_method, collected_by)
+                                          VALUES (:dist_id, :amount, :payment_date, :method, :collected_by)";
+                    $insertStmt = $db->prepare($insertPaymentQuery);
+                    $insertStmt->bindValue(':dist_id', $distributionId, PDO::PARAM_INT);
+                    $insertStmt->bindValue(':amount', $paymentAmount, PDO::PARAM_STR);
+                    $insertStmt->bindValue(':payment_date', $paymentDate, PDO::PARAM_STR);
+                    $insertStmt->bindValue(':method', $paymentMethod, PDO::PARAM_STR);
+                    $insertStmt->bindValue(':collected_by', $_SESSION['user_id'], PDO::PARAM_INT);
+                    $insertStmt->execute();
+
+                    $updates[] = "💰 Row $row (Book $bookNumber): Added payment of ₹$paymentAmount on $paymentDate" . (!empty($notes) ? " ($notes)" : "");
+                }
+
+                $multiPaymentCount++;
+            }
+
+            if ($multiPaymentCount > 0) {
+                $updates[] = "✅ Processed $multiPaymentCount additional payments from Multiple Payments sheet";
+            }
+        }
+    }
+
     // Commit transaction
     $db->commit();
 

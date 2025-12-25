@@ -139,7 +139,8 @@ $instructions = [
     ['Step 7:', 'Payment Method: Use exactly "Cash", "UPI", "Bank Transfer", or "Cheque"'],
     ['Step 8:', 'Book Returned Status: Use exactly "Returned" or "Not Returned"'],
     ['Step 9:', 'Mobile numbers should be 10 digits (system will auto-format)'],
-    ['Step 10:', 'Save as .xlsx and upload through the Reports page']
+    ['Step 10:', 'For multiple payments per book, use the "Multiple Payments" sheet'],
+    ['Step 11:', 'Save as .xlsx and upload through the Reports page']
 ];
 
 foreach ($instructions as $instruction) {
@@ -357,6 +358,101 @@ if ($templateType === 'with_data' && count($members) > 0) {
         $row++;
     }
 }
+
+// ===== SHEET 4: Multiple Payments =====
+$multiPaymentSheet = $spreadsheet->createSheet();
+$multiPaymentSheet->setTitle('Multiple Payments');
+
+// Title
+$row = 1;
+$multiPaymentSheet->setCellValue('A' . $row, '💰 MULTIPLE PAYMENTS - For Books with Multiple Payment Dates');
+$multiPaymentSheet->mergeCells('A' . $row . ':F' . $row);
+$multiPaymentSheet->getStyle('A' . $row)->getFont()->setBold(true)->setSize(14);
+$multiPaymentSheet->getStyle('A' . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+$row++;
+
+// Instructions
+$multiPaymentSheet->setCellValue('A' . $row, 'Use this sheet when a book has multiple payment installments on different dates');
+$multiPaymentSheet->mergeCells('A' . $row . ':F' . $row);
+$multiPaymentSheet->getStyle('A' . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+$multiPaymentSheet->getStyle('A' . $row)->applyFromArray([
+    'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'FFF4CE']],
+    'font' => ['bold' => true, 'color' => ['rgb' => '856404']]
+]);
+$row += 2;
+
+// Headers
+$multiPayHeaders = ['Book Number', 'Payment Amount (₹)', 'Payment Date', 'Payment Method', 'Notes', 'Collected By'];
+$col = 0;
+foreach ($multiPayHeaders as $header) {
+    $cell = chr(65 + $col) . $row;
+    $multiPaymentSheet->setCellValue($cell, $header);
+    $multiPaymentSheet->getStyle($cell)->applyFromArray([
+        'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF'], 'size' => 11],
+        'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => '4472C4']],
+        'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER],
+        'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN]]
+    ]);
+    $multiPaymentSheet->getColumnDimension(chr(65 + $col))->setWidth(20);
+    $col++;
+}
+$row++;
+
+// Sample rows
+$sampleData = [
+    ['2', '1000', '14-12-2025', 'UPI', 'First installment', 'Auto'],
+    ['2', '1000', '21-12-2025', 'Cash', 'Second installment', 'Auto'],
+    ['92', '500', '10-12-2025', 'UPI', 'Partial payment', 'Auto'],
+    ['92', '1500', '25-12-2025', 'Bank Transfer', 'Final payment', 'Auto']
+];
+
+foreach ($sampleData as $data) {
+    $col = 0;
+    foreach ($data as $value) {
+        $multiPaymentSheet->setCellValue(chr(65 + $col) . $row, $value);
+        $col++;
+    }
+    $multiPaymentSheet->getStyle('A' . $row . ':F' . $row)->applyFromArray([
+        'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'E7F3FF']],
+        'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN]]
+    ]);
+    $row++;
+}
+
+// Add empty rows for data entry
+for ($i = 0; $i < 10; $i++) {
+    $multiPaymentSheet->getStyle('A' . $row . ':F' . $row)->applyFromArray([
+        'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN]]
+    ]);
+    $row++;
+}
+
+// Instructions below
+$row += 2;
+$instructions = [
+    ['📌 Instructions:', ''],
+    ['1. Enter book number', 'Must match an existing distributed book'],
+    ['2. Enter payment amount', 'Amount for this specific payment'],
+    ['3. Enter payment date', 'Format: DD-MM-YYYY (e.g., 25-12-2025)'],
+    ['4. Enter payment method', 'Cash, UPI, Bank Transfer, or Cheque'],
+    ['5. Add notes (optional)', 'E.g., "First installment", "Partial payment"'],
+    ['6. Leave Collected By as Auto', 'Will be set to uploader automatically'],
+    ['', ''],
+    ['Example:', 'Book #2 paid ₹1000 on Dec 14 via UPI, then ₹1000 on Dec 21 via Cash'],
+    ['', 'Add TWO rows: both with Book Number = 2, but different dates/amounts/methods']
+];
+
+foreach ($instructions as $instruction) {
+    $multiPaymentSheet->setCellValue('A' . $row, $instruction[0]);
+    $multiPaymentSheet->setCellValue('B' . $row, $instruction[1]);
+    if (!empty($instruction[0]) && strpos($instruction[0], '📌') !== false) {
+        $multiPaymentSheet->getStyle('A' . $row)->getFont()->setBold(true)->setSize(12);
+    }
+    $row++;
+}
+
+$multiPaymentSheet->getColumnDimension('A')->setWidth(25);
+$multiPaymentSheet->getColumnDimension('B')->setWidth(50);
 
 // Set active sheet to Data sheet
 $spreadsheet->setActiveSheetIndex(2);
