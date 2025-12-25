@@ -246,13 +246,14 @@ try {
             } else {
                 // Insert new payment
                 $insertPaymentQuery = "INSERT INTO payment_collections
-                                      (distribution_id, amount_paid, payment_date, payment_method)
-                                      VALUES (:dist_id, :amount, :payment_date, :method)";
+                                      (distribution_id, amount_paid, payment_date, payment_method, collected_by)
+                                      VALUES (:dist_id, :amount, :payment_date, :method, :collected_by)";
                 $insertStmt = $db->prepare($insertPaymentQuery);
                 $insertStmt->bindValue(':dist_id', $distributionId, PDO::PARAM_INT);
                 $insertStmt->bindValue(':amount', $paymentAmount, PDO::PARAM_STR);
                 $insertStmt->bindValue(':payment_date', $paymentDate, PDO::PARAM_STR);
                 $insertStmt->bindValue(':method', $paymentMethod, PDO::PARAM_STR);
+                $insertStmt->bindValue(':collected_by', $_SESSION['user_id'], PDO::PARAM_INT);
                 $insertStmt->execute();
 
                 $updates[] = "✅ Row $row (Book $bookNumber): Added new payment of ₹$paymentAmount on $paymentDate";
