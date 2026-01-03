@@ -114,6 +114,7 @@ try {
     $headerRow = 0;
     for ($row = 1; $row <= min($highestRow, 10); $row++) {
         $cellValue = $dataSheet->getCellByColumnAndRow(1, $row)->getValue();
+        $cellValue = $cellValue ?? ''; // Handle null values
         if (stripos($cellValue, 'Sr No') !== false || stripos($cellValue, 'Book Number') !== false) {
             $headerRow = $row;
             break;
@@ -418,6 +419,7 @@ try {
         $multiHeaderRow = 0;
         for ($row = 1; $row <= 10; $row++) {
             $cellValue = $multiPaymentSheet->getCellByColumnAndRow(1, $row)->getValue();
+            $cellValue = $cellValue ?? ''; // Handle null values
             if (stripos($cellValue, 'Book Number') !== false) {
                 $multiHeaderRow = $row;
                 break;
@@ -429,11 +431,11 @@ try {
 
             for ($row = $multiHeaderRow + 1; $row <= $multiHighestRow; $row++) {
                 // Columns: Book Number (A/1), Payment Amount (B/2), Payment Date (C/3), Payment Method (D/4), Notes (E/5)
-                $bookNumber = trim($multiPaymentSheet->getCellByColumnAndRow(1, $row)->getValue());
-                $paymentAmount = trim($multiPaymentSheet->getCellByColumnAndRow(2, $row)->getValue());
-                $paymentDateRaw = trim($multiPaymentSheet->getCellByColumnAndRow(3, $row)->getValue());
-                $paymentMethod = strtolower(trim($multiPaymentSheet->getCellByColumnAndRow(4, $row)->getValue()));
-                $notes = trim($multiPaymentSheet->getCellByColumnAndRow(5, $row)->getValue());
+                $bookNumber = trim($multiPaymentSheet->getCellByColumnAndRow(1, $row)->getValue() ?? '');
+                $paymentAmount = trim($multiPaymentSheet->getCellByColumnAndRow(2, $row)->getValue() ?? '');
+                $paymentDateRaw = trim($multiPaymentSheet->getCellByColumnAndRow(3, $row)->getValue() ?? '');
+                $paymentMethod = strtolower(trim($multiPaymentSheet->getCellByColumnAndRow(4, $row)->getValue() ?? ''));
+                $notes = trim($multiPaymentSheet->getCellByColumnAndRow(5, $row)->getValue() ?? '');
 
                 // Skip empty rows
                 if (empty($bookNumber) || empty($paymentAmount)) {
