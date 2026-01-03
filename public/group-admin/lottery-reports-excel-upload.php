@@ -258,6 +258,135 @@ try {
 
                 $updates[] = "✅ Row $row (Book $bookNumber): Added new payment of ₹$paymentAmount on $paymentDate";
             }
+
+            // ===== COMMISSION CALCULATION (after payment INSERT/UPDATE) =====
+            // Calculate commission on the ACTUAL payment amount (partial or full)
+            $paymentCheckQuery = "SELECT
+                                    lb.event_id,
+                                    lb.book_id,
+                                    le.price_per_ticket,
+                                    le.tickets_per_book,
+                                    bd.distribution_path,
+                                    bd.is_extra_book,
+                                    bd.distributed_at
+                                  FROM lottery_books lb
+                                  JOIN lottery_events le ON lb.event_id = le.event_id
+                                  JOIN book_distribution bd ON lb.book_id = bd.book_id
+                                  WHERE bd.distribution_id = :dist_id";
+            $paymentStmt = $db->prepare($paymentCheckQuery);
+            $paymentStmt->bindValue(':dist_id', $distributionId, PDO::PARAM_INT);
+            $paymentStmt->execute();
+            $bookData = $paymentStmt->fetch();
+
+            if ($bookData) {
+                // Calculate commission on the payment amount (not the expected amount)
+                if ($paymentAmount > 0) {
+                    $commissionQuery = "SELECT * FROM commission_settings WHERE event_id = :event_id AND commission_enabled = 1";
+                    $commStmt = $db->prepare($commissionQuery);
+                    $commStmt->bindParam(':event_id', $bookData['event_id']);
+                    $commStmt->execute();
+                    $commSettings = $commStmt->fetch();
+
+                    if ($commSettings) {
+                        // Collect all eligible commission types (can have multiple)
+                        $eligibleCommissions = [];
+
+                        // Check if book is marked as extra book
+                        if ($bookData['is_extra_book'] == 1 &&
+                            $commSettings['extra_books_commission_enabled'] == 1) {
+                            $eligibleCommissions[] = [
+                                'type' => 'extra_books',
+                                'percent' => $commSettings['extra_books_commission_percent']
+                            ];
+                        }
+
+                        // Check date-based commission (can be in addition to extra books)
+                        if ($commSettings['early_commission_enabled'] == 1 &&
+                            !empty($commSettings['early_payment_date']) &&
+                            $paymentDate <= $commSettings['early_payment_date']) {
+                            $eligibleCommissions[] = [
+                                'type' => 'early',
+                                'percent' => $commSettings['early_commission_percent']
+                            ];
+                        }
+                        elseif ($commSettings['standard_commission_enabled'] == 1 &&
+                                !empty($commSettings['standard_payment_date']) &&
+                                $paymentDate <= $commSettings['standard_payment_date']) {
+                            $eligibleCommissions[] = [
+                                'type' => 'standard',
+                                'percent' => $commSettings['standard_commission_percent']
+                            ];
+                        }
+
+                        // Extract Level 1 value from distribution_path
+                        $level1Value = '';
+                        if (!empty($bookData['distribution_path'])) {
+                            $pathParts = explode(' > ', $bookData['distribution_path']);
+                            $level1Value = $pathParts[0] ?? '';
+                        }
+
+                        // Save each eligible commission
+                        if ($level1Value && count($eligibleCommissions) > 0) {
+                            foreach ($eligibleCommissions as $commission) {
+                                // Check if commission already exists for this distribution, type, and payment date
+                                $checkCommQuery = "SELECT commission_id, commission_amount FROM commission_earned
+                                                  WHERE distribution_id = :dist_id
+                                                  AND commission_type = :comm_type
+                                                  AND DATE(payment_date) = :payment_date
+                                                  LIMIT 1";
+                                $checkCommStmt = $db->prepare($checkCommQuery);
+                                $checkCommStmt->bindParam(':dist_id', $distributionId);
+                                $checkCommStmt->bindParam(':comm_type', $commission['type']);
+                                $checkCommStmt->bindParam(':payment_date', $paymentDate);
+                                $checkCommStmt->execute();
+                                $existingComm = $checkCommStmt->fetch();
+
+                                // Calculate commission on ACTUAL payment amount (partial or full)
+                                $commissionAmount = ($paymentAmount * $commission['percent']) / 100;
+
+                                if ($existingComm) {
+                                    // Update existing commission if amount changed
+                                    if ($existingComm['commission_amount'] != $commissionAmount) {
+                                        $updateCommQuery = "UPDATE commission_earned
+                                                           SET commission_amount = :comm_amt,
+                                                               payment_amount = :payment_amt,
+                                                               commission_percent = :comm_percent
+                                                           WHERE commission_id = :comm_id";
+                                        $updateCommStmt = $db->prepare($updateCommQuery);
+                                        $updateCommStmt->bindParam(':comm_amt', $commissionAmount);
+                                        $updateCommStmt->bindParam(':payment_amt', $paymentAmount);
+                                        $updateCommStmt->bindParam(':comm_percent', $commission['percent']);
+                                        $updateCommStmt->bindParam(':comm_id', $existingComm['commission_id']);
+                                        $updateCommStmt->execute();
+
+                                        $updates[] = "💰 Row $row (Book $bookNumber): Commission updated - {$commission['type']} ({$commission['percent']}%) = ₹$commissionAmount";
+                                    }
+                                } else {
+                                    // Insert new commission
+                                    $insertCommQuery = "INSERT INTO commission_earned
+                                                       (event_id, distribution_id, level_1_value, commission_type, commission_percent,
+                                                        payment_amount, commission_amount, payment_date, book_id)
+                                                       VALUES (:event_id, :dist_id, :level_1, :comm_type, :comm_percent,
+                                                               :payment_amt, :comm_amt, :payment_date, :book_id)";
+                                    $insertCommStmt = $db->prepare($insertCommQuery);
+                                    $insertCommStmt->bindParam(':event_id', $bookData['event_id']);
+                                    $insertCommStmt->bindParam(':dist_id', $distributionId);
+                                    $insertCommStmt->bindParam(':level_1', $level1Value);
+                                    $insertCommStmt->bindParam(':comm_type', $commission['type']);
+                                    $insertCommStmt->bindParam(':comm_percent', $commission['percent']);
+                                    $insertCommStmt->bindParam(':payment_amt', $paymentAmount);
+                                    $insertCommStmt->bindParam(':comm_amt', $commissionAmount);
+                                    $insertCommStmt->bindParam(':payment_date', $paymentDate);
+                                    $insertCommStmt->bindParam(':book_id', $bookData['book_id']);
+                                    $insertCommStmt->execute();
+
+                                    $updates[] = "💰 Row $row (Book $bookNumber): Commission earned - {$commission['type']} ({$commission['percent']}%) = ₹$commissionAmount";
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         // Update return status
@@ -415,6 +544,135 @@ try {
                     $insertStmt->execute();
 
                     $updates[] = "💰 Row $row (Book $bookNumber): Added payment of ₹$paymentAmount on $paymentDate" . (!empty($notes) ? " ($notes)" : "");
+                }
+
+                // ===== COMMISSION CALCULATION (for Multiple Payments sheet) =====
+                // Calculate commission on the ACTUAL payment amount (partial or full)
+                $paymentCheckQuery = "SELECT
+                                        lb.event_id,
+                                        lb.book_id,
+                                        le.price_per_ticket,
+                                        le.tickets_per_book,
+                                        bd.distribution_path,
+                                        bd.is_extra_book,
+                                        bd.distributed_at
+                                      FROM lottery_books lb
+                                      JOIN lottery_events le ON lb.event_id = le.event_id
+                                      JOIN book_distribution bd ON lb.book_id = bd.book_id
+                                      WHERE bd.distribution_id = :dist_id";
+                $paymentStmt = $db->prepare($paymentCheckQuery);
+                $paymentStmt->bindValue(':dist_id', $distributionId, PDO::PARAM_INT);
+                $paymentStmt->execute();
+                $bookData = $paymentStmt->fetch();
+
+                if ($bookData) {
+                    // Calculate commission on the payment amount (not the expected amount)
+                    if ($paymentAmount > 0) {
+                        $commissionQuery = "SELECT * FROM commission_settings WHERE event_id = :event_id AND commission_enabled = 1";
+                        $commStmt = $db->prepare($commissionQuery);
+                        $commStmt->bindParam(':event_id', $bookData['event_id']);
+                        $commStmt->execute();
+                        $commSettings = $commStmt->fetch();
+
+                        if ($commSettings) {
+                            // Collect all eligible commission types (can have multiple)
+                            $eligibleCommissions = [];
+
+                            // Check if book is marked as extra book
+                            if ($bookData['is_extra_book'] == 1 &&
+                                $commSettings['extra_books_commission_enabled'] == 1) {
+                                $eligibleCommissions[] = [
+                                    'type' => 'extra_books',
+                                    'percent' => $commSettings['extra_books_commission_percent']
+                                ];
+                            }
+
+                            // Check date-based commission (can be in addition to extra books)
+                            if ($commSettings['early_commission_enabled'] == 1 &&
+                                !empty($commSettings['early_payment_date']) &&
+                                $paymentDate <= $commSettings['early_payment_date']) {
+                                $eligibleCommissions[] = [
+                                    'type' => 'early',
+                                    'percent' => $commSettings['early_commission_percent']
+                                ];
+                            }
+                            elseif ($commSettings['standard_commission_enabled'] == 1 &&
+                                    !empty($commSettings['standard_payment_date']) &&
+                                    $paymentDate <= $commSettings['standard_payment_date']) {
+                                $eligibleCommissions[] = [
+                                    'type' => 'standard',
+                                    'percent' => $commSettings['standard_commission_percent']
+                                ];
+                            }
+
+                            // Extract Level 1 value from distribution_path
+                            $level1Value = '';
+                            if (!empty($bookData['distribution_path'])) {
+                                $pathParts = explode(' > ', $bookData['distribution_path']);
+                                $level1Value = $pathParts[0] ?? '';
+                            }
+
+                            // Save each eligible commission
+                            if ($level1Value && count($eligibleCommissions) > 0) {
+                                foreach ($eligibleCommissions as $commission) {
+                                    // Check if commission already exists for this distribution, type, and payment date
+                                    $checkCommQuery = "SELECT commission_id, commission_amount FROM commission_earned
+                                                      WHERE distribution_id = :dist_id
+                                                      AND commission_type = :comm_type
+                                                      AND DATE(payment_date) = :payment_date
+                                                      LIMIT 1";
+                                    $checkCommStmt = $db->prepare($checkCommQuery);
+                                    $checkCommStmt->bindParam(':dist_id', $distributionId);
+                                    $checkCommStmt->bindParam(':comm_type', $commission['type']);
+                                    $checkCommStmt->bindParam(':payment_date', $paymentDate);
+                                    $checkCommStmt->execute();
+                                    $existingComm = $checkCommStmt->fetch();
+
+                                    // Calculate commission on ACTUAL payment amount (partial or full)
+                                    $commissionAmount = ($paymentAmount * $commission['percent']) / 100;
+
+                                    if ($existingComm) {
+                                        // Update existing commission if amount changed
+                                        if ($existingComm['commission_amount'] != $commissionAmount) {
+                                            $updateCommQuery = "UPDATE commission_earned
+                                                               SET commission_amount = :comm_amt,
+                                                                   payment_amount = :payment_amt,
+                                                                   commission_percent = :comm_percent
+                                                               WHERE commission_id = :comm_id";
+                                            $updateCommStmt = $db->prepare($updateCommQuery);
+                                            $updateCommStmt->bindParam(':comm_amt', $commissionAmount);
+                                            $updateCommStmt->bindParam(':payment_amt', $paymentAmount);
+                                            $updateCommStmt->bindParam(':comm_percent', $commission['percent']);
+                                            $updateCommStmt->bindParam(':comm_id', $existingComm['commission_id']);
+                                            $updateCommStmt->execute();
+
+                                            $updates[] = "💰 Row $row (Book $bookNumber): Commission updated - {$commission['type']} ({$commission['percent']}%) = ₹$commissionAmount";
+                                        }
+                                    } else {
+                                        // Insert new commission
+                                        $insertCommQuery = "INSERT INTO commission_earned
+                                                           (event_id, distribution_id, level_1_value, commission_type, commission_percent,
+                                                            payment_amount, commission_amount, payment_date, book_id)
+                                                           VALUES (:event_id, :dist_id, :level_1, :comm_type, :comm_percent,
+                                                                   :payment_amt, :comm_amt, :payment_date, :book_id)";
+                                        $insertCommStmt = $db->prepare($insertCommQuery);
+                                        $insertCommStmt->bindParam(':event_id', $bookData['event_id']);
+                                        $insertCommStmt->bindParam(':dist_id', $distributionId);
+                                        $insertCommStmt->bindParam(':level_1', $level1Value);
+                                        $insertCommStmt->bindParam(':comm_type', $commission['type']);
+                                        $insertCommStmt->bindParam(':comm_percent', $commission['percent']);
+                                        $insertCommStmt->bindParam(':payment_amt', $paymentAmount);
+                                        $insertCommStmt->bindParam(':comm_amt', $commissionAmount);
+                                        $insertCommStmt->bindParam(':payment_date', $paymentDate);
+                                        $insertCommStmt->bindParam(':book_id', $bookData['book_id']);
+                                        $insertCommStmt->execute();
+
+                                        $updates[] = "💰 Row $row (Book $bookNumber): Commission earned - {$commission['type']} ({$commission['percent']}%) = ₹$commissionAmount";
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
 
                 $multiPaymentCount++;
