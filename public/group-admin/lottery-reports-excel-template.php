@@ -262,6 +262,7 @@ $headers = array_merge($headers, [
     'Book Number',
     'Payment Amount (₹)',
     'Payment Date',
+    'Commission Date',
     'Payment Status',
     'Payment Method',
     'Book Returned Status'
@@ -309,6 +310,7 @@ if ($templateType === 'with_data' && count($members) > 0) {
         $dataSheet->getStyle(chr(65 + $col) . $row)->getNumberFormat()->setFormatCode('#,##0');
         $col++;
         $dataSheet->setCellValue(chr(65 + $col) . $row, $member['payment_dates']); $col++;
+        $dataSheet->setCellValue(chr(65 + $col) . $row, $member['payment_dates']); $col++; // Commission Date (same as payment date by default)
         $dataSheet->setCellValue(chr(65 + $col) . $row, $member['payment_status']); $col++;
         $dataSheet->setCellValue(chr(65 + $col) . $row, $member['payment_methods']); $col++;
         $dataSheet->setCellValue(chr(65 + $col) . $row, $member['is_returned'] == 1 ? 'Returned' : 'Not Returned');
@@ -337,6 +339,7 @@ if ($templateType === 'with_data' && count($members) > 0) {
     $dataSheet->setCellValue(chr(65 + $col) . $row, 'BK0001'); $col++;
     $dataSheet->setCellValue(chr(65 + $col) . $row, 1000); $col++;
     $dataSheet->setCellValue(chr(65 + $col) . $row, '25-12-2025'); $col++;
+    $dataSheet->setCellValue(chr(65 + $col) . $row, '25-12-2025'); $col++; // Commission Date
     $dataSheet->setCellValue(chr(65 + $col) . $row, 'Fully Paid'); $col++;
     $dataSheet->setCellValue(chr(65 + $col) . $row, 'Cash'); $col++;
     $dataSheet->setCellValue(chr(65 + $col) . $row, 'Not Returned');
@@ -366,14 +369,14 @@ $multiPaymentSheet->setTitle('Multiple Payments');
 // Title
 $row = 1;
 $multiPaymentSheet->setCellValue('A' . $row, '💰 MULTIPLE PAYMENTS - For Books with Multiple Payment Dates');
-$multiPaymentSheet->mergeCells('A' . $row . ':F' . $row);
+$multiPaymentSheet->mergeCells('A' . $row . ':G' . $row);
 $multiPaymentSheet->getStyle('A' . $row)->getFont()->setBold(true)->setSize(14);
 $multiPaymentSheet->getStyle('A' . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
 $row++;
 
 // Instructions
 $multiPaymentSheet->setCellValue('A' . $row, 'Use this sheet when a book has multiple payment installments on different dates');
-$multiPaymentSheet->mergeCells('A' . $row . ':F' . $row);
+$multiPaymentSheet->mergeCells('A' . $row . ':G' . $row);
 $multiPaymentSheet->getStyle('A' . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
 $multiPaymentSheet->getStyle('A' . $row)->applyFromArray([
     'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'FFF4CE']],
@@ -382,7 +385,7 @@ $multiPaymentSheet->getStyle('A' . $row)->applyFromArray([
 $row += 2;
 
 // Headers
-$multiPayHeaders = ['Book Number', 'Payment Amount (₹)', 'Payment Date', 'Payment Method', 'Notes', 'Collected By'];
+$multiPayHeaders = ['Book Number', 'Payment Amount (₹)', 'Payment Date', 'Commission Date', 'Payment Method', 'Notes', 'Collected By'];
 $col = 0;
 foreach ($multiPayHeaders as $header) {
     $cell = chr(65 + $col) . $row;
@@ -400,10 +403,10 @@ $row++;
 
 // Sample rows
 $sampleData = [
-    ['2', '1000', '14-12-2025', 'UPI', 'First installment', 'Auto'],
-    ['2', '1000', '21-12-2025', 'Cash', 'Second installment', 'Auto'],
-    ['92', '500', '10-12-2025', 'UPI', 'Partial payment', 'Auto'],
-    ['92', '1500', '25-12-2025', 'Bank Transfer', 'Final payment', 'Auto']
+    ['2', '1000', '14-12-2025', '14-12-2025', 'UPI', 'First installment', 'Auto'],
+    ['2', '1000', '21-12-2025', '21-12-2025', 'Cash', 'Second installment', 'Auto'],
+    ['92', '500', '10-12-2025', '10-12-2025', 'UPI', 'Partial payment', 'Auto'],
+    ['92', '1500', '25-12-2025', '25-12-2025', 'Bank Transfer', 'Final payment', 'Auto']
 ];
 
 foreach ($sampleData as $data) {

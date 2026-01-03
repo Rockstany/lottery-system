@@ -682,6 +682,9 @@ $commissionEnabled = $commissionSettings && (
                             <a href="/public/group-admin/lottery-reports-excel-export.php?id=<?php echo $eventId; ?>" class="btn btn-success" style="width: 100%;">
                                 📊 Download Full Report (Read-Only)
                             </a>
+                            <a href="/public/group-admin/lottery-commission-reset.php?id=<?php echo $eventId; ?>" class="btn btn-danger" style="width: 100%; margin-top: var(--spacing-md);">
+                                🔄 Reset All Commission Records
+                            </a>
                         </div>
                     </div>
 

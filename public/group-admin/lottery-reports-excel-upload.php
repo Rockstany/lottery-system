@@ -87,7 +87,7 @@ try {
     // Column positions (1-indexed in PHPSpreadsheet, but we'll use 0-indexed for array access)
     // Column A (0) = Sr No
     // Columns B onwards (1+) = Levels
-    // Then: Member Name, Mobile, Book Number, Payment Amount, Payment Date, Payment Status, Payment Method, Return Status
+    // Then: Member Name, Mobile, Book Number, Payment Amount, Payment Date, Commission Date, Payment Status, Payment Method, Return Status
     $srNoCol = 0;
     $firstLevelCol = 1;
     $memberNameCol = $levelCount + 1;
@@ -95,9 +95,10 @@ try {
     $bookNumberCol = $levelCount + 3;
     $paymentAmountCol = $levelCount + 4;
     $paymentDateCol = $levelCount + 5;
-    $paymentStatusCol = $levelCount + 6;
-    $paymentMethodCol = $levelCount + 7;
-    $returnStatusCol = $levelCount + 8;
+    $commissionDateCol = $levelCount + 6;
+    $paymentStatusCol = $levelCount + 7;
+    $paymentMethodCol = $levelCount + 8;
+    $returnStatusCol = $levelCount + 9;
 
     $successCount = 0;
     $errorCount = 0;
@@ -191,6 +192,42 @@ try {
             $updates[] = "⚠️ Row $row (Book $bookNumber): Using today's date for payment (date field was empty/invalid)";
         }
 
+        // Parse commission date (same logic as payment date)
+        $commissionDateRaw = $rowData[$commissionDateCol] ?? '';
+        $commissionDate = null;
+        if (!empty($commissionDateRaw)) {
+            // Try to parse Excel date serial number
+            if (is_numeric($commissionDateRaw) && $commissionDateRaw > 25569) {
+                try {
+                    $dateTime = Date::excelToDateTimeObject($commissionDateRaw);
+                    $commissionDate = $dateTime->format('Y-m-d');
+                } catch (Exception $e) {
+                    // Not an Excel date, try text parsing
+                }
+            }
+
+            // If not Excel date, try parsing as text
+            if (!$commissionDate) {
+                $commissionDateRaw = trim($commissionDateRaw);
+                if (preg_match('/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/', $commissionDateRaw, $matches)) {
+                    $day = str_pad($matches[1], 2, '0', STR_PAD_LEFT);
+                    $month = str_pad($matches[2], 2, '0', STR_PAD_LEFT);
+                    $year = $matches[3];
+                    $commissionDate = "$year-$month-$day";
+                } else {
+                    $timestamp = strtotime($commissionDateRaw);
+                    if ($timestamp) {
+                        $commissionDate = date('Y-m-d', $timestamp);
+                    }
+                }
+            }
+        }
+
+        // If commission date is empty or invalid, use payment date
+        if (!$commissionDate && $paymentDate) {
+            $commissionDate = $paymentDate;
+        }
+
         // Find the book in database
         $bookQuery = "SELECT lb.book_id, bd.distribution_id
                       FROM lottery_books lb
@@ -279,18 +316,28 @@ try {
             $paymentStmt->execute();
             $bookData = $paymentStmt->fetch();
 
+            error_log("Commission Check - Row $row, Book $bookNumber: bookData found = " . ($bookData ? 'YES' : 'NO'));
+
             if ($bookData) {
                 // Calculate commission on the payment amount (not the expected amount)
                 if ($paymentAmount > 0) {
+                    error_log("Commission Check - Payment amount: ₹$paymentAmount, Event ID: {$bookData['event_id']}");
+
                     $commissionQuery = "SELECT * FROM commission_settings WHERE event_id = :event_id AND commission_enabled = 1";
                     $commStmt = $db->prepare($commissionQuery);
                     $commStmt->bindParam(':event_id', $bookData['event_id']);
                     $commStmt->execute();
                     $commSettings = $commStmt->fetch();
 
+                    error_log("Commission Check - Settings found = " . ($commSettings ? 'YES' : 'NO') .
+                              ($commSettings ? ", enabled = {$commSettings['commission_enabled']}" : ""));
+
                     if ($commSettings) {
                         // Collect all eligible commission types (can have multiple)
                         $eligibleCommissions = [];
+
+                        error_log("Commission Check - Extra book: " . ($bookData['is_extra_book'] == 1 ? 'YES' : 'NO') .
+                                 ", Extra enabled: " . ($commSettings['extra_books_commission_enabled'] == 1 ? 'YES' : 'NO'));
 
                         // Check if book is marked as extra book
                         if ($bookData['is_extra_book'] == 1 &&
@@ -299,24 +346,31 @@ try {
                                 'type' => 'extra_books',
                                 'percent' => $commSettings['extra_books_commission_percent']
                             ];
+                            error_log("Commission Check - Added extra_books commission: {$commSettings['extra_books_commission_percent']}%");
                         }
 
+                        error_log("Commission Check - Early enabled: " . ($commSettings['early_commission_enabled'] == 1 ? 'YES' : 'NO') .
+                                 ", Early date: {$commSettings['early_payment_date']}, Commission date: $commissionDate");
+
                         // Check date-based commission (can be in addition to extra books)
+                        // Uses commission date (not payment date) for commission eligibility
                         if ($commSettings['early_commission_enabled'] == 1 &&
                             !empty($commSettings['early_payment_date']) &&
-                            $paymentDate <= $commSettings['early_payment_date']) {
+                            $commissionDate <= $commSettings['early_payment_date']) {
                             $eligibleCommissions[] = [
                                 'type' => 'early',
                                 'percent' => $commSettings['early_commission_percent']
                             ];
+                            error_log("Commission Check - Added early commission: {$commSettings['early_commission_percent']}%");
                         }
                         elseif ($commSettings['standard_commission_enabled'] == 1 &&
                                 !empty($commSettings['standard_payment_date']) &&
-                                $paymentDate <= $commSettings['standard_payment_date']) {
+                                $commissionDate <= $commSettings['standard_payment_date']) {
                             $eligibleCommissions[] = [
                                 'type' => 'standard',
                                 'percent' => $commSettings['standard_commission_percent']
                             ];
+                            error_log("Commission Check - Added standard commission: {$commSettings['standard_commission_percent']}%");
                         }
 
                         // Extract Level 1 value from distribution_path
@@ -325,6 +379,8 @@ try {
                             $pathParts = explode(' > ', $bookData['distribution_path']);
                             $level1Value = $pathParts[0] ?? '';
                         }
+
+                        error_log("Commission Check - Level 1 value: '$level1Value', Eligible commissions: " . count($eligibleCommissions));
 
                         // Save each eligible commission
                         if ($level1Value && count($eligibleCommissions) > 0) {
@@ -430,12 +486,13 @@ try {
             $multiPaymentCount = 0;
 
             for ($row = $multiHeaderRow + 1; $row <= $multiHighestRow; $row++) {
-                // Columns: Book Number (A/1), Payment Amount (B/2), Payment Date (C/3), Payment Method (D/4), Notes (E/5)
+                // Columns: Book Number (A/1), Payment Amount (B/2), Payment Date (C/3), Commission Date (D/4), Payment Method (E/5), Notes (F/6)
                 $bookNumber = trim($multiPaymentSheet->getCellByColumnAndRow(1, $row)->getValue() ?? '');
                 $paymentAmount = trim($multiPaymentSheet->getCellByColumnAndRow(2, $row)->getValue() ?? '');
                 $paymentDateRaw = trim($multiPaymentSheet->getCellByColumnAndRow(3, $row)->getValue() ?? '');
-                $paymentMethod = strtolower(trim($multiPaymentSheet->getCellByColumnAndRow(4, $row)->getValue() ?? ''));
-                $notes = trim($multiPaymentSheet->getCellByColumnAndRow(5, $row)->getValue() ?? '');
+                $commissionDateRaw = trim($multiPaymentSheet->getCellByColumnAndRow(4, $row)->getValue() ?? '');
+                $paymentMethod = strtolower(trim($multiPaymentSheet->getCellByColumnAndRow(5, $row)->getValue() ?? ''));
+                $notes = trim($multiPaymentSheet->getCellByColumnAndRow(6, $row)->getValue() ?? '');
 
                 // Skip empty rows
                 if (empty($bookNumber) || empty($paymentAmount)) {
@@ -479,6 +536,38 @@ try {
                     $errors[] = "Multiple Payments Row $row: Invalid payment date '$paymentDateRaw'";
                     $errorCount++;
                     continue;
+                }
+
+                // Parse commission date (same logic as payment date)
+                $commissionDate = null;
+                if (!empty($commissionDateRaw)) {
+                    if (is_numeric($commissionDateRaw) && $commissionDateRaw > 25569) {
+                        try {
+                            $dateTime = Date::excelToDateTimeObject($commissionDateRaw);
+                            $commissionDate = $dateTime->format('Y-m-d');
+                        } catch (Exception $e) {
+                            // Try text parsing
+                        }
+                    }
+
+                    if (!$commissionDate) {
+                        if (preg_match('/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/', $commissionDateRaw, $matches)) {
+                            $day = str_pad($matches[1], 2, '0', STR_PAD_LEFT);
+                            $month = str_pad($matches[2], 2, '0', STR_PAD_LEFT);
+                            $year = $matches[3];
+                            $commissionDate = "$year-$month-$day";
+                        } else {
+                            $timestamp = strtotime($commissionDateRaw);
+                            if ($timestamp) {
+                                $commissionDate = date('Y-m-d', $timestamp);
+                            }
+                        }
+                    }
+                }
+
+                // If commission date is empty or invalid, use payment date
+                if (!$commissionDate) {
+                    $commissionDate = $paymentDate;
                 }
 
                 // Find book in database
@@ -590,9 +679,10 @@ try {
                             }
 
                             // Check date-based commission (can be in addition to extra books)
+                            // Uses commission date (not payment date) for commission eligibility
                             if ($commSettings['early_commission_enabled'] == 1 &&
                                 !empty($commSettings['early_payment_date']) &&
-                                $paymentDate <= $commSettings['early_payment_date']) {
+                                $commissionDate <= $commSettings['early_payment_date']) {
                                 $eligibleCommissions[] = [
                                     'type' => 'early',
                                     'percent' => $commSettings['early_commission_percent']
@@ -600,7 +690,7 @@ try {
                             }
                             elseif ($commSettings['standard_commission_enabled'] == 1 &&
                                     !empty($commSettings['standard_payment_date']) &&
-                                    $paymentDate <= $commSettings['standard_payment_date']) {
+                                    $commissionDate <= $commSettings['standard_payment_date']) {
                                 $eligibleCommissions[] = [
                                     'type' => 'standard',
                                     'percent' => $commSettings['standard_commission_percent']
