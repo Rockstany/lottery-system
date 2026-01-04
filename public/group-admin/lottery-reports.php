@@ -682,6 +682,12 @@ $commissionEnabled = $commissionSettings && (
                             <a href="/public/group-admin/lottery-reports-excel-export.php?id=<?php echo $eventId; ?>" class="btn btn-success" style="width: 100%;">
                                 📊 Download Full Report (Read-Only)
                             </a>
+                            <a href="/public/group-admin/lottery-final-report-excel.php?id=<?php echo $eventId; ?>" class="btn" style="width: 100%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; font-weight: bold; margin-top: var(--spacing-sm);">
+                                📑 Generate Final Summary Report
+                            </a>
+                            <small style="display: block; margin-top: var(--spacing-xs); color: var(--gray-600); text-align: center;">
+                                5-Sheet comprehensive report for final presentation
+                            </small>
                             <a href="/public/group-admin/lottery-commission-reset.php?id=<?php echo $eventId; ?>" class="btn btn-danger" style="width: 100%; margin-top: var(--spacing-md);">
                                 🔄 Reset All Commission Records
                             </a>
