@@ -122,12 +122,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->bindParam(':collected_by', $collectedBy);
 
         if ($stmt->execute()) {
-            // Check if payment is now FULLY PAID (commission only for full payment)
-            $newTotalPaid = $book['total_paid'] + $amount;
-            $isFullyPaid = ($newTotalPaid >= $expectedAmount);
-
-            // Calculate and save commission if enabled AND payment is full
-            if ($isFullyPaid) {
+            // Calculate commission on ACTUAL payment amount (partial or full)
+            // This ensures consistency with Excel upload behavior
+            if ($amount > 0) {
                 $commissionQuery = "SELECT * FROM commission_settings WHERE event_id = :event_id AND commission_enabled = 1";
                 $commStmt = $db->prepare($commissionQuery);
                 $commStmt->bindParam(':event_id', $book['event_id']);
@@ -182,20 +179,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     // Save each eligible commission
                     if ($level1Value && count($eligibleCommissions) > 0) {
                         foreach ($eligibleCommissions as $commission) {
-                            // Check if commission already exists for this distribution and type
-                            $checkQuery = "SELECT COUNT(*) as count FROM commission_earned
+                            // Check if commission already exists for this distribution, type, and payment date
+                            // This prevents duplicates when same payment is recorded multiple times
+                            $checkQuery = "SELECT commission_id, commission_amount FROM commission_earned
                                           WHERE distribution_id = :dist_id
-                                          AND commission_type = :comm_type";
+                                          AND commission_type = :comm_type
+                                          AND DATE(payment_date) = :payment_date
+                                          LIMIT 1";
                             $checkStmt = $db->prepare($checkQuery);
                             $checkStmt->bindParam(':dist_id', $book['distribution_id']);
                             $checkStmt->bindParam(':comm_type', $commission['type']);
+                            $checkStmt->bindParam(':payment_date', $paymentDate);
                             $checkStmt->execute();
-                            $exists = $checkStmt->fetch();
+                            $existingComm = $checkStmt->fetch();
 
-                            // Only insert if commission doesn't already exist
-                            if ($exists['count'] == 0) {
-                                $commissionAmount = ($expectedAmount * $commission['percent']) / 100;
+                            // Calculate commission on ACTUAL payment amount (not expected amount)
+                            $commissionAmount = ($amount * $commission['percent']) / 100;
 
+                            if ($existingComm) {
+                                // Update existing commission if amount changed
+                                if ($existingComm['commission_amount'] != $commissionAmount) {
+                                    $updateCommQuery = "UPDATE commission_earned
+                                                       SET commission_amount = :comm_amt,
+                                                           payment_amount = :payment_amt,
+                                                           commission_percent = :comm_percent
+                                                       WHERE commission_id = :comm_id";
+                                    $updateCommStmt = $db->prepare($updateCommQuery);
+                                    $updateCommStmt->bindParam(':comm_amt', $commissionAmount);
+                                    $updateCommStmt->bindParam(':payment_amt', $amount);
+                                    $updateCommStmt->bindParam(':comm_percent', $commission['percent']);
+                                    $updateCommStmt->bindParam(':comm_id', $existingComm['commission_id']);
+                                    $updateCommStmt->execute();
+                                }
+                            } else {
+                                // Insert new commission
                                 $insertCommQuery = "INSERT INTO commission_earned
                                                    (event_id, distribution_id, level_1_value, commission_type, commission_percent,
                                                     payment_amount, commission_amount, payment_date, book_id)
@@ -207,7 +224,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 $insertCommStmt->bindParam(':level_1', $level1Value);
                                 $insertCommStmt->bindParam(':comm_type', $commission['type']);
                                 $insertCommStmt->bindParam(':comm_percent', $commission['percent']);
-                                $insertCommStmt->bindParam(':payment_amt', $expectedAmount);
+                                $insertCommStmt->bindParam(':payment_amt', $amount);
                                 $insertCommStmt->bindParam(':comm_amt', $commissionAmount);
                                 $insertCommStmt->bindParam(':payment_date', $paymentDate);
                                 $insertCommStmt->bindParam(':book_id', $bookId);

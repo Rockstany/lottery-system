@@ -61,39 +61,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $deleteStmt->execute([$eventId]);
         $deletedCount = $deleteStmt->rowCount();
 
-        // STEP 2: Find all fully paid distributions and recalculate commissions from scratch
-        // Use MAX(payment_date) to get the date when payment became fully paid
+        // STEP 2: Find ALL payments and recalculate commissions from scratch
+        // Now supports partial payments - calculates commission on each payment individually
         $findQuery = "SELECT
-                        bd.distribution_id,
+                        pc.payment_id,
+                        pc.distribution_id,
+                        pc.amount_paid,
+                        pc.payment_date,
                         bd.distribution_path,
                         bd.is_extra_book,
                         lb.book_id,
-                        le.tickets_per_book,
-                        le.price_per_ticket,
-                        (le.tickets_per_book * le.price_per_ticket) as expected_amount,
-                        COALESCE(SUM(pc.amount_paid), 0) as total_paid,
-                        MAX(pc.payment_date) as full_payment_date
-                      FROM book_distribution bd
+                        le.event_id
+                      FROM payment_collections pc
+                      JOIN book_distribution bd ON pc.distribution_id = bd.distribution_id
                       JOIN lottery_books lb ON bd.book_id = lb.book_id
                       JOIN lottery_events le ON lb.event_id = le.event_id
-                      LEFT JOIN payment_collections pc ON bd.distribution_id = pc.distribution_id
-                      WHERE le.event_id = ?
-                      GROUP BY bd.distribution_id
-                      HAVING total_paid >= expected_amount";
+                      WHERE le.event_id = ? AND pc.amount_paid > 0
+                      ORDER BY pc.payment_date ASC";
 
         $findStmt = $db->prepare($findQuery);
         $findStmt->execute([$eventId]);
-        $missingCommissions = $findStmt->fetchAll();
+        $allPayments = $findStmt->fetchAll();
 
         $synced = 0;
         $skipped = 0;
         $errors = 0;
 
-        foreach ($missingCommissions as $dist) {
+        foreach ($allPayments as $payment) {
             // Extract Level 1 value
             $level1Value = '';
-            if (!empty($dist['distribution_path'])) {
-                $pathParts = explode(' > ', $dist['distribution_path']);
+            if (!empty($payment['distribution_path'])) {
+                $pathParts = explode(' > ', $payment['distribution_path']);
                 $level1Value = $pathParts[0] ?? '';
             }
 
@@ -106,19 +104,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             $eligibleCommissions = [];
 
             // Check extra book commission
-            if ($dist['is_extra_book'] == 1 && $settings['extra_books_commission_enabled'] == 1) {
+            if ($payment['is_extra_book'] == 1 && $settings['extra_books_commission_enabled'] == 1) {
                 $eligibleCommissions[] = [
                     'type' => 'extra_books',
                     'percent' => $settings['extra_books_commission_percent']
                 ];
             }
 
-            // Check date-based commission using LAST payment date (when fully paid)
-            $fullPaymentDate = $dist['full_payment_date'];
-
+            // Check date-based commission using payment date
             if ($settings['early_commission_enabled'] == 1 &&
                 !empty($settings['early_payment_date']) &&
-                $fullPaymentDate <= $settings['early_payment_date']) {
+                $payment['payment_date'] <= $settings['early_payment_date']) {
                 $eligibleCommissions[] = [
                     'type' => 'early',
                     'percent' => $settings['early_commission_percent']
@@ -126,17 +122,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             }
             elseif ($settings['standard_commission_enabled'] == 1 &&
                     !empty($settings['standard_payment_date']) &&
-                    $fullPaymentDate <= $settings['standard_payment_date']) {
+                    $payment['payment_date'] <= $settings['standard_payment_date']) {
                 $eligibleCommissions[] = [
                     'type' => 'standard',
                     'percent' => $settings['standard_commission_percent']
                 ];
             }
 
-            // Insert commission records
+            // Insert commission records for each eligible type
             if (count($eligibleCommissions) > 0) {
                 foreach ($eligibleCommissions as $commission) {
-                    $commissionAmount = ($dist['expected_amount'] * $commission['percent']) / 100;
+                    // Calculate commission on ACTUAL payment amount (not expected amount)
+                    $commissionAmount = ($payment['amount_paid'] * $commission['percent']) / 100;
 
                     $insertQuery = "INSERT INTO commission_earned
                                    (event_id, distribution_id, level_1_value, commission_type,
@@ -146,15 +143,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                            :comm_percent, :payment_amt, :comm_amt,
                                            :payment_date, :book_id)";
                     $insertStmt = $db->prepare($insertQuery);
-                    $insertStmt->bindParam(':event_id', $eventId);
-                    $insertStmt->bindParam(':dist_id', $dist['distribution_id']);
+                    $insertStmt->bindParam(':event_id', $payment['event_id']);
+                    $insertStmt->bindParam(':dist_id', $payment['distribution_id']);
                     $insertStmt->bindParam(':level_1', $level1Value);
                     $insertStmt->bindParam(':comm_type', $commission['type']);
                     $insertStmt->bindParam(':comm_percent', $commission['percent']);
-                    $insertStmt->bindParam(':payment_amt', $dist['expected_amount']);
+                    $insertStmt->bindParam(':payment_amt', $payment['amount_paid']);
                     $insertStmt->bindParam(':comm_amt', $commissionAmount);
-                    $insertStmt->bindParam(':payment_date', $fullPaymentDate);
-                    $insertStmt->bindParam(':book_id', $dist['book_id']);
+                    $insertStmt->bindParam(':payment_date', $payment['payment_date']);
+                    $insertStmt->bindParam(':book_id', $payment['book_id']);
 
                     if (!$insertStmt->execute()) {
                         $errors++;
@@ -170,13 +167,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
         $syncResults = [
             'deleted' => $deletedCount,
-            'total' => count($missingCommissions),
+            'total' => count($allPayments),
             'synced' => $synced,
             'skipped' => $skipped,
             'errors' => $errors
         ];
 
-        $success = "Commission sync completed! Deleted {$deletedCount} old records, recalculated {$synced} commissions from {$syncResults['total']} fully paid books.";
+        $success = "Commission sync completed! Deleted {$deletedCount} old records, recalculated {$synced} commissions from {$syncResults['total']} payments (including partial payments).";
 
     } catch (Exception $e) {
         $db->rollBack();
@@ -185,28 +182,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     }
 }
 
-// Get preview of ALL fully paid books (will be synced)
+// Get preview of ALL payments (will be synced)
 $previewQuery = "SELECT
-                    bd.distribution_id,
+                    pc.payment_id,
+                    pc.amount_paid,
+                    pc.payment_date,
                     bd.distribution_path,
                     bd.is_extra_book,
                     lb.book_number,
-                    (le.tickets_per_book * le.price_per_ticket) as expected_amount,
-                    COALESCE(SUM(pc.amount_paid), 0) as total_paid,
-                    MIN(pc.payment_date) as first_payment_date,
-                    MAX(pc.payment_date) as full_payment_date
-                  FROM book_distribution bd
+                    (le.tickets_per_book * le.price_per_ticket) as expected_amount
+                  FROM payment_collections pc
+                  JOIN book_distribution bd ON pc.distribution_id = bd.distribution_id
                   JOIN lottery_books lb ON bd.book_id = lb.book_id
                   JOIN lottery_events le ON lb.event_id = le.event_id
-                  LEFT JOIN payment_collections pc ON bd.distribution_id = pc.distribution_id
-                  WHERE le.event_id = ?
-                  GROUP BY bd.distribution_id
-                  HAVING total_paid >= expected_amount
-                  ORDER BY full_payment_date ASC";
+                  WHERE le.event_id = ? AND pc.amount_paid > 0
+                  ORDER BY pc.payment_date ASC";
 
 $previewStmt = $db->prepare($previewQuery);
 $previewStmt->execute([$eventId]);
-$fullyPaidBooks = $previewStmt->fetchAll();
+$allPayments = $previewStmt->fetchAll();
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -234,8 +228,8 @@ $fullyPaidBooks = $previewStmt->fetchAll();
                 <?php if ($syncResults): ?>
                     <ul style="margin: var(--spacing-sm) 0 0 var(--spacing-lg);">
                         <li>Old commission records deleted: <?php echo $syncResults['deleted']; ?></li>
-                        <li>Fully paid books found: <?php echo $syncResults['total']; ?></li>
-                        <li>New commissions created: <?php echo $syncResults['synced']; ?></li>
+                        <li>Total payments found: <?php echo $syncResults['total']; ?></li>
+                        <li>Commissions calculated: <?php echo $syncResults['synced']; ?></li>
                         <li>Skipped (no Level 1 or no eligible commission): <?php echo $syncResults['skipped']; ?></li>
                         <?php if ($syncResults['errors'] > 0): ?>
                             <li style="color: var(--error-color);">Errors: <?php echo $syncResults['errors']; ?></li>
@@ -253,49 +247,50 @@ $fullyPaidBooks = $previewStmt->fetchAll();
         <div class="card" style="margin-bottom: var(--spacing-lg); border-left: 4px solid var(--warning-color);">
             <div class="card-body">
                 <h3 style="margin-top: 0;">📖 What is Commission Sync?</h3>
-                <p>This tool finds fully paid books that are <strong>missing commission records</strong> and calculates their commissions.</p>
+                <p>This tool recalculates commissions for <strong>ALL payments</strong> (both partial and full) from scratch.</p>
 
-                <h4>Why would commissions be missing?</h4>
+                <h4>When should you use this?</h4>
                 <ul>
-                    <li><strong>Partial payments:</strong> Book paid in multiple installments (commission only calculated when fully paid)</li>
-                    <li><strong>System updates:</strong> Commission system was enabled after books were already paid</li>
-                    <li><strong>Database issues:</strong> Commission record creation failed during payment</li>
+                    <li><strong>Data cleanup:</strong> Commission records are incorrect or duplicated</li>
+                    <li><strong>Settings changed:</strong> Commission percentages or dates were updated</li>
+                    <li><strong>System migration:</strong> Commission system was enabled after books were already paid</li>
+                    <li><strong>Database issues:</strong> Commission calculation failed during payment collection</li>
                 </ul>
 
                 <h4>How does it work?</h4>
                 <ul>
-                    <li>Finds all books where <code>total_paid >= expected_amount</code></li>
-                    <li>Uses the <strong>LAST payment date</strong> (when book became fully paid) to determine commission eligibility</li>
-                    <li>Checks <code>is_extra_book</code> flag for extra books commission</li>
-                    <li>Creates missing commission records automatically</li>
+                    <li><strong>Step 1:</strong> DELETES all existing commission records for this event</li>
+                    <li><strong>Step 2:</strong> Finds ALL payments (partial and full) from <code>payment_collections</code> table</li>
+                    <li><strong>Step 3:</strong> Calculates commission on <strong>each payment amount</strong> individually</li>
+                    <li><strong>Step 4:</strong> Creates new commission records with correct amounts</li>
                 </ul>
 
                 <div style="background: var(--gray-50); padding: var(--spacing-md); border-radius: var(--radius-md); margin-top: var(--spacing-md);">
-                    <strong>Example:</strong> Book paid in 2 installments:<br>
-                    - Payment 1: Jan 10 (₹300) - Partial, no commission yet<br>
-                    - Payment 2: Jan 12 (₹200) - Completes full payment<br>
-                    <strong>✅ Commission calculated using Jan 12 (when fully paid)</strong>
+                    <strong>Example:</strong> Book value ₹500, paid in 2 installments:<br>
+                    - Payment 1: Jan 10 (₹300, Early commission 10%) → Commission: ₹30<br>
+                    - Payment 2: Jan 20 (₹200, Standard commission 5%) → Commission: ₹10<br>
+                    <strong>✅ Total commission: ₹40 (calculated on actual payment amounts)</strong>
                 </div>
             </div>
         </div>
 
-        <!-- Fully Paid Books Preview -->
+        <!-- All Payments Preview -->
         <div class="card" style="margin-bottom: var(--spacing-lg);">
             <div class="card-header">
-                <h3 class="card-title">📋 Fully Paid Books (<?php echo count($fullyPaidBooks); ?>)</h3>
+                <h3 class="card-title">📋 All Payments (<?php echo count($allPayments); ?>)</h3>
             </div>
             <div class="card-body">
-                <?php if (count($fullyPaidBooks) === 0): ?>
+                <?php if (count($allPayments) === 0): ?>
                     <div style="text-align: center; padding: var(--spacing-2xl); color: var(--gray-500);">
                         <div style="font-size: 64px; margin-bottom: var(--spacing-md);">💰</div>
-                        <h3>No Fully Paid Books Yet</h3>
-                        <p>Commission records will be calculated when books are fully paid.</p>
+                        <h3>No Payments Found</h3>
+                        <p>Commission records will be calculated when payments are collected.</p>
                     </div>
                 <?php else: ?>
                     <div style="margin-bottom: var(--spacing-md);">
-                        <p><strong><?php echo count($fullyPaidBooks); ?> book(s)</strong> are fully paid and will have commissions recalculated.</p>
-                        <p style="color: var(--warning-color); margin: var(--spacing-sm) 0;"><strong>⚠️ Warning:</strong> This will DELETE all existing commission records and recalculate them fresh with correct amounts.</p>
-                        <form method="POST" onsubmit="return confirm('This will DELETE all existing commission records and recalculate them. Are you sure?');">
+                        <p><strong><?php echo count($allPayments); ?> payment(s)</strong> found and will have commissions recalculated.</p>
+                        <p style="color: var(--warning-color); margin: var(--spacing-sm) 0;"><strong>⚠️ Warning:</strong> This will DELETE all existing commission records and recalculate them fresh based on actual payment amounts.</p>
+                        <form method="POST" onsubmit="return confirm('This will DELETE all existing commission records and recalculate them from ALL payments. Are you sure?');">
                             <input type="hidden" name="action" value="sync">
                             <button type="submit" class="btn btn-primary">🔄 Reset & Recalculate All Commissions</button>
                         </form>
@@ -308,35 +303,37 @@ $fullyPaidBooks = $previewStmt->fetchAll();
                                     <th>Book #</th>
                                     <th>Location</th>
                                     <th>Extra Book</th>
-                                    <th>Expected</th>
-                                    <th>Paid</th>
-                                    <th>Full Payment Date</th>
+                                    <th>Payment Amount</th>
+                                    <th>Payment Date</th>
                                     <th>Payment Type</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                <?php foreach ($fullyPaidBooks as $record): ?>
+                                <?php foreach ($allPayments as $payment): ?>
+                                    <?php
+                                    $paymentType = 'Full Payment';
+                                    if ($payment['amount_paid'] < $payment['expected_amount']) {
+                                        $paymentType = 'Partial Payment';
+                                    }
+                                    ?>
                                     <tr>
-                                        <td><strong><?php echo $record['book_number']; ?></strong></td>
-                                        <td><?php echo htmlspecialchars($record['distribution_path']); ?></td>
+                                        <td><strong><?php echo $payment['book_number']; ?></strong></td>
+                                        <td><?php echo htmlspecialchars($payment['distribution_path']); ?></td>
                                         <td>
-                                            <?php if ($record['is_extra_book'] == 1): ?>
+                                            <?php if ($payment['is_extra_book'] == 1): ?>
                                                 <span class="badge badge-info">✓ Extra</span>
                                             <?php else: ?>
                                                 <span class="badge badge-secondary">Regular</span>
                                             <?php endif; ?>
                                         </td>
-                                        <td>₹<?php echo number_format($record['expected_amount']); ?></td>
-                                        <td>₹<?php echo number_format($record['total_paid']); ?></td>
-                                        <td><strong><?php echo date('M d, Y', strtotime($record['full_payment_date'])); ?></strong></td>
+                                        <td><strong>₹<?php echo number_format($payment['amount_paid']); ?></strong></td>
+                                        <td><?php echo date('M d, Y', strtotime($payment['payment_date'])); ?></td>
                                         <td>
-                                            <?php
-                                            if ($record['first_payment_date'] !== $record['full_payment_date']):
-                                                echo '<span class="badge badge-warning">Multiple Payments</span>';
-                                            else:
-                                                echo '<span class="badge badge-success">Single Payment</span>';
-                                            endif;
-                                            ?>
+                                            <?php if ($paymentType === 'Partial Payment'): ?>
+                                                <span class="badge badge-warning">Partial</span>
+                                            <?php else: ?>
+                                                <span class="badge badge-success">Full</span>
+                                            <?php endif; ?>
                                         </td>
                                     </tr>
                                 <?php endforeach; ?>
