@@ -16,8 +16,14 @@ if (!$communityId) {
 $database = new Database();
 $db = $database->getConnection();
 
-// Get all lottery events
-$query = "SELECT * FROM lottery_events WHERE community_id = :community_id ORDER BY created_at DESC";
+// Get all lottery events with commission settings
+$query = "SELECT
+            le.*,
+            cs.commission_enabled
+          FROM lottery_events le
+          LEFT JOIN commission_settings cs ON le.event_id = cs.event_id
+          WHERE le.community_id = :community_id
+          ORDER BY le.created_at DESC";
 $stmt = $db->prepare($query);
 $stmt->bindParam(':community_id', $communityId);
 $stmt->execute();
@@ -232,7 +238,14 @@ $error = $_GET['error'] ?? '';
                 <div class="event-card">
                     <div class="event-header">
                         <div>
-                            <h3 style="margin: 0;"><?php echo htmlspecialchars($event['event_name']); ?></h3>
+                            <h3 style="margin: 0; display: flex; align-items: center; gap: var(--spacing-sm); flex-wrap: wrap;">
+                                <?php echo htmlspecialchars($event['event_name']); ?>
+                                <?php if ($event['commission_enabled']): ?>
+                                    <span class="badge badge-success" style="font-size: 12px;" title="Commission system is enabled for this event">
+                                        💰 Commission ON
+                                    </span>
+                                <?php endif; ?>
+                            </h3>
                             <p style="margin: var(--spacing-xs) 0; color: var(--gray-600);">
                                 <?php echo htmlspecialchars($event['event_description'] ?? 'No description'); ?>
                             </p>
@@ -301,8 +314,8 @@ $error = $_GET['error'] ?? '';
                         <a href="/public/group-admin/lottery-winners.php?id=<?php echo $event['event_id']; ?>" class="btn btn-sm" style="background: #f59e0b; color: white;">
                             <span>🏆</span> <span>Winners</span>
                         </a>
-                        <a href="/public/group-admin/lottery-commission-setup.php?id=<?php echo $event['event_id']; ?>" class="btn btn-sm" style="background: #8b5cf6; color: white;">
-                            <span>💰</span> <span>Commission</span>
+                        <a href="/public/group-admin/lottery-commission-setup.php?id=<?php echo $event['event_id']; ?>" class="btn btn-sm" style="background: <?php echo $event['commission_enabled'] ? '#10b981' : '#6b7280'; ?>; color: white;" title="<?php echo $event['commission_enabled'] ? 'Commission is enabled' : 'Commission is disabled'; ?>">
+                            <span>💰</span> <span>Commission <?php echo $event['commission_enabled'] ? '✓' : ''; ?></span>
                         </a>
                         <a href="/public/group-admin/lottery-reports.php?id=<?php echo $event['event_id']; ?>" class="btn btn-secondary btn-sm">
                             <span>📊</span> <span>Reports</span>

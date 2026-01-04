@@ -45,6 +45,31 @@ $success = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
 
+    // Handle master commission toggle
+    if ($action === 'master_commission') {
+        $masterEnabled = isset($_POST['commission_enabled']) ? 1 : 0;
+
+        if ($settings) {
+            $updateQuery = "UPDATE commission_settings SET
+                           commission_enabled = :enabled
+                           WHERE event_id = :event_id";
+        } else {
+            $updateQuery = "INSERT INTO commission_settings
+                           (event_id, commission_enabled)
+                           VALUES (:event_id, :enabled)";
+        }
+        $stmt = $db->prepare($updateQuery);
+        $stmt->bindParam(':event_id', $eventId);
+        $stmt->bindParam(':enabled', $masterEnabled);
+
+        if ($stmt->execute()) {
+            header("Location: ?id=$eventId&success=master_saved");
+            exit;
+        } else {
+            $error = 'Failed to save master commission settings';
+        }
+    }
+
     if ($action === 'early_commission') {
         $enabled = isset($_POST['early_commission_enabled']) ? 1 : 0;
         $date = $_POST['early_payment_date'] ?? null;
@@ -156,6 +181,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // Handle success messages
 if (isset($_GET['success'])) {
     $success = match($_GET['success']) {
+        'master_saved' => 'Master Commission settings saved successfully!',
         'early_saved' => 'Early Payment Commission settings saved successfully!',
         'standard_saved' => 'Standard Payment Commission settings saved successfully!',
         'extra_saved' => 'Extra Books Commission settings saved successfully!',
@@ -301,6 +327,52 @@ if (isset($_GET['success'])) {
         <div style="margin-bottom: var(--spacing-lg);">
             <a href="/public/group-admin/lottery.php" class="btn btn-secondary">← Back to Events</a>
             <a href="/public/group-admin/lottery-reports.php?id=<?php echo $eventId; ?>#commission" class="btn btn-success" onclick="setTimeout(() => document.querySelector('.tab[onclick*=commission]')?.click(), 100)">View Commission Report →</a>
+        </div>
+
+        <!-- Master Commission Toggle -->
+        <div class="card" style="margin-bottom: var(--spacing-xl); border: 3px solid <?php echo ($settings && $settings['commission_enabled']) ? 'var(--success-color)' : 'var(--gray-300)'; ?>; background: <?php echo ($settings && $settings['commission_enabled']) ? '#f0fdf4' : 'white'; ?>;">
+            <div class="card-body">
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--spacing-md);">
+                    <div>
+                        <h3 style="margin: 0; display: flex; align-items: center; gap: var(--spacing-md);">
+                            <span style="font-size: 28px;">⚙️</span>
+                            Master Commission Control
+                            <span class="badge <?php echo ($settings && $settings['commission_enabled']) ? 'badge-success' : 'badge-secondary'; ?>" style="font-size: 14px;">
+                                <?php echo ($settings && $settings['commission_enabled']) ? 'ENABLED' : 'DISABLED'; ?>
+                            </span>
+                        </h3>
+                        <p style="margin: var(--spacing-sm) 0 0 0; color: var(--gray-600);">
+                            <?php if ($settings && $settings['commission_enabled']): ?>
+                                <strong style="color: var(--success-color);">✓ Commission system is active</strong> - Individual commission types can be configured below
+                            <?php else: ?>
+                                <strong style="color: var(--error-color);">✗ Commission system is disabled</strong> - Enable to activate commission calculations
+                            <?php endif; ?>
+                        </p>
+                    </div>
+                    <div>
+                        <form method="POST" style="margin: 0;" onsubmit="return confirm('<?php echo ($settings && $settings['commission_enabled']) ? 'Disable commission system? This will stop all commission calculations.' : 'Enable commission system? You can then configure individual commission types below.'; ?>')">
+                            <input type="hidden" name="action" value="master_commission">
+                            <label class="toggle-switch" style="margin: 0;">
+                                <input type="checkbox" name="commission_enabled" value="1"
+                                       <?php echo ($settings && $settings['commission_enabled']) ? 'checked' : ''; ?>
+                                       onchange="this.form.submit()">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </form>
+                    </div>
+                </div>
+
+                <div style="background: <?php echo ($settings && $settings['commission_enabled']) ? '#dcfce7' : '#fef2f2'; ?>; padding: var(--spacing-md); border-radius: var(--radius-md); margin-top: var(--spacing-md); border: 1px solid <?php echo ($settings && $settings['commission_enabled']) ? '#86efac' : '#fecaca'; ?>;">
+                    <small>
+                        <strong><?php echo ($settings && $settings['commission_enabled']) ? 'ℹ️ Note:' : '⚠️ Important:'; ?></strong>
+                        <?php if ($settings && $settings['commission_enabled']): ?>
+                            This is the master switch for the entire commission system. When enabled, you can configure individual commission types below. Commission calculations will apply based on your individual settings.
+                        <?php else: ?>
+                            The master commission system is currently disabled. No commissions will be calculated for this event. Enable it here to start configuring and earning commissions.
+                        <?php endif; ?>
+                    </small>
+                </div>
+            </div>
         </div>
 
         <!-- Commission Maintenance Tools -->
