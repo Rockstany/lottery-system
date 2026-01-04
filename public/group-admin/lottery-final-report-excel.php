@@ -84,8 +84,8 @@ $sheet1->getStyle('A4:E4')->applyFromArray($headerStyle);
 // Fetch book assignments
 $booksQuery = "SELECT
                 lb.book_number,
-                lb.first_ticket_number,
-                lb.last_ticket_number,
+                lb.start_ticket_number,
+                lb.end_ticket_number,
                 bd.distribution_path,
                 bd.notes as assigned_to,
                 bd.mobile_number,
@@ -93,7 +93,7 @@ $booksQuery = "SELECT
               FROM lottery_books lb
               LEFT JOIN book_distribution bd ON lb.book_id = bd.book_id
               WHERE lb.event_id = :event_id
-              ORDER BY lb.first_ticket_number ASC";
+              ORDER BY lb.start_ticket_number ASC";
 $stmt = $db->prepare($booksQuery);
 $stmt->bindParam(':event_id', $eventId);
 $stmt->execute();
@@ -101,8 +101,8 @@ $books = $stmt->fetchAll();
 
 $row = 5;
 foreach ($books as $book) {
-    // Use first ticket number as Serial No
-    $sheet1->setCellValue('A' . $row, $book['first_ticket_number']);
+    // Use start ticket number as Serial No
+    $sheet1->setCellValue('A' . $row, $book['start_ticket_number']);
     $sheet1->setCellValue('B' . $row, $book['distribution_path'] ?? 'Not Assigned');
     $sheet1->setCellValue('C' . $row, $book['assigned_to'] ?? '-');
     $sheet1->setCellValue('D' . $row, $book['mobile_number'] ?? '-');
@@ -146,7 +146,7 @@ $sheet2->getStyle('A3:F3')->applyFromArray($headerStyle);
 
 // Fetch payments
 $paymentsQuery = "SELECT
-                    lb.first_ticket_number,
+                    lb.start_ticket_number,
                     bd.distribution_path,
                     pc.amount_paid,
                     pc.payment_date,
@@ -161,7 +161,7 @@ $paymentsQuery = "SELECT
                     AND pc2.payment_id <= pc.payment_id
                   WHERE le.event_id = :event_id
                   GROUP BY pc.payment_id
-                  ORDER BY pc.payment_date ASC, lb.first_ticket_number ASC";
+                  ORDER BY pc.payment_date ASC, lb.start_ticket_number ASC";
 $stmt = $db->prepare($paymentsQuery);
 $stmt->bindParam(':event_id', $eventId);
 $stmt->execute();
@@ -171,7 +171,7 @@ $row = 4;
 foreach ($payments as $payment) {
     $paymentStatus = ($payment['total_paid'] >= $payment['expected_amount']) ? 'Fully Paid' : 'Partial';
 
-    $sheet2->setCellValue('A' . $row, $payment['first_ticket_number']);
+    $sheet2->setCellValue('A' . $row, $payment['start_ticket_number']);
     $sheet2->setCellValue('B' . $row, $payment['distribution_path'] ?? '-');
     $sheet2->setCellValue('C' . $row, '₹' . number_format($payment['amount_paid'], 2));
     $sheet2->setCellValue('D' . $row, date('d-M-Y', strtotime($payment['payment_date'])));
@@ -216,7 +216,7 @@ $sheet3->getStyle('A3:G3')->applyFromArray($headerStyle);
 
 // Fetch commissions
 $commissionsQuery = "SELECT
-                      lb.first_ticket_number,
+                      lb.start_ticket_number,
                       ce.level_1_value as unit,
                       ce.commission_type,
                       ce.payment_amount,
@@ -226,7 +226,7 @@ $commissionsQuery = "SELECT
                     FROM commission_earned ce
                     JOIN lottery_books lb ON ce.book_id = lb.book_id
                     WHERE ce.event_id = :event_id
-                    ORDER BY ce.payment_date ASC, lb.first_ticket_number ASC";
+                    ORDER BY ce.payment_date ASC, lb.start_ticket_number ASC";
 $stmt = $db->prepare($commissionsQuery);
 $stmt->bindParam(':event_id', $eventId);
 $stmt->execute();
@@ -241,7 +241,7 @@ foreach ($commissions as $comm) {
         default => ucfirst($comm['commission_type'])
     };
 
-    $sheet3->setCellValue('A' . $row, $comm['first_ticket_number']);
+    $sheet3->setCellValue('A' . $row, $comm['start_ticket_number']);
     $sheet3->setCellValue('B' . $row, $comm['unit']);
     $sheet3->setCellValue('C' . $row, $commType);
     $sheet3->setCellValue('D' . $row, '₹' . number_format($comm['payment_amount'], 2));
