@@ -312,9 +312,51 @@ $recentActivity = $stmt->fetchAll();
                         <div class="action-icon">🖥️</div>
                         <div>System Health</div>
                     </a>
+                    <a href="/public/admin/test-features.php?community_id=1" class="action-btn" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none;">
+                        <div class="action-icon">⚙️</div>
+                        <div>Manage Features</div>
+                    </a>
                 </div>
             </div>
         </div>
+
+        <!-- Communities & Features Management -->
+        <?php
+        // Get all communities for feature management
+        $query = "SELECT community_id, community_name, status FROM communities ORDER BY community_name";
+        $stmt = $db->prepare($query);
+        $stmt->execute();
+        $communitiesForFeatures = $stmt->fetchAll();
+        ?>
+
+        <?php if (!empty($communitiesForFeatures)): ?>
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">⚙️ Feature Management by Community</h3>
+            </div>
+            <div class="card-body">
+                <p style="color: var(--gray-600); margin-bottom: var(--spacing-lg);">
+                    Enable or disable features (Lottery System, etc.) for each community. Only enabled features will appear on the Group Admin's dashboard.
+                </p>
+                <div style="display: grid; gap: var(--spacing-md);">
+                    <?php foreach ($communitiesForFeatures as $comm): ?>
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding: var(--spacing-md); background: var(--gray-50); border-radius: var(--radius-md); border-left: 4px solid <?php echo $comm['status'] === 'active' ? 'var(--success-color)' : 'var(--gray-400)'; ?>;">
+                            <div>
+                                <strong style="font-size: var(--font-size-lg);"><?php echo htmlspecialchars($comm['community_name']); ?></strong>
+                                <?php if ($comm['status'] !== 'active'): ?>
+                                    <span class="badge badge-secondary" style="margin-left: var(--spacing-sm);">Inactive</span>
+                                <?php endif; ?>
+                            </div>
+                            <a href="/public/admin/test-features.php?community_id=<?php echo $comm['community_id']; ?>"
+                               class="btn btn-primary btn-sm">
+                                ⚙️ Manage Features
+                            </a>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+        </div>
+        <?php endif; ?>
 
         <div class="row">
             <!-- Recent Activity -->
