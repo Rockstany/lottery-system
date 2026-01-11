@@ -25,6 +25,15 @@
 #### **Modified:**
 - `public/group-admin/dashboard.php` - COMPLETELY REWRITTEN (feature card layout)
 - `public/admin/dashboard.php` - Fixed transaction campaigns error
+- `public/group-admin/includes/navigation.php` - Removed transaction links
+
+#### **Deleted:**
+- `public/group-admin/transactions.php`
+- `public/group-admin/transaction-create.php`
+- `public/group-admin/transaction-upload.php`
+- `public/group-admin/transaction-members.php`
+- `public/group-admin/transaction-payment-record.php`
+- `public/group-admin/transaction-delete-request.php`
 
 ---
 

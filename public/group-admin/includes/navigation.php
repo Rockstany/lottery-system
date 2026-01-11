@@ -130,12 +130,6 @@ $currentPage = basename($_SERVER['PHP_SELF']);
                 </a>
             </li>
             <li>
-                <a href="/public/group-admin/transactions.php"
-                   class="nav-link <?php echo in_array($currentPage, ['transactions.php', 'transaction-create.php', 'transaction-upload.php', 'transaction-members.php', 'transaction-payment-record.php']) ? 'active' : ''; ?>">
-                    <span>💰</span><span>Transactions</span>
-                </a>
-            </li>
-            <li>
                 <a href="/public/group-admin/lottery.php"
                    class="nav-link <?php echo in_array($currentPage, ['lottery.php', 'lottery-create.php', 'lottery-edit.php', 'lottery-books.php', 'lottery-books-generate.php', 'lottery-book-assign.php', 'lottery-distribution-setup.php', 'lottery-payments.php', 'lottery-payment-collect.php', 'lottery-reports.php', 'lottery-winners.php', 'lottery-commission-setup.php']) ? 'active' : ''; ?>">
                     <span>🎫</span><span>Lottery</span>
