@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1:3306
--- Generation Time: Jan 11, 2026 at 05:59 PM
+-- Generation Time: Jan 11, 2026 at 06:09 PM
 -- Server version: 11.8.3-MariaDB-log
 -- PHP Version: 7.2.34
 
@@ -32,6 +32,7 @@ CREATE TABLE `activity_logs` (
   `user_id` int(10) UNSIGNED DEFAULT NULL,
   `action_type` varchar(50) NOT NULL,
   `action_description` text DEFAULT NULL,
+  `feature_key` varchar(50) DEFAULT NULL,
   `ip_address` varchar(45) DEFAULT NULL,
   `user_agent` text DEFAULT NULL,
   `created_at` timestamp NULL DEFAULT current_timestamp()
@@ -41,166 +42,166 @@ CREATE TABLE `activity_logs` (
 -- Dumping data for table `activity_logs`
 --
 
-INSERT INTO `activity_logs` (`log_id`, `user_id`, `action_type`, `action_description`, `ip_address`, `user_agent`, `created_at`) VALUES
-(1, 1, 'login', 'User logged in successfully', '103.211.52.166', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '2025-11-28 18:59:58'),
-(2, 1, 'logout', 'User logged out', '103.211.52.166', NULL, '2025-11-28 19:00:21'),
-(3, 1, 'login', 'User logged in successfully', '103.211.52.166', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '2025-11-28 19:00:31'),
-(4, 1, 'user_status_change', 'User \'Albin Test\' (ID: 2) deactivated', '103.211.52.166', NULL, '2025-11-28 19:39:46'),
-(5, 3, 'login', 'User logged in successfully', '103.211.52.166', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36 Edg/142.0.0.0', '2025-11-28 19:40:29'),
-(6, 1, 'login', 'User logged in successfully', '2401:4900:1f39:60a2:91f7:48df:72ec:20a8', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '2025-11-29 17:32:33'),
-(7, 1, 'logout', 'User logged out', '2401:4900:1f39:60a2:91f7:48df:72ec:20a8', NULL, '2025-11-29 17:32:50'),
-(8, 3, 'login', 'User logged in successfully', '2401:4900:1f39:60a2:91f7:48df:72ec:20a8', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '2025-11-29 17:33:02'),
-(9, 1, 'login', 'User logged in successfully', '2401:4900:1f39:60a2:91f7:48df:72ec:20a8', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '2025-11-29 17:33:32'),
-(10, 3, 'login', 'User logged in successfully', '2401:4900:1f39:60a2:91f7:48df:72ec:20a8', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36 Edg/142.0.0.0', '2025-11-29 17:56:50'),
-(11, 1, 'login', 'User logged in successfully', '2401:4900:1c5c:4ef9:adc1:1727:25f5:d278', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '2025-11-30 08:32:21'),
-(12, 3, 'login', 'User logged in successfully', '2401:4900:1c5c:4ef9:adc1:1727:25f5:d278', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '2025-11-30 08:33:21'),
-(13, 3, 'login', 'User logged in successfully', '2401:4900:1c5c:4ef9:adc1:1727:25f5:d278', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '2025-11-30 08:51:09'),
-(14, 3, 'login', 'User logged in successfully', '2401:4900:1c5c:4ef9:adc1:1727:25f5:d278', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '2025-11-30 09:05:32'),
-(15, 3, 'login', 'User logged in successfully', '2401:4900:1c5c:4ef9:d59a:5a2d:60ac:6dd3', 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_6_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/142.0.7444.148 Mobile/15E148 Safari/604.1', '2025-11-30 09:41:24'),
-(16, 3, 'login', 'User logged in successfully', '2401:4900:1c5c:4ef9:2d69:eb64:f669:f974', 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_6_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/142.0.7444.148 Mobile/15E148 Safari/604.1', '2025-11-30 16:48:38'),
-(17, 3, 'login', 'User logged in successfully', '2401:4900:1c5c:4ef9:adc1:1727:25f5:d278', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '2025-11-30 17:07:07'),
-(18, 1, 'login', 'User logged in successfully', '2401:4900:1c5c:4ef9:adc1:1727:25f5:d278', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '2025-11-30 17:45:08'),
-(19, 1, 'logout', 'User logged out', '2401:4900:1c5c:4ef9:adc1:1727:25f5:d278', NULL, '2025-11-30 17:47:22'),
-(20, 1, 'login', 'User logged in successfully', '2401:4900:1c5c:4ef9:adc1:1727:25f5:d278', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '2025-11-30 17:48:05'),
-(21, 1, 'user_status_change', 'User \'A.D.Thomas\' (ID: 4) deactivated', '2401:4900:1c5c:4ef9:adc1:1727:25f5:d278', NULL, '2025-11-30 17:48:31'),
-(22, 1, 'logout', 'User logged out', '2401:4900:1c5c:4ef9:adc1:1727:25f5:d278', NULL, '2025-11-30 17:49:55'),
-(23, 5, 'login', 'User logged in successfully', '2401:4900:1c5c:4ef9:adc1:1727:25f5:d278', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '2025-11-30 17:49:59'),
-(24, 5, 'logout', 'User logged out', '2401:4900:1c5c:4ef9:adc1:1727:25f5:d278', NULL, '2025-11-30 17:50:22'),
-(25, 1, 'login', 'User logged in successfully', '2401:4900:1c5c:4ef9:adc1:1727:25f5:d278', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '2025-11-30 17:50:25'),
-(26, 5, 'login', 'User logged in successfully', '2401:4900:1c5c:4ef9:adc1:1727:25f5:d278', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '2025-11-30 17:50:57'),
-(27, 5, 'login', 'User logged in successfully', '2401:4900:1c5c:4ef9:1d53:b12f:c9eb:341f', 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/29.0 Chrome/136.0.0.0 Mobile Safari/537.36', '2025-11-30 18:16:30'),
-(28, 3, 'login', 'User logged in successfully', '103.211.52.166', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '2025-12-02 12:14:23'),
-(29, 3, 'logout', 'User logged out', '103.211.52.166', NULL, '2025-12-02 13:03:01'),
-(30, 1, 'login', 'User logged in successfully', '103.211.52.166', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '2025-12-02 13:03:04'),
-(31, 1, 'logout', 'User logged out', '103.211.52.166', NULL, '2025-12-02 13:10:30'),
-(32, 3, 'login', 'User logged in successfully', '103.211.52.166', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '2025-12-02 13:10:41'),
-(33, 3, 'logout', 'User logged out', '103.211.52.166', NULL, '2025-12-02 13:35:49'),
-(34, 1, 'login', 'User logged in successfully', '103.211.52.166', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '2025-12-02 13:35:53'),
-(35, 3, 'login', 'User logged in successfully', '103.211.52.166', 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_6_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Mobile/15E148 Safari/604.1', '2025-12-02 13:37:16'),
-(36, 1, 'logout', 'User logged out', '103.211.52.166', NULL, '2025-12-02 13:38:16'),
-(37, 3, 'login', 'User logged in successfully', '103.211.52.166', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '2025-12-02 13:38:20'),
-(38, 3, 'logout', 'User logged out', '103.211.52.166', NULL, '2025-12-02 13:57:51'),
-(39, 1, 'login', 'User logged in successfully', '103.211.52.166', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '2025-12-02 13:57:55'),
-(40, 1, 'logout', 'User logged out', '103.211.52.166', NULL, '2025-12-02 13:58:02'),
-(41, 5, 'login', 'User logged in successfully', '103.211.52.166', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '2025-12-02 14:13:33'),
-(42, 1, 'login', 'User logged in successfully', '103.211.52.166', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36 Edg/142.0.0.0', '2025-12-02 14:16:06'),
-(43, 5, 'logout', 'User logged out', '103.211.52.166', NULL, '2025-12-02 14:21:01'),
-(44, 1, 'login', 'User logged in successfully', '103.211.52.166', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36 Edg/142.0.0.0', '2025-12-02 17:15:39'),
-(45, 3, 'login', 'User logged in successfully', '103.211.52.166', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '2025-12-02 17:16:05'),
-(46, 3, 'logout', 'User logged out', '103.211.52.166', NULL, '2025-12-02 17:16:41'),
-(47, 5, 'login', 'User logged in successfully', '103.211.52.166', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '2025-12-02 17:16:46'),
-(48, 5, 'logout', 'User logged out', '103.211.52.166', NULL, '2025-12-02 17:18:01'),
-(49, 3, 'login', 'User logged in successfully', '103.211.52.166', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '2025-12-02 17:18:06'),
-(50, 3, 'logout', 'User logged out', '103.211.52.166', NULL, '2025-12-02 17:18:31'),
-(51, 5, 'login', 'User logged in successfully', '2401:4900:47f2:6f48:3410:e754:166c:9851', 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_6_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Mobile/15E148 Safari/604.1', '2025-12-02 17:20:18'),
-(52, 5, 'login', 'User logged in successfully', '2401:4900:1c5b:1a3e:b8d1:8c5f:cacc:1812', 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Mobile Safari/537.36', '2025-12-03 01:25:01'),
-(53, 5, 'logout', 'User logged out', '2401:4900:1c5b:1a3e:b8d1:8c5f:cacc:1812', NULL, '2025-12-03 01:38:45'),
-(54, 1, 'login', 'User logged in successfully', '103.211.52.166', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '2025-12-03 04:05:02'),
-(55, 3, 'login', 'User logged in successfully', '103.211.52.166', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '2025-12-03 04:17:35'),
-(56, 3, 'logout', 'User logged out', '103.211.52.166', NULL, '2025-12-03 04:17:48'),
-(57, 5, 'login', 'User logged in successfully', '103.211.52.166', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '2025-12-03 04:17:51'),
-(58, 3, 'login', 'User logged in successfully', '103.211.52.166', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '2025-12-03 09:17:14'),
-(59, 5, 'login', 'User logged in successfully', '2401:4900:47f2:10d3:a471:c50e:116c:9823', 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_6_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/142.0.7444.148 Mobile/15E148 Safari/604.1', '2025-12-03 19:42:32'),
-(60, 5, 'logout', 'User logged out', '2401:4900:47f2:10d3:a471:c50e:116c:9823', NULL, '2025-12-03 19:45:51'),
-(61, 5, 'login', 'User logged in successfully', '103.211.52.166', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36', '2025-12-04 05:26:44'),
-(62, 5, 'logout', 'User logged out', '103.211.52.166', NULL, '2025-12-04 05:29:39'),
-(63, 5, 'login', 'User logged in successfully', '103.211.52.166', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36', '2025-12-04 05:29:47'),
-(64, 5, 'deletion_requested', 'Requested deletion of payment transaction: Transaction: ₹1,000 - Book #1 (Christmas 25). Reason: Wrong payment marked', NULL, NULL, '2025-12-04 05:37:39'),
-(65, 1, 'login', 'User logged in successfully', '103.211.52.166', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36', '2025-12-04 05:41:56'),
-(66, 1, 'deletion_approved', 'Approved deletion request #1: Transaction: ₹1,000 - Book #1 (Christmas 25)', NULL, NULL, '2025-12-04 05:42:09'),
-(67, 5, 'login', 'User logged in successfully', '103.211.52.166', 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_6_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/142.0.7444.148 Mobile/15E148 Safari/604.1', '2025-12-04 06:00:49'),
-(68, 1, 'logout', 'User logged out', '103.211.52.166', NULL, '2025-12-04 06:02:56'),
-(69, 5, 'login', 'User logged in successfully', '103.211.52.166', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36', '2025-12-04 06:02:59'),
-(70, 5, 'login', 'User logged in successfully', '103.211.52.166', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36', '2025-12-04 06:16:00'),
-(71, 5, 'login', 'User logged in successfully', '103.211.52.166', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36 Edg/142.0.0.0', '2025-12-04 06:24:40'),
-(72, 5, 'deletion_requested', 'Requested deletion of payment transaction: Transaction: ₹700 - Book #1 (Christmas 25). Reason: Testing', NULL, NULL, '2025-12-04 06:59:57'),
-(73, 1, 'login', 'User logged in successfully', '103.211.52.166', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36', '2025-12-04 07:00:19'),
-(74, 1, 'deletion_approved', 'Approved deletion request #2: Transaction: ₹700 - Book #1 (Christmas 25)', NULL, NULL, '2025-12-04 07:00:28'),
-(75, 5, 'book_returned', 'Marked book #1 as RETURNED (Distribution ID: 4)', NULL, NULL, '2025-12-04 07:38:47'),
-(76, 5, 'book_return_undone', 'Unmarked book #1 return status (Distribution ID: 4)', NULL, NULL, '2025-12-04 07:38:54'),
-(77, 3, 'login', 'User logged in successfully', '103.211.52.166', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36', '2025-12-04 10:16:06'),
-(78, 3, 'logout', 'User logged out', '103.211.52.166', NULL, '2025-12-04 10:16:13'),
-(79, 5, 'login', 'User logged in successfully', '103.211.52.166', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36', '2025-12-04 10:16:16'),
-(80, 5, 'logout', 'User logged out', '103.211.52.166', NULL, '2025-12-04 10:33:47'),
-(81, 1, 'login', 'User logged in successfully', '103.211.52.166', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36', '2025-12-04 10:33:51'),
-(82, 1, 'logout', 'User logged out', '103.211.52.166', NULL, '2025-12-04 10:34:26'),
-(83, 3, 'login', 'User logged in successfully', '103.211.52.166', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36', '2025-12-04 10:34:31'),
-(84, 3, 'logout', 'User logged out', '103.211.52.166', NULL, '2025-12-04 10:40:20'),
-(85, 3, 'login', 'User logged in successfully', '103.211.52.166', 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_6_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/142.0.7444.148 Mobile/15E148 Safari/604.1', '2025-12-04 10:40:31'),
-(86, 3, 'book_reassigned', 'Reassigned Book #1 from \'C > 2\' to \'C > 1\'', NULL, NULL, '2025-12-04 11:14:14'),
-(87, 3, 'book_reassigned', 'Reassigned Book #2 from \'C > 2\' to \'C > 1\'', NULL, NULL, '2025-12-04 11:14:28'),
-(88, 3, 'login', 'User logged in successfully', '103.211.52.168', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36', '2025-12-04 11:16:45'),
-(89, 3, 'book_returned', 'Marked book #1 as RETURNED (Distribution ID: 173)', NULL, NULL, '2025-12-04 11:20:41'),
-(90, 3, 'book_returned', 'Marked book #2 as RETURNED (Distribution ID: 174)', NULL, NULL, '2025-12-04 11:28:52'),
-(91, 3, 'book_returned', 'Marked book #3 as RETURNED (Distribution ID: 175)', NULL, NULL, '2025-12-04 11:28:57'),
-(92, 3, 'login', 'User logged in successfully', '103.211.52.168', 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_6_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/142.0.7444.148 Mobile/15E148 Safari/604.1', '2025-12-04 11:51:07'),
-(93, 3, 'login', 'User logged in successfully', '103.211.52.168', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36 Edg/142.0.0.0', '2025-12-04 11:55:50'),
-(94, 3, 'login', 'User logged in successfully', '103.211.52.168', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36', '2025-12-04 12:00:34'),
-(95, 3, 'login', 'User logged in successfully', '103.211.52.168', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36', '2025-12-04 17:03:23'),
-(96, 3, 'login', 'User logged in successfully', '103.211.52.168', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36 Edg/142.0.0.0', '2025-12-04 17:28:38'),
-(97, 3, 'logout', 'User logged out', '103.211.52.168', NULL, '2025-12-04 17:37:53'),
-(98, 3, 'login', 'User logged in successfully', '103.211.52.168', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36 Edg/142.0.0.0', '2025-12-04 17:38:16'),
-(99, 3, 'login', 'User logged in successfully', '2401:4900:47f7:911c:6033:6b9c:b4ee:5a96', 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_6_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Mobile/15E148 Safari/604.1', '2025-12-04 17:42:28'),
-(100, 3, 'login', 'User logged in successfully', '103.211.52.168', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36', '2025-12-04 17:48:56'),
-(101, 3, 'login', 'User logged in successfully', '103.211.52.168', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36', '2025-12-04 18:00:49'),
-(102, 3, 'book_returned', 'Marked book #10 as RETURNED (Distribution ID: 182)', NULL, NULL, '2025-12-04 18:07:06'),
-(103, 3, 'logout', 'User logged out', '2401:4900:47f3:74c1:2948:be26:c75c:2b52', NULL, '2025-12-04 18:28:01'),
-(104, 5, 'login', 'User logged in successfully', '2401:4900:47f3:74c1:2948:be26:c75c:2b52', 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_6_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Mobile/15E148 Safari/604.1', '2025-12-04 18:28:15'),
-(105, 3, 'login', 'User logged in successfully', '103.211.52.168', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36', '2025-12-05 10:31:19'),
-(106, 3, 'login', 'User logged in successfully', '103.211.52.168', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36', '2025-12-05 10:43:56'),
-(107, 3, 'logout', 'User logged out', '103.211.52.168', NULL, '2025-12-05 10:50:49'),
-(108, 3, 'login', 'User logged in successfully', '103.211.52.168', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36', '2025-12-05 10:51:04'),
-(109, 3, 'login', 'User logged in successfully', '103.211.52.168', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36 Edg/142.0.0.0', '2025-12-05 10:54:46'),
-(110, 3, 'logout', 'User logged out', '103.211.52.168', NULL, '2025-12-05 11:00:41'),
-(111, 3, 'logout', 'User logged out', '103.211.52.168', NULL, '2025-12-05 11:01:04'),
-(112, 1, 'login', 'User logged in successfully', '103.211.52.168', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36', '2025-12-05 11:01:08'),
-(113, 5, 'login', 'User logged in successfully', '2401:4900:1f38:41dd:f4aa:9114:6594:9161', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36 Edg/142.0.0.0', '2025-12-06 18:24:49'),
-(114, 5, 'logout', 'User logged out', '2401:4900:1f38:41dd:f4aa:9114:6594:9161', NULL, '2025-12-06 18:28:40'),
-(115, 5, 'login', 'User logged in successfully', '2401:4900:1c5a:70d9:255d:2987:2ba:2084', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36', '2025-12-07 15:16:18'),
-(116, 5, 'book_reassigned', 'Reassigned Book #2 from \'Assisi Convent\' to \'B.H.L Convent\'', NULL, NULL, '2025-12-07 15:20:56'),
-(117, 5, 'login', 'User logged in successfully', '2401:4900:1c5d:2f0b:a9c8:634e:2f13:c84b', 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_6_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/143.0.7499.108 Mobile/15E148 Safari/604.1', '2025-12-13 19:44:54'),
-(118, 5, 'login', 'User logged in successfully', '2401:4900:839a:374f:71c9:2a9a:6664:2640', 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_6_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/143.0.7499.108 Mobile/15E148 Safari/604.1', '2025-12-14 04:35:52'),
-(119, 3, 'login', 'User logged in successfully', '2401:4900:1c5d:3d63:53c:8285:88fd:4d', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36', '2025-12-14 13:52:19'),
-(120, 3, 'login', 'User logged in successfully', '2401:4900:1c5d:3d63:53c:8285:88fd:4d', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36', '2025-12-14 14:00:56'),
-(121, 5, 'login', 'User logged in successfully', '2401:4900:1c5d:3d63:53c:8285:88fd:4d', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36 Edg/143.0.0.0', '2025-12-14 14:06:27'),
-(122, 5, 'login', 'User logged in successfully', '2401:4900:83a5:ef10:805:b1d7:aaf3:24c3', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:146.0) Gecko/20100101 Firefox/146.0', '2025-12-21 04:39:08'),
-(123, 5, 'login', 'User logged in successfully', '2401:4900:1f39:6953:18d3:21f3:9dce:2524', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:146.0) Gecko/20100101 Firefox/146.0', '2025-12-21 09:04:25'),
-(124, 5, 'login', 'User logged in successfully', '103.211.52.130', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36', '2025-12-22 09:02:03'),
-(125, 5, 'login', 'User logged in successfully', '2401:4900:1c5a:af1e:571:ee02:261d:3b4c', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36', '2025-12-24 12:05:46'),
-(126, 5, 'login', 'User logged in successfully', '2401:4900:47f1:1fc4:64e2:d361:4f82:7de1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:146.0) Gecko/20100101 Firefox/146.0', '2025-12-24 14:00:07'),
-(127, 5, 'login', 'User logged in successfully', '2401:4900:47fc:21be:b955:b518:d005:44ac', 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_6_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/143.0.7499.151 Mobile/15E148 Safari/604.1', '2025-12-24 16:36:55'),
-(128, 5, 'login', 'User logged in successfully', '2401:4900:1c5a:af1e:b5a0:3c3c:8056:2603', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36', '2025-12-25 04:15:06'),
-(129, 5, 'login', 'User logged in successfully', '2401:4900:1c5a:af1e:15fe:c21e:f16e:d5e1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36', '2025-12-25 06:15:15'),
-(130, 5, 'logout', 'User logged out', '2401:4900:1c5a:af1e:15fe:c21e:f16e:d5e1', NULL, '2025-12-25 07:40:22'),
-(131, 5, 'login', 'User logged in successfully', '2401:4900:1c5a:af1e:15fe:c21e:f16e:d5e1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36', '2025-12-25 07:40:42'),
-(132, 5, 'login', 'User logged in successfully', '2401:4900:1c5a:af1e:15fe:c21e:f16e:d5e1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36', '2025-12-25 11:05:10'),
-(133, 5, 'login', 'User logged in successfully', '2401:4900:1f39:3b34:a903:6b6:6e22:c436', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:146.0) Gecko/20100101 Firefox/146.0', '2026-01-03 16:21:05'),
-(134, 5, 'deletion_requested', 'Requested deletion of payment transaction: Transaction: ₹1,000 - Book #2 (Christmas 25). Reason: Delete It', NULL, NULL, '2026-01-03 16:43:05'),
-(135, 1, 'login', 'User logged in successfully', '2401:4900:1f39:3b34:a903:6b6:6e22:c436', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:146.0) Gecko/20100101 Firefox/146.0', '2026-01-03 16:43:40'),
-(136, 1, 'deletion_approved', 'Approved deletion request #3: Transaction: ₹1,000 - Book #2 (Christmas 25)', NULL, NULL, '2026-01-03 16:43:51'),
-(137, 5, 'deletion_requested', 'Requested deletion of payment transaction: Transaction: ₹500 - Book #92 (Christmas 25). Reason: Delete it', NULL, NULL, '2026-01-03 16:45:07'),
-(138, 5, 'deletion_requested', 'Requested deletion of payment transaction: Transaction: ₹1,500 - Book #92 (Christmas 25). Reason: Delete it', NULL, NULL, '2026-01-03 16:45:21'),
-(139, 1, 'deletion_approved', 'Approved deletion request #5: Transaction: ₹1,500 - Book #92 (Christmas 25)', NULL, NULL, '2026-01-03 16:45:35'),
-(140, 1, 'deletion_approved', 'Approved deletion request #4: Transaction: ₹500 - Book #92 (Christmas 25)', NULL, NULL, '2026-01-03 16:45:41'),
-(141, 5, 'deletion_requested', 'Requested deletion of payment transaction: Transaction: ₹2,000 - Book #165 (Christmas 25). Reason: Delete it', NULL, NULL, '2026-01-03 16:46:34'),
-(142, 1, 'deletion_approved', 'Approved deletion request #6: Transaction: ₹2,000 - Book #165 (Christmas 25)', NULL, NULL, '2026-01-03 16:46:45'),
-(143, 5, 'deletion_requested', 'Requested deletion of payment transaction: Transaction: ₹600 - Book #28 (Christmas 25). Reason: Delete it', NULL, NULL, '2026-01-03 16:48:21'),
-(144, 1, 'deletion_approved', 'Approved deletion request #7: Transaction: ₹600 - Book #28 (Christmas 25)', NULL, NULL, '2026-01-03 16:48:34'),
-(145, 5, 'deletion_requested', 'Requested deletion of payment transaction: Transaction: ₹1,400 - Book #29 (Christmas 25). Reason: Delete it', NULL, NULL, '2026-01-03 16:51:27'),
-(146, 1, 'deletion_approved', 'Approved deletion request #8: Transaction: ₹1,400 - Book #29 (Christmas 25)', NULL, NULL, '2026-01-03 16:51:49'),
-(147, 5, 'deletion_requested', 'Requested deletion of payment transaction: Transaction: ₹2,000 - Book #139 (Christmas 25). Reason: delete it', NULL, NULL, '2026-01-03 16:55:55'),
-(148, 1, 'deletion_approved', 'Approved deletion request #9: Transaction: ₹2,000 - Book #139 (Christmas 25)', NULL, NULL, '2026-01-03 16:56:09'),
-(149, 5, 'deletion_requested', 'Requested deletion of payment transaction: Transaction: ₹2,000 - Book #186 (Christmas 25). Reason: Delete it', NULL, NULL, '2026-01-03 17:04:44'),
-(150, 1, 'deletion_approved', 'Approved deletion request #10: Transaction: ₹2,000 - Book #186 (Christmas 25)', NULL, NULL, '2026-01-03 17:04:53'),
-(151, 5, 'login', 'User logged in successfully', '2401:4900:1f39:3b34:2dea:9793:c897:a7ce', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:146.0) Gecko/20100101 Firefox/146.0', '2026-01-03 17:39:20'),
-(152, 5, 'login', 'User logged in successfully', '2401:4900:1f39:41cc:596b:25e8:d0f7:b1b2', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:146.0) Gecko/20100101 Firefox/146.0', '2026-01-04 10:59:54'),
-(153, 1, 'login', 'User logged in successfully', '2401:4900:1f39:41cc:596b:25e8:d0f7:b1b2', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36', '2026-01-04 11:23:09'),
-(154, 5, 'login', 'User logged in successfully', '2401:4900:1f39:41cc:ed2c:f581:9022:22b7', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:146.0) Gecko/20100101 Firefox/146.0', '2026-01-04 12:30:14'),
-(155, 5, 'login', 'User logged in successfully', '2401:4900:47f3:2317:e8:794b:24b1:93b4', 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_6_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/143.0.7499.151 Mobile/15E148 Safari/604.1', '2026-01-09 18:52:23'),
-(156, 5, 'login', 'User logged in successfully', '2401:4900:1f39:297f:2972:2417:2bff:5c72', 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_6_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/143.0.7499.151 Mobile/15E148 Safari/604.1', '2026-01-11 16:15:16'),
-(157, 1, 'login', 'User logged in successfully', '2401:4900:1f39:297f:b9dd:ff09:a003:45c', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36', '2026-01-11 17:34:50'),
-(158, 1, 'password_reset', 'Password reset for user: Testing', NULL, NULL, '2026-01-11 17:35:57'),
-(159, 3, 'login', 'User logged in successfully', '2401:4900:1f39:297f:b9dd:ff09:a003:45c', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36', '2026-01-11 17:36:06');
+INSERT INTO `activity_logs` (`log_id`, `user_id`, `action_type`, `action_description`, `feature_key`, `ip_address`, `user_agent`, `created_at`) VALUES
+(1, 1, 'login', 'User logged in successfully', NULL, '103.211.52.166', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '2025-11-28 18:59:58'),
+(2, 1, 'logout', 'User logged out', NULL, '103.211.52.166', NULL, '2025-11-28 19:00:21'),
+(3, 1, 'login', 'User logged in successfully', NULL, '103.211.52.166', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '2025-11-28 19:00:31'),
+(4, 1, 'user_status_change', 'User \'Albin Test\' (ID: 2) deactivated', NULL, '103.211.52.166', NULL, '2025-11-28 19:39:46'),
+(5, 3, 'login', 'User logged in successfully', NULL, '103.211.52.166', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36 Edg/142.0.0.0', '2025-11-28 19:40:29'),
+(6, 1, 'login', 'User logged in successfully', NULL, '2401:4900:1f39:60a2:91f7:48df:72ec:20a8', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '2025-11-29 17:32:33'),
+(7, 1, 'logout', 'User logged out', NULL, '2401:4900:1f39:60a2:91f7:48df:72ec:20a8', NULL, '2025-11-29 17:32:50'),
+(8, 3, 'login', 'User logged in successfully', NULL, '2401:4900:1f39:60a2:91f7:48df:72ec:20a8', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '2025-11-29 17:33:02'),
+(9, 1, 'login', 'User logged in successfully', NULL, '2401:4900:1f39:60a2:91f7:48df:72ec:20a8', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '2025-11-29 17:33:32'),
+(10, 3, 'login', 'User logged in successfully', NULL, '2401:4900:1f39:60a2:91f7:48df:72ec:20a8', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36 Edg/142.0.0.0', '2025-11-29 17:56:50'),
+(11, 1, 'login', 'User logged in successfully', NULL, '2401:4900:1c5c:4ef9:adc1:1727:25f5:d278', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '2025-11-30 08:32:21'),
+(12, 3, 'login', 'User logged in successfully', NULL, '2401:4900:1c5c:4ef9:adc1:1727:25f5:d278', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '2025-11-30 08:33:21'),
+(13, 3, 'login', 'User logged in successfully', NULL, '2401:4900:1c5c:4ef9:adc1:1727:25f5:d278', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '2025-11-30 08:51:09'),
+(14, 3, 'login', 'User logged in successfully', NULL, '2401:4900:1c5c:4ef9:adc1:1727:25f5:d278', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '2025-11-30 09:05:32'),
+(15, 3, 'login', 'User logged in successfully', NULL, '2401:4900:1c5c:4ef9:d59a:5a2d:60ac:6dd3', 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_6_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/142.0.7444.148 Mobile/15E148 Safari/604.1', '2025-11-30 09:41:24'),
+(16, 3, 'login', 'User logged in successfully', NULL, '2401:4900:1c5c:4ef9:2d69:eb64:f669:f974', 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_6_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/142.0.7444.148 Mobile/15E148 Safari/604.1', '2025-11-30 16:48:38'),
+(17, 3, 'login', 'User logged in successfully', NULL, '2401:4900:1c5c:4ef9:adc1:1727:25f5:d278', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '2025-11-30 17:07:07'),
+(18, 1, 'login', 'User logged in successfully', NULL, '2401:4900:1c5c:4ef9:adc1:1727:25f5:d278', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '2025-11-30 17:45:08'),
+(19, 1, 'logout', 'User logged out', NULL, '2401:4900:1c5c:4ef9:adc1:1727:25f5:d278', NULL, '2025-11-30 17:47:22'),
+(20, 1, 'login', 'User logged in successfully', NULL, '2401:4900:1c5c:4ef9:adc1:1727:25f5:d278', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '2025-11-30 17:48:05'),
+(21, 1, 'user_status_change', 'User \'A.D.Thomas\' (ID: 4) deactivated', NULL, '2401:4900:1c5c:4ef9:adc1:1727:25f5:d278', NULL, '2025-11-30 17:48:31'),
+(22, 1, 'logout', 'User logged out', NULL, '2401:4900:1c5c:4ef9:adc1:1727:25f5:d278', NULL, '2025-11-30 17:49:55'),
+(23, 5, 'login', 'User logged in successfully', NULL, '2401:4900:1c5c:4ef9:adc1:1727:25f5:d278', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '2025-11-30 17:49:59'),
+(24, 5, 'logout', 'User logged out', NULL, '2401:4900:1c5c:4ef9:adc1:1727:25f5:d278', NULL, '2025-11-30 17:50:22'),
+(25, 1, 'login', 'User logged in successfully', NULL, '2401:4900:1c5c:4ef9:adc1:1727:25f5:d278', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '2025-11-30 17:50:25'),
+(26, 5, 'login', 'User logged in successfully', NULL, '2401:4900:1c5c:4ef9:adc1:1727:25f5:d278', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '2025-11-30 17:50:57'),
+(27, 5, 'login', 'User logged in successfully', NULL, '2401:4900:1c5c:4ef9:1d53:b12f:c9eb:341f', 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/29.0 Chrome/136.0.0.0 Mobile Safari/537.36', '2025-11-30 18:16:30'),
+(28, 3, 'login', 'User logged in successfully', NULL, '103.211.52.166', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '2025-12-02 12:14:23'),
+(29, 3, 'logout', 'User logged out', NULL, '103.211.52.166', NULL, '2025-12-02 13:03:01'),
+(30, 1, 'login', 'User logged in successfully', NULL, '103.211.52.166', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '2025-12-02 13:03:04'),
+(31, 1, 'logout', 'User logged out', NULL, '103.211.52.166', NULL, '2025-12-02 13:10:30'),
+(32, 3, 'login', 'User logged in successfully', NULL, '103.211.52.166', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '2025-12-02 13:10:41'),
+(33, 3, 'logout', 'User logged out', NULL, '103.211.52.166', NULL, '2025-12-02 13:35:49'),
+(34, 1, 'login', 'User logged in successfully', NULL, '103.211.52.166', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '2025-12-02 13:35:53'),
+(35, 3, 'login', 'User logged in successfully', NULL, '103.211.52.166', 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_6_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Mobile/15E148 Safari/604.1', '2025-12-02 13:37:16'),
+(36, 1, 'logout', 'User logged out', NULL, '103.211.52.166', NULL, '2025-12-02 13:38:16'),
+(37, 3, 'login', 'User logged in successfully', NULL, '103.211.52.166', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '2025-12-02 13:38:20'),
+(38, 3, 'logout', 'User logged out', NULL, '103.211.52.166', NULL, '2025-12-02 13:57:51'),
+(39, 1, 'login', 'User logged in successfully', NULL, '103.211.52.166', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '2025-12-02 13:57:55'),
+(40, 1, 'logout', 'User logged out', NULL, '103.211.52.166', NULL, '2025-12-02 13:58:02'),
+(41, 5, 'login', 'User logged in successfully', NULL, '103.211.52.166', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '2025-12-02 14:13:33'),
+(42, 1, 'login', 'User logged in successfully', NULL, '103.211.52.166', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36 Edg/142.0.0.0', '2025-12-02 14:16:06'),
+(43, 5, 'logout', 'User logged out', NULL, '103.211.52.166', NULL, '2025-12-02 14:21:01'),
+(44, 1, 'login', 'User logged in successfully', NULL, '103.211.52.166', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36 Edg/142.0.0.0', '2025-12-02 17:15:39'),
+(45, 3, 'login', 'User logged in successfully', NULL, '103.211.52.166', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '2025-12-02 17:16:05'),
+(46, 3, 'logout', 'User logged out', NULL, '103.211.52.166', NULL, '2025-12-02 17:16:41'),
+(47, 5, 'login', 'User logged in successfully', NULL, '103.211.52.166', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '2025-12-02 17:16:46'),
+(48, 5, 'logout', 'User logged out', NULL, '103.211.52.166', NULL, '2025-12-02 17:18:01'),
+(49, 3, 'login', 'User logged in successfully', NULL, '103.211.52.166', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '2025-12-02 17:18:06'),
+(50, 3, 'logout', 'User logged out', NULL, '103.211.52.166', NULL, '2025-12-02 17:18:31'),
+(51, 5, 'login', 'User logged in successfully', NULL, '2401:4900:47f2:6f48:3410:e754:166c:9851', 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_6_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Mobile/15E148 Safari/604.1', '2025-12-02 17:20:18'),
+(52, 5, 'login', 'User logged in successfully', NULL, '2401:4900:1c5b:1a3e:b8d1:8c5f:cacc:1812', 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Mobile Safari/537.36', '2025-12-03 01:25:01'),
+(53, 5, 'logout', 'User logged out', NULL, '2401:4900:1c5b:1a3e:b8d1:8c5f:cacc:1812', NULL, '2025-12-03 01:38:45'),
+(54, 1, 'login', 'User logged in successfully', NULL, '103.211.52.166', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '2025-12-03 04:05:02'),
+(55, 3, 'login', 'User logged in successfully', NULL, '103.211.52.166', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '2025-12-03 04:17:35'),
+(56, 3, 'logout', 'User logged out', NULL, '103.211.52.166', NULL, '2025-12-03 04:17:48'),
+(57, 5, 'login', 'User logged in successfully', NULL, '103.211.52.166', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '2025-12-03 04:17:51'),
+(58, 3, 'login', 'User logged in successfully', NULL, '103.211.52.166', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '2025-12-03 09:17:14'),
+(59, 5, 'login', 'User logged in successfully', NULL, '2401:4900:47f2:10d3:a471:c50e:116c:9823', 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_6_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/142.0.7444.148 Mobile/15E148 Safari/604.1', '2025-12-03 19:42:32'),
+(60, 5, 'logout', 'User logged out', NULL, '2401:4900:47f2:10d3:a471:c50e:116c:9823', NULL, '2025-12-03 19:45:51'),
+(61, 5, 'login', 'User logged in successfully', NULL, '103.211.52.166', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36', '2025-12-04 05:26:44'),
+(62, 5, 'logout', 'User logged out', NULL, '103.211.52.166', NULL, '2025-12-04 05:29:39'),
+(63, 5, 'login', 'User logged in successfully', NULL, '103.211.52.166', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36', '2025-12-04 05:29:47'),
+(64, 5, 'deletion_requested', 'Requested deletion of payment transaction: Transaction: ₹1,000 - Book #1 (Christmas 25). Reason: Wrong payment marked', NULL, NULL, NULL, '2025-12-04 05:37:39'),
+(65, 1, 'login', 'User logged in successfully', NULL, '103.211.52.166', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36', '2025-12-04 05:41:56'),
+(66, 1, 'deletion_approved', 'Approved deletion request #1: Transaction: ₹1,000 - Book #1 (Christmas 25)', NULL, NULL, NULL, '2025-12-04 05:42:09'),
+(67, 5, 'login', 'User logged in successfully', NULL, '103.211.52.166', 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_6_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/142.0.7444.148 Mobile/15E148 Safari/604.1', '2025-12-04 06:00:49'),
+(68, 1, 'logout', 'User logged out', NULL, '103.211.52.166', NULL, '2025-12-04 06:02:56'),
+(69, 5, 'login', 'User logged in successfully', NULL, '103.211.52.166', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36', '2025-12-04 06:02:59'),
+(70, 5, 'login', 'User logged in successfully', NULL, '103.211.52.166', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36', '2025-12-04 06:16:00'),
+(71, 5, 'login', 'User logged in successfully', NULL, '103.211.52.166', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36 Edg/142.0.0.0', '2025-12-04 06:24:40'),
+(72, 5, 'deletion_requested', 'Requested deletion of payment transaction: Transaction: ₹700 - Book #1 (Christmas 25). Reason: Testing', NULL, NULL, NULL, '2025-12-04 06:59:57'),
+(73, 1, 'login', 'User logged in successfully', NULL, '103.211.52.166', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36', '2025-12-04 07:00:19'),
+(74, 1, 'deletion_approved', 'Approved deletion request #2: Transaction: ₹700 - Book #1 (Christmas 25)', NULL, NULL, NULL, '2025-12-04 07:00:28'),
+(75, 5, 'book_returned', 'Marked book #1 as RETURNED (Distribution ID: 4)', NULL, NULL, NULL, '2025-12-04 07:38:47'),
+(76, 5, 'book_return_undone', 'Unmarked book #1 return status (Distribution ID: 4)', NULL, NULL, NULL, '2025-12-04 07:38:54'),
+(77, 3, 'login', 'User logged in successfully', NULL, '103.211.52.166', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36', '2025-12-04 10:16:06'),
+(78, 3, 'logout', 'User logged out', NULL, '103.211.52.166', NULL, '2025-12-04 10:16:13'),
+(79, 5, 'login', 'User logged in successfully', NULL, '103.211.52.166', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36', '2025-12-04 10:16:16'),
+(80, 5, 'logout', 'User logged out', NULL, '103.211.52.166', NULL, '2025-12-04 10:33:47'),
+(81, 1, 'login', 'User logged in successfully', NULL, '103.211.52.166', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36', '2025-12-04 10:33:51'),
+(82, 1, 'logout', 'User logged out', NULL, '103.211.52.166', NULL, '2025-12-04 10:34:26'),
+(83, 3, 'login', 'User logged in successfully', NULL, '103.211.52.166', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36', '2025-12-04 10:34:31'),
+(84, 3, 'logout', 'User logged out', NULL, '103.211.52.166', NULL, '2025-12-04 10:40:20'),
+(85, 3, 'login', 'User logged in successfully', NULL, '103.211.52.166', 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_6_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/142.0.7444.148 Mobile/15E148 Safari/604.1', '2025-12-04 10:40:31'),
+(86, 3, 'book_reassigned', 'Reassigned Book #1 from \'C > 2\' to \'C > 1\'', NULL, NULL, NULL, '2025-12-04 11:14:14'),
+(87, 3, 'book_reassigned', 'Reassigned Book #2 from \'C > 2\' to \'C > 1\'', NULL, NULL, NULL, '2025-12-04 11:14:28'),
+(88, 3, 'login', 'User logged in successfully', NULL, '103.211.52.168', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36', '2025-12-04 11:16:45'),
+(89, 3, 'book_returned', 'Marked book #1 as RETURNED (Distribution ID: 173)', NULL, NULL, NULL, '2025-12-04 11:20:41'),
+(90, 3, 'book_returned', 'Marked book #2 as RETURNED (Distribution ID: 174)', NULL, NULL, NULL, '2025-12-04 11:28:52'),
+(91, 3, 'book_returned', 'Marked book #3 as RETURNED (Distribution ID: 175)', NULL, NULL, NULL, '2025-12-04 11:28:57'),
+(92, 3, 'login', 'User logged in successfully', NULL, '103.211.52.168', 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_6_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/142.0.7444.148 Mobile/15E148 Safari/604.1', '2025-12-04 11:51:07'),
+(93, 3, 'login', 'User logged in successfully', NULL, '103.211.52.168', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36 Edg/142.0.0.0', '2025-12-04 11:55:50'),
+(94, 3, 'login', 'User logged in successfully', NULL, '103.211.52.168', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36', '2025-12-04 12:00:34'),
+(95, 3, 'login', 'User logged in successfully', NULL, '103.211.52.168', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36', '2025-12-04 17:03:23'),
+(96, 3, 'login', 'User logged in successfully', NULL, '103.211.52.168', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36 Edg/142.0.0.0', '2025-12-04 17:28:38'),
+(97, 3, 'logout', 'User logged out', NULL, '103.211.52.168', NULL, '2025-12-04 17:37:53'),
+(98, 3, 'login', 'User logged in successfully', NULL, '103.211.52.168', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36 Edg/142.0.0.0', '2025-12-04 17:38:16'),
+(99, 3, 'login', 'User logged in successfully', NULL, '2401:4900:47f7:911c:6033:6b9c:b4ee:5a96', 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_6_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Mobile/15E148 Safari/604.1', '2025-12-04 17:42:28'),
+(100, 3, 'login', 'User logged in successfully', NULL, '103.211.52.168', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36', '2025-12-04 17:48:56'),
+(101, 3, 'login', 'User logged in successfully', NULL, '103.211.52.168', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36', '2025-12-04 18:00:49'),
+(102, 3, 'book_returned', 'Marked book #10 as RETURNED (Distribution ID: 182)', NULL, NULL, NULL, '2025-12-04 18:07:06'),
+(103, 3, 'logout', 'User logged out', NULL, '2401:4900:47f3:74c1:2948:be26:c75c:2b52', NULL, '2025-12-04 18:28:01'),
+(104, 5, 'login', 'User logged in successfully', NULL, '2401:4900:47f3:74c1:2948:be26:c75c:2b52', 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_6_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Mobile/15E148 Safari/604.1', '2025-12-04 18:28:15'),
+(105, 3, 'login', 'User logged in successfully', NULL, '103.211.52.168', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36', '2025-12-05 10:31:19'),
+(106, 3, 'login', 'User logged in successfully', NULL, '103.211.52.168', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36', '2025-12-05 10:43:56'),
+(107, 3, 'logout', 'User logged out', NULL, '103.211.52.168', NULL, '2025-12-05 10:50:49'),
+(108, 3, 'login', 'User logged in successfully', NULL, '103.211.52.168', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36', '2025-12-05 10:51:04'),
+(109, 3, 'login', 'User logged in successfully', NULL, '103.211.52.168', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36 Edg/142.0.0.0', '2025-12-05 10:54:46'),
+(110, 3, 'logout', 'User logged out', NULL, '103.211.52.168', NULL, '2025-12-05 11:00:41'),
+(111, 3, 'logout', 'User logged out', NULL, '103.211.52.168', NULL, '2025-12-05 11:01:04'),
+(112, 1, 'login', 'User logged in successfully', NULL, '103.211.52.168', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36', '2025-12-05 11:01:08'),
+(113, 5, 'login', 'User logged in successfully', NULL, '2401:4900:1f38:41dd:f4aa:9114:6594:9161', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36 Edg/142.0.0.0', '2025-12-06 18:24:49'),
+(114, 5, 'logout', 'User logged out', NULL, '2401:4900:1f38:41dd:f4aa:9114:6594:9161', NULL, '2025-12-06 18:28:40'),
+(115, 5, 'login', 'User logged in successfully', NULL, '2401:4900:1c5a:70d9:255d:2987:2ba:2084', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36', '2025-12-07 15:16:18'),
+(116, 5, 'book_reassigned', 'Reassigned Book #2 from \'Assisi Convent\' to \'B.H.L Convent\'', NULL, NULL, NULL, '2025-12-07 15:20:56'),
+(117, 5, 'login', 'User logged in successfully', NULL, '2401:4900:1c5d:2f0b:a9c8:634e:2f13:c84b', 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_6_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/143.0.7499.108 Mobile/15E148 Safari/604.1', '2025-12-13 19:44:54'),
+(118, 5, 'login', 'User logged in successfully', NULL, '2401:4900:839a:374f:71c9:2a9a:6664:2640', 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_6_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/143.0.7499.108 Mobile/15E148 Safari/604.1', '2025-12-14 04:35:52'),
+(119, 3, 'login', 'User logged in successfully', NULL, '2401:4900:1c5d:3d63:53c:8285:88fd:4d', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36', '2025-12-14 13:52:19'),
+(120, 3, 'login', 'User logged in successfully', NULL, '2401:4900:1c5d:3d63:53c:8285:88fd:4d', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36', '2025-12-14 14:00:56'),
+(121, 5, 'login', 'User logged in successfully', NULL, '2401:4900:1c5d:3d63:53c:8285:88fd:4d', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36 Edg/143.0.0.0', '2025-12-14 14:06:27'),
+(122, 5, 'login', 'User logged in successfully', NULL, '2401:4900:83a5:ef10:805:b1d7:aaf3:24c3', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:146.0) Gecko/20100101 Firefox/146.0', '2025-12-21 04:39:08'),
+(123, 5, 'login', 'User logged in successfully', NULL, '2401:4900:1f39:6953:18d3:21f3:9dce:2524', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:146.0) Gecko/20100101 Firefox/146.0', '2025-12-21 09:04:25'),
+(124, 5, 'login', 'User logged in successfully', NULL, '103.211.52.130', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36', '2025-12-22 09:02:03'),
+(125, 5, 'login', 'User logged in successfully', NULL, '2401:4900:1c5a:af1e:571:ee02:261d:3b4c', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36', '2025-12-24 12:05:46'),
+(126, 5, 'login', 'User logged in successfully', NULL, '2401:4900:47f1:1fc4:64e2:d361:4f82:7de1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:146.0) Gecko/20100101 Firefox/146.0', '2025-12-24 14:00:07'),
+(127, 5, 'login', 'User logged in successfully', NULL, '2401:4900:47fc:21be:b955:b518:d005:44ac', 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_6_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/143.0.7499.151 Mobile/15E148 Safari/604.1', '2025-12-24 16:36:55'),
+(128, 5, 'login', 'User logged in successfully', NULL, '2401:4900:1c5a:af1e:b5a0:3c3c:8056:2603', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36', '2025-12-25 04:15:06'),
+(129, 5, 'login', 'User logged in successfully', NULL, '2401:4900:1c5a:af1e:15fe:c21e:f16e:d5e1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36', '2025-12-25 06:15:15'),
+(130, 5, 'logout', 'User logged out', NULL, '2401:4900:1c5a:af1e:15fe:c21e:f16e:d5e1', NULL, '2025-12-25 07:40:22'),
+(131, 5, 'login', 'User logged in successfully', NULL, '2401:4900:1c5a:af1e:15fe:c21e:f16e:d5e1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36', '2025-12-25 07:40:42'),
+(132, 5, 'login', 'User logged in successfully', NULL, '2401:4900:1c5a:af1e:15fe:c21e:f16e:d5e1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36', '2025-12-25 11:05:10'),
+(133, 5, 'login', 'User logged in successfully', NULL, '2401:4900:1f39:3b34:a903:6b6:6e22:c436', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:146.0) Gecko/20100101 Firefox/146.0', '2026-01-03 16:21:05'),
+(134, 5, 'deletion_requested', 'Requested deletion of payment transaction: Transaction: ₹1,000 - Book #2 (Christmas 25). Reason: Delete It', NULL, NULL, NULL, '2026-01-03 16:43:05'),
+(135, 1, 'login', 'User logged in successfully', NULL, '2401:4900:1f39:3b34:a903:6b6:6e22:c436', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:146.0) Gecko/20100101 Firefox/146.0', '2026-01-03 16:43:40'),
+(136, 1, 'deletion_approved', 'Approved deletion request #3: Transaction: ₹1,000 - Book #2 (Christmas 25)', NULL, NULL, NULL, '2026-01-03 16:43:51'),
+(137, 5, 'deletion_requested', 'Requested deletion of payment transaction: Transaction: ₹500 - Book #92 (Christmas 25). Reason: Delete it', NULL, NULL, NULL, '2026-01-03 16:45:07'),
+(138, 5, 'deletion_requested', 'Requested deletion of payment transaction: Transaction: ₹1,500 - Book #92 (Christmas 25). Reason: Delete it', NULL, NULL, NULL, '2026-01-03 16:45:21'),
+(139, 1, 'deletion_approved', 'Approved deletion request #5: Transaction: ₹1,500 - Book #92 (Christmas 25)', NULL, NULL, NULL, '2026-01-03 16:45:35'),
+(140, 1, 'deletion_approved', 'Approved deletion request #4: Transaction: ₹500 - Book #92 (Christmas 25)', NULL, NULL, NULL, '2026-01-03 16:45:41'),
+(141, 5, 'deletion_requested', 'Requested deletion of payment transaction: Transaction: ₹2,000 - Book #165 (Christmas 25). Reason: Delete it', NULL, NULL, NULL, '2026-01-03 16:46:34'),
+(142, 1, 'deletion_approved', 'Approved deletion request #6: Transaction: ₹2,000 - Book #165 (Christmas 25)', NULL, NULL, NULL, '2026-01-03 16:46:45'),
+(143, 5, 'deletion_requested', 'Requested deletion of payment transaction: Transaction: ₹600 - Book #28 (Christmas 25). Reason: Delete it', NULL, NULL, NULL, '2026-01-03 16:48:21'),
+(144, 1, 'deletion_approved', 'Approved deletion request #7: Transaction: ₹600 - Book #28 (Christmas 25)', NULL, NULL, NULL, '2026-01-03 16:48:34'),
+(145, 5, 'deletion_requested', 'Requested deletion of payment transaction: Transaction: ₹1,400 - Book #29 (Christmas 25). Reason: Delete it', NULL, NULL, NULL, '2026-01-03 16:51:27'),
+(146, 1, 'deletion_approved', 'Approved deletion request #8: Transaction: ₹1,400 - Book #29 (Christmas 25)', NULL, NULL, NULL, '2026-01-03 16:51:49'),
+(147, 5, 'deletion_requested', 'Requested deletion of payment transaction: Transaction: ₹2,000 - Book #139 (Christmas 25). Reason: delete it', NULL, NULL, NULL, '2026-01-03 16:55:55'),
+(148, 1, 'deletion_approved', 'Approved deletion request #9: Transaction: ₹2,000 - Book #139 (Christmas 25)', NULL, NULL, NULL, '2026-01-03 16:56:09'),
+(149, 5, 'deletion_requested', 'Requested deletion of payment transaction: Transaction: ₹2,000 - Book #186 (Christmas 25). Reason: Delete it', NULL, NULL, NULL, '2026-01-03 17:04:44'),
+(150, 1, 'deletion_approved', 'Approved deletion request #10: Transaction: ₹2,000 - Book #186 (Christmas 25)', NULL, NULL, NULL, '2026-01-03 17:04:53'),
+(151, 5, 'login', 'User logged in successfully', NULL, '2401:4900:1f39:3b34:2dea:9793:c897:a7ce', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:146.0) Gecko/20100101 Firefox/146.0', '2026-01-03 17:39:20'),
+(152, 5, 'login', 'User logged in successfully', NULL, '2401:4900:1f39:41cc:596b:25e8:d0f7:b1b2', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:146.0) Gecko/20100101 Firefox/146.0', '2026-01-04 10:59:54'),
+(153, 1, 'login', 'User logged in successfully', NULL, '2401:4900:1f39:41cc:596b:25e8:d0f7:b1b2', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36', '2026-01-04 11:23:09'),
+(154, 5, 'login', 'User logged in successfully', NULL, '2401:4900:1f39:41cc:ed2c:f581:9022:22b7', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:146.0) Gecko/20100101 Firefox/146.0', '2026-01-04 12:30:14'),
+(155, 5, 'login', 'User logged in successfully', NULL, '2401:4900:47f3:2317:e8:794b:24b1:93b4', 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_6_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/143.0.7499.151 Mobile/15E148 Safari/604.1', '2026-01-09 18:52:23'),
+(156, 5, 'login', 'User logged in successfully', NULL, '2401:4900:1f39:297f:2972:2417:2bff:5c72', 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_6_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/143.0.7499.151 Mobile/15E148 Safari/604.1', '2026-01-11 16:15:16'),
+(157, 1, 'login', 'User logged in successfully', NULL, '2401:4900:1f39:297f:b9dd:ff09:a003:45c', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36', '2026-01-11 17:34:50'),
+(158, 1, 'password_reset', 'Password reset for user: Testing', NULL, NULL, NULL, '2026-01-11 17:35:57'),
+(159, 3, 'login', 'User logged in successfully', NULL, '2401:4900:1f39:297f:b9dd:ff09:a003:45c', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36', '2026-01-11 17:36:06');
 
 -- --------------------------------------------------------
 
@@ -712,6 +713,49 @@ INSERT INTO `communities` (`community_id`, `community_name`, `address`, `city`, 
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `community_features`
+--
+
+CREATE TABLE `community_features` (
+  `id` int(10) UNSIGNED NOT NULL,
+  `community_id` int(10) UNSIGNED NOT NULL,
+  `feature_id` int(11) NOT NULL,
+  `is_enabled` tinyint(1) DEFAULT 0,
+  `enabled_date` timestamp NULL DEFAULT NULL,
+  `disabled_date` timestamp NULL DEFAULT NULL,
+  `enabled_by` int(10) UNSIGNED DEFAULT NULL,
+  `disabled_by` int(10) UNSIGNED DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `community_features`
+--
+
+INSERT INTO `community_features` (`id`, `community_id`, `feature_id`, `is_enabled`, `enabled_date`, `disabled_date`, `enabled_by`, `disabled_by`, `created_at`, `updated_at`) VALUES
+(1, 1, 1, 1, '2026-01-11 18:09:23', NULL, 1, NULL, '2026-01-11 18:09:23', '2026-01-11 18:09:23'),
+(2, 2, 1, 1, '2026-01-11 18:09:23', NULL, 1, NULL, '2026-01-11 18:09:23', '2026-01-11 18:09:23');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `community_settings`
+--
+
+CREATE TABLE `community_settings` (
+  `id` int(10) UNSIGNED NOT NULL,
+  `community_id` int(10) UNSIGNED NOT NULL,
+  `setting_key` varchar(100) NOT NULL,
+  `setting_value` text DEFAULT NULL,
+  `setting_type` enum('string','number','boolean','json') DEFAULT 'string',
+  `updated_at` timestamp NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `updated_by` int(10) UNSIGNED DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `database_connection_logs`
 --
 
@@ -900,6 +944,13 @@ CREATE TABLE `features` (
   `created_at` timestamp NULL DEFAULT current_timestamp(),
   `updated_at` timestamp NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+
+--
+-- Dumping data for table `features`
+--
+
+INSERT INTO `features` (`feature_id`, `feature_name`, `feature_key`, `feature_description`, `feature_icon`, `display_order`, `is_active`, `created_at`, `updated_at`) VALUES
+(1, 'Lottery System', 'lottery_system', 'Complete 6-part lottery event management with auto-generation, distribution, and payment tracking', '/public/images/features/lottery.svg', 1, 1, '2026-01-11 18:09:23', '2026-01-11 18:09:23');
 
 -- --------------------------------------------------------
 
@@ -1539,6 +1590,34 @@ CREATE TABLE `system_logs` (
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `system_settings`
+--
+
+CREATE TABLE `system_settings` (
+  `setting_id` int(10) UNSIGNED NOT NULL,
+  `setting_key` varchar(100) NOT NULL,
+  `setting_value` text DEFAULT NULL,
+  `setting_type` enum('string','number','boolean','json') DEFAULT 'string',
+  `description` text DEFAULT NULL,
+  `is_editable` tinyint(1) DEFAULT 1,
+  `updated_at` timestamp NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `updated_by` int(10) UNSIGNED DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `system_settings`
+--
+
+INSERT INTO `system_settings` (`setting_id`, `setting_key`, `setting_value`, `setting_type`, `description`, `is_editable`, `updated_at`, `updated_by`) VALUES
+(1, 'platform_name', 'GetToKnow', 'string', 'Platform display name', 1, '2026-01-11 18:09:23', NULL),
+(2, 'platform_version', '4.0', 'string', 'Current platform version', 0, '2026-01-11 18:09:23', NULL),
+(3, 'max_communities_per_admin', '1', 'number', 'Maximum communities per Group Admin in Phase 1', 1, '2026-01-11 18:09:23', NULL),
+(4, 'session_timeout', '30', 'number', 'Session timeout in minutes', 1, '2026-01-11 18:09:23', NULL),
+(5, 'enable_activity_logs', 'true', 'boolean', 'Enable activity logging', 1, '2026-01-11 18:09:23', NULL);
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `users`
 --
 
@@ -1639,7 +1718,8 @@ ALTER TABLE `activity_logs`
   ADD PRIMARY KEY (`log_id`),
   ADD KEY `idx_user` (`user_id`),
   ADD KEY `idx_action_type` (`action_type`),
-  ADD KEY `idx_created_at` (`created_at`);
+  ADD KEY `idx_created_at` (`created_at`),
+  ADD KEY `idx_feature_key` (`feature_key`);
 
 --
 -- Indexes for table `alert_notifications`
@@ -1696,6 +1776,27 @@ ALTER TABLE `communities`
   ADD PRIMARY KEY (`community_id`),
   ADD KEY `idx_status` (`status`),
   ADD KEY `idx_created_by` (`created_by`);
+
+--
+-- Indexes for table `community_features`
+--
+ALTER TABLE `community_features`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `unique_community_feature` (`community_id`,`feature_id`),
+  ADD KEY `enabled_by` (`enabled_by`),
+  ADD KEY `disabled_by` (`disabled_by`),
+  ADD KEY `idx_community` (`community_id`),
+  ADD KEY `idx_feature` (`feature_id`),
+  ADD KEY `idx_enabled` (`is_enabled`);
+
+--
+-- Indexes for table `community_settings`
+--
+ALTER TABLE `community_settings`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `unique_community_setting` (`community_id`,`setting_key`),
+  ADD KEY `updated_by` (`updated_by`),
+  ADD KEY `idx_community` (`community_id`);
 
 --
 -- Indexes for table `database_connection_logs`
@@ -1830,6 +1931,15 @@ ALTER TABLE `system_logs`
   ADD KEY `idx_user_id` (`user_id`);
 
 --
+-- Indexes for table `system_settings`
+--
+ALTER TABLE `system_settings`
+  ADD PRIMARY KEY (`setting_id`),
+  ADD UNIQUE KEY `setting_key` (`setting_key`),
+  ADD KEY `updated_by` (`updated_by`),
+  ADD KEY `idx_setting_key` (`setting_key`);
+
+--
 -- Indexes for table `users`
 --
 ALTER TABLE `users`
@@ -1880,6 +1990,18 @@ ALTER TABLE `communities`
   MODIFY `community_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
+-- AUTO_INCREMENT for table `community_features`
+--
+ALTER TABLE `community_features`
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+
+--
+-- AUTO_INCREMENT for table `community_settings`
+--
+ALTER TABLE `community_settings`
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
 -- AUTO_INCREMENT for table `database_connection_logs`
 --
 ALTER TABLE `database_connection_logs`
@@ -1913,7 +2035,7 @@ ALTER TABLE `failed_login_attempts`
 -- AUTO_INCREMENT for table `features`
 --
 ALTER TABLE `features`
-  MODIFY `feature_id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `feature_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 --
 -- AUTO_INCREMENT for table `group_admin_assignments`
@@ -1962,6 +2084,12 @@ ALTER TABLE `system_health_metrics`
 --
 ALTER TABLE `system_logs`
   MODIFY `log_id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `system_settings`
+--
+ALTER TABLE `system_settings`
+  MODIFY `setting_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
 
 --
 -- AUTO_INCREMENT for table `users`
@@ -2039,6 +2167,22 @@ ALTER TABLE `communities`
   ADD CONSTRAINT `communities_ibfk_1` FOREIGN KEY (`created_by`) REFERENCES `users` (`user_id`);
 
 --
+-- Constraints for table `community_features`
+--
+ALTER TABLE `community_features`
+  ADD CONSTRAINT `community_features_ibfk_1` FOREIGN KEY (`community_id`) REFERENCES `communities` (`community_id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `community_features_ibfk_2` FOREIGN KEY (`feature_id`) REFERENCES `features` (`feature_id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `community_features_ibfk_3` FOREIGN KEY (`enabled_by`) REFERENCES `users` (`user_id`),
+  ADD CONSTRAINT `community_features_ibfk_4` FOREIGN KEY (`disabled_by`) REFERENCES `users` (`user_id`);
+
+--
+-- Constraints for table `community_settings`
+--
+ALTER TABLE `community_settings`
+  ADD CONSTRAINT `community_settings_ibfk_1` FOREIGN KEY (`community_id`) REFERENCES `communities` (`community_id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `community_settings_ibfk_2` FOREIGN KEY (`updated_by`) REFERENCES `users` (`user_id`);
+
+--
 -- Constraints for table `distribution_levels`
 --
 ALTER TABLE `distribution_levels`
@@ -2092,6 +2236,12 @@ ALTER TABLE `payment_collections`
 ALTER TABLE `payment_edit_history`
   ADD CONSTRAINT `payment_edit_history_ibfk_1` FOREIGN KEY (`payment_id`) REFERENCES `payment_collections` (`payment_id`) ON DELETE CASCADE,
   ADD CONSTRAINT `payment_edit_history_ibfk_2` FOREIGN KEY (`edited_by`) REFERENCES `users` (`user_id`);
+
+--
+-- Constraints for table `system_settings`
+--
+ALTER TABLE `system_settings`
+  ADD CONSTRAINT `system_settings_ibfk_1` FOREIGN KEY (`updated_by`) REFERENCES `users` (`user_id`);
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;

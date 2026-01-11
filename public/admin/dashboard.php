@@ -40,11 +40,11 @@ $stmt = $db->prepare($query);
 $stmt->execute();
 $totalLotteryEvents = $stmt->fetch()['count'];
 
-// Total Transaction Campaigns
-$query = "SELECT COUNT(*) as count FROM transaction_campaigns";
+// Total Enabled Features
+$query = "SELECT COUNT(*) as count FROM community_features WHERE is_enabled = 1";
 $stmt = $db->prepare($query);
 $stmt->execute();
-$totalTransactionCampaigns = $stmt->fetch()['count'];
+$totalEnabledFeatures = $stmt->fetch()['count'];
 
 // Pending Deletion Requests
 $query = "SELECT COUNT(*) as count FROM deletion_requests WHERE status = 'pending'";
@@ -284,8 +284,8 @@ $recentActivity = $stmt->fetchAll();
                 <div class="stat-label">Lottery Events</div>
             </div>
             <div class="stat-card danger">
-                <div class="stat-value"><?php echo $totalTransactionCampaigns; ?></div>
-                <div class="stat-label">Transaction Campaigns</div>
+                <div class="stat-value"><?php echo $totalEnabledFeatures; ?></div>
+                <div class="stat-label">Enabled Features</div>
             </div>
         </div>
 
