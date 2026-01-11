@@ -1,10 +1,11 @@
 <?php
 /**
- * Group Admin Dashboard
- * GetToKnow Community App
+ * Group Admin Dashboard - SAAS Version
+ * GetToKnow Community App v4.0
  */
 
 require_once __DIR__ . '/../../config/config.php';
+require_once __DIR__ . '/../../config/feature-access.php';
 
 // Require authentication and Group Admin role
 AuthMiddleware::requireRole('group_admin');
@@ -29,29 +30,32 @@ if ($communityId) {
     }
 }
 
-// Get statistics (placeholders for now)
-$totalLotteryEvents = 0;
-$totalTransactionCampaigns = 0;
-$totalCollections = 0;
-$activeMembers = 0;
+// Get enabled features for this community
+$featureAccess = new FeatureAccess();
+$enabledFeatures = $featureAccess->getEnabledFeatures($communityId);
+
+// Get aggregated statistics from enabled features
+$totalStats = [
+    'total_events' => 0,
+    'active_events' => 0,
+    'total_collection' => 0
+];
 
 if ($communityId) {
-    // Lottery Events Count
-    $query = "SELECT COUNT(*) as count FROM lottery_events WHERE community_id = :community_id";
-    $stmt = $db->prepare($query);
-    $stmt->bindParam(':community_id', $communityId);
-    $stmt->execute();
-    $result = $stmt->fetch();
-    $totalLotteryEvents = $result['count'];
+    foreach ($enabledFeatures as $feature) {
+        $stats = $featureAccess->getFeatureStats($communityId, $feature['feature_key']);
 
-    // Transaction Campaigns Count
-    $query = "SELECT COUNT(*) as count FROM transaction_campaigns WHERE community_id = :community_id";
-    $stmt = $db->prepare($query);
-    $stmt->bindParam(':community_id', $communityId);
-    $stmt->execute();
-    $result = $stmt->fetch();
-    $totalTransactionCampaigns = $result['count'];
+        if ($feature['feature_key'] === 'lottery_system') {
+            $totalStats['total_events'] = $stats['total_events'] ?? 0;
+            $totalStats['active_events'] = $stats['active_events'] ?? 0;
+        }
+    }
 }
+
+// Breadcrumb
+$breadcrumbs = [
+    ['label' => 'Dashboard', 'url' => null]
+];
 
 ?>
 <!DOCTYPE html>
@@ -63,28 +67,104 @@ if ($communityId) {
     <link rel="stylesheet" href="/public/css/main.css">
     <link rel="stylesheet" href="/public/css/enhancements.css">
     <style>
-        .header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: var(--spacing-xl) 0;
-            margin-bottom: var(--spacing-xl);
+        :root {
+            --feature-lottery: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --feature-color-lottery: #667eea;
         }
 
-        .header-content {
+        .top-navbar {
+            background: #2C3E50;
+            color: white;
+            padding: 16px 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .top-navbar .container {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            flex-wrap: wrap;
-            gap: var(--spacing-md);
         }
 
-        .header h1 {
+        .top-navbar .logo a {
             color: white;
-            margin: 0;
+            font-size: 24px;
+            font-weight: 700;
+            text-decoration: none;
         }
 
-        .header-info {
-            text-align: right;
+        .top-navbar .logo a:hover {
+            color: #667eea;
+        }
+
+        .top-navbar .community-name {
+            font-size: 16px;
+            color: #ecf0f1;
+        }
+
+        .top-navbar .profile-menu {
+            position: relative;
+        }
+
+        .top-navbar .profile-btn {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        .top-navbar .profile-btn:hover {
+            background: rgba(255,255,255,0.2);
+        }
+
+        .top-navbar .dropdown-menu {
+            display: none;
+            position: absolute;
+            right: 0;
+            top: 100%;
+            margin-top: 8px;
+            background: white;
+            border-radius: 4px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            min-width: 200px;
+            z-index: 1000;
+        }
+
+        .top-navbar .dropdown-menu.show {
+            display: block;
+        }
+
+        .top-navbar .dropdown-menu a {
+            display: block;
+            padding: 12px 16px;
+            color: #2C3E50;
+            text-decoration: none;
+            transition: background 0.2s;
+        }
+
+        .top-navbar .dropdown-menu a:hover {
+            background: #f8f9fa;
+        }
+
+        .welcome-section {
+            background: white;
+            padding: var(--spacing-xl) 0;
+            margin-bottom: var(--spacing-xl);
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .welcome-section h1 {
+            margin: 0 0 8px 0;
+            font-size: 32px;
+            color: #2C3E50;
+        }
+
+        .welcome-section p {
+            margin: 0;
+            color: #6c757d;
+            font-size: 16px;
         }
 
         .stats-grid {
@@ -95,94 +175,140 @@ if ($communityId) {
         }
 
         .stat-card {
-            background: var(--white);
-            border-radius: var(--radius-lg);
-            padding: var(--spacing-lg);
-            box-shadow: var(--shadow-md);
+            background: white;
+            border-radius: 8px;
+            padding: 24px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
             border-left: 4px solid;
+            transition: transform 0.2s;
         }
 
-        .stat-card.primary { border-color: var(--primary-color); }
-        .stat-card.success { border-color: var(--success-color); }
-        .stat-card.warning { border-color: var(--warning-color); }
-        .stat-card.info { border-color: var(--info-color); }
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        .stat-card.primary { border-color: #667eea; }
+        .stat-card.success { border-color: #2ECC71; }
+        .stat-card.warning { border-color: #F39C12; }
 
         .stat-value {
-            font-size: var(--font-size-3xl);
+            font-size: 36px;
             font-weight: 700;
-            margin-bottom: var(--spacing-sm);
+            margin-bottom: 8px;
+            color: #2C3E50;
         }
 
         .stat-label {
-            color: var(--gray-600);
-            font-size: var(--font-size-base);
+            color: #6c757d;
+            font-size: 16px;
         }
 
-        .quick-actions {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: var(--spacing-md);
+        .features-section {
             margin-bottom: var(--spacing-xl);
         }
 
-        .action-btn {
-            background: var(--white);
-            border: 2px solid var(--gray-200);
-            border-radius: var(--radius-lg);
-            padding: var(--spacing-lg);
+        .features-section h2 {
+            font-size: 24px;
+            margin-bottom: var(--spacing-lg);
+            color: #2C3E50;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: var(--spacing-lg);
+        }
+
+        .feature-card {
+            background: white;
+            border-radius: 12px;
+            padding: 32px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
             text-align: center;
             cursor: pointer;
-            transition: all var(--transition-base);
+            transition: all 0.3s ease;
             text-decoration: none;
-            color: var(--gray-900);
+            color: inherit;
+            display: block;
+            position: relative;
+            overflow: hidden;
         }
 
-        .action-btn:hover {
-            border-color: var(--primary-color);
-            box-shadow: var(--shadow-md);
-            transform: translateY(-2px);
+        .feature-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 6px;
+            background: var(--feature-lottery);
         }
 
-        .action-icon {
-            font-size: var(--font-size-3xl);
-            margin-bottom: var(--spacing-sm);
+        .feature-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 16px rgba(0,0,0,0.15);
         }
 
-        .nav-menu {
-            background: var(--white);
-            padding: var(--spacing-md);
-            border-radius: var(--radius-lg);
-            box-shadow: var(--shadow-md);
-            margin-bottom: var(--spacing-lg);
+        .feature-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
         }
 
-        .nav-menu ul {
-            list-style: none;
-            margin: 0;
-            padding: 0;
-            display: flex;
-            gap: var(--spacing-md);
-            flex-wrap: wrap;
+        .feature-name {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 12px;
+            color: #2C3E50;
         }
 
-        .nav-menu a {
-            padding: var(--spacing-sm) var(--spacing-md);
-            border-radius: var(--radius-md);
-            transition: background var(--transition-fast);
+        .feature-description {
+            font-size: 16px;
+            color: #6c757d;
+            margin-bottom: 20px;
+            line-height: 1.6;
         }
 
-        .nav-menu a:hover {
-            background: var(--gray-100);
-            text-decoration: none;
+        .feature-btn {
+            background: var(--feature-lottery);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 6px;
+            border: none;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        .feature-btn:hover {
+            opacity: 0.9;
+        }
+
+        .no-features {
+            background: white;
+            border-radius: 12px;
+            padding: 48px 32px;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .no-features h3 {
+            font-size: 24px;
+            color: #2C3E50;
+            margin-bottom: 16px;
+        }
+
+        .no-features p {
+            font-size: 16px;
+            color: #6c757d;
+            line-height: 1.6;
         }
 
         @media (max-width: 768px) {
-            .header-content {
+            .top-navbar .container {
                 flex-direction: column;
-                text-align: center;
-            }
-
-            .header-info {
+                gap: 12px;
                 text-align: center;
             }
 
@@ -190,145 +316,139 @@ if ($communityId) {
                 grid-template-columns: 1fr;
             }
 
-            .quick-actions {
+            .features-grid {
                 grid-template-columns: 1fr;
             }
 
-            .nav-menu ul {
-                flex-direction: column;
+            .welcome-section h1 {
+                font-size: 24px;
             }
         }
     </style>
 </head>
 <body>
-    <!-- Header -->
-    <div class="header">
+    <!-- Top Navbar -->
+    <nav class="top-navbar">
         <div class="container">
-            <div class="header-content">
-                <div>
-                    <h1><?php echo APP_NAME; ?></h1>
-                    <p style="margin: 0; opacity: 0.9;">Group Admin Dashboard</p>
-                </div>
-                <div class="header-info">
-                    <p style="margin: 0; font-size: var(--font-size-lg); font-weight: 500;">
-                        <?php echo htmlspecialchars($userName); ?>
-                    </p>
-                    <p style="margin: 0; opacity: 0.9;">
-                        <?php echo htmlspecialchars($communityName); ?>
-                    </p>
+            <div class="logo">
+                <a href="/public/group-admin/dashboard.php"><?php echo APP_NAME; ?></a>
+            </div>
+            <div class="community-name">
+                <?php echo htmlspecialchars($communityName); ?>
+            </div>
+            <div class="profile-menu">
+                <button class="profile-btn" onclick="toggleDropdown()">
+                    <?php echo htmlspecialchars($userName); ?> ▾
+                </button>
+                <div class="dropdown-menu" id="profileDropdown">
+                    <a href="/public/group-admin/change-password.php">Change Password</a>
+                    <a href="/public/logout.php">Logout</a>
                 </div>
             </div>
         </div>
-    </div>
+    </nav>
+
+    <!-- Breadcrumb -->
+    <?php include __DIR__ . '/../includes/breadcrumb.php'; ?>
 
     <!-- Main Content -->
     <div class="container main-content">
-        <!-- Navigation Menu -->
-        <nav class="nav-menu no-print">
-            <ul>
-                <li><a href="/public/group-admin/dashboard.php" style="font-weight: 600;">Dashboard</a></li>
-                <li><a href="/public/group-admin/transactions.php">Transaction Collection</a></li>
-                <li><a href="/public/group-admin/lottery.php">Lottery System</a></li>
-                <li><a href="/public/group-admin/change-password.php">Change Password</a></li>
-                <li><a href="/public/logout.php">Logout</a></li>
-            </ul>
-        </nav>
+        <!-- Welcome Section -->
+        <div class="welcome-section">
+            <div class="container">
+                <h1>Welcome, <?php echo htmlspecialchars($userName); ?></h1>
+                <p>Manage your community with ease using the features below</p>
+            </div>
+        </div>
 
-        <!-- Statistics -->
+        <!-- Quick Stats -->
+        <?php if (!empty($enabledFeatures)): ?>
         <div class="stats-grid">
             <div class="stat-card primary">
-                <div class="stat-value"><?php echo $totalLotteryEvents; ?></div>
-                <div class="stat-label">Lottery Events</div>
+                <div class="stat-value"><?php echo $totalStats['total_events']; ?></div>
+                <div class="stat-label">Total Events</div>
             </div>
             <div class="stat-card success">
-                <div class="stat-value"><?php echo $totalTransactionCampaigns; ?></div>
-                <div class="stat-label">Transaction Campaigns</div>
+                <div class="stat-value"><?php echo $totalStats['active_events']; ?></div>
+                <div class="stat-label">Active Events</div>
             </div>
             <div class="stat-card warning">
-                <div class="stat-value">₹<?php echo number_format($totalCollections, 2); ?></div>
-                <div class="stat-label">Total Collections</div>
+                <div class="stat-value">₹<?php echo number_format($totalStats['total_collection'], 2); ?></div>
+                <div class="stat-label">Total Collection</div>
             </div>
-            <div class="stat-card info">
-                <div class="stat-value"><?php echo $activeMembers; ?></div>
-                <div class="stat-label">Active Members</div>
-            </div>
+        </div>
+        <?php endif; ?>
+
+        <!-- Available Features -->
+        <div class="features-section">
+            <h2>Available Features</h2>
+
+            <?php if (empty($enabledFeatures)): ?>
+                <div class="no-features">
+                    <h3>No Features Enabled</h3>
+                    <p>Your administrator hasn't enabled any features for your community yet.</p>
+                    <p>Please contact your administrator to get started.</p>
+                </div>
+            <?php else: ?>
+                <div class="features-grid">
+                    <?php foreach ($enabledFeatures as $feature): ?>
+                        <?php
+                        $featureUrl = '/public/group-admin/lottery.php'; // Default to lottery
+                        $featureIcon = '🎟️'; // Default icon
+
+                        if ($feature['feature_key'] === 'lottery_system') {
+                            $featureUrl = '/public/group-admin/lottery.php';
+                            $featureIcon = '🎟️';
+                        }
+                        ?>
+                        <a href="<?php echo $featureUrl; ?>" class="feature-card">
+                            <div class="feature-icon"><?php echo $featureIcon; ?></div>
+                            <div class="feature-name"><?php echo htmlspecialchars($feature['feature_name']); ?></div>
+                            <div class="feature-description"><?php echo htmlspecialchars($feature['feature_description']); ?></div>
+                            <button class="feature-btn">Access Feature</button>
+                        </a>
+                    <?php endforeach; ?>
+                </div>
+            <?php endif; ?>
         </div>
 
-        <!-- Quick Actions -->
-        <div class="card">
-            <div class="card-header">
-                <h3 class="card-title">Quick Actions</h3>
+        <!-- Show success message if any -->
+        <?php if (isset($_SESSION['success_message'])): ?>
+            <div class="alert alert-success">
+                <?php
+                echo htmlspecialchars($_SESSION['success_message']);
+                unset($_SESSION['success_message']);
+                ?>
             </div>
-            <div class="card-body">
-                <div class="quick-actions">
-                    <a href="/public/group-admin/transaction-create.php" class="action-btn">
-                        <div class="action-icon">💰</div>
-                        <div>Create Transaction Campaign</div>
-                    </a>
-                    <a href="/public/group-admin/transactions.php" class="action-btn">
-                        <div class="action-icon">📋</div>
-                        <div>View Campaigns</div>
-                    </a>
-                    <a href="/public/group-admin/lottery-create.php" class="action-btn">
-                        <div class="action-icon">🎫</div>
-                        <div>Create Lottery Event</div>
-                    </a>
-                    <a href="/public/group-admin/lottery.php" class="action-btn">
-                        <div class="action-icon">🎰</div>
-                        <div>Manage Lottery</div>
-                    </a>
-                </div>
-            </div>
-        </div>
+        <?php endif; ?>
 
-        <!-- Recent Activity -->
-        <div class="card">
-            <div class="card-header">
-                <h3 class="card-title">Recent Activity</h3>
+        <!-- Show error message if any -->
+        <?php if (isset($_SESSION['error_message'])): ?>
+            <div class="alert alert-danger">
+                <?php
+                echo htmlspecialchars($_SESSION['error_message']);
+                unset($_SESSION['error_message']);
+                ?>
             </div>
-            <div class="card-body">
-                <div class="alert alert-info">
-                    <strong>Welcome to <?php echo APP_NAME; ?>!</strong><br>
-                    Your dashboard is ready. Start by creating your first lottery event or transaction campaign using the quick actions above.
-                </div>
-            </div>
-        </div>
-
-        <!-- Feature Overview -->
-        <div class="card">
-            <div class="card-header">
-                <h3 class="card-title">Available Features</h3>
-            </div>
-            <div class="card-body">
-                <div class="row">
-                    <div class="col-6">
-                        <h4>🎫 Lottery System</h4>
-                        <ul>
-                            <li>✅ Event Creation</li>
-                            <li>✅ Auto Book Generation</li>
-                            <li>✅ Distribution Management</li>
-                            <li>✅ Payment Collection</li>
-                            <li>✅ Reports & Analytics</li>
-                        </ul>
-                        <a href="/public/group-admin/lottery.php" class="btn btn-primary">Manage Lottery →</a>
-                    </div>
-                    <div class="col-6">
-                        <h4>💰 Transaction Collection</h4>
-                        <ul>
-                            <li>✅ CSV Upload</li>
-                            <li>✅ WhatsApp Reminders</li>
-                            <li>✅ Payment Tracking</li>
-                            <li>✅ Collection Reports</li>
-                            <li>✅ Member Management</li>
-                        </ul>
-                        <a href="/public/group-admin/transactions.php" class="btn btn-success">Manage Transactions →</a>
-                    </div>
-                </div>
-            </div>
-        </div>
+        <?php endif; ?>
     </div>
 
     <script>
+        function toggleDropdown() {
+            const dropdown = document.getElementById('profileDropdown');
+            dropdown.classList.toggle('show');
+        }
+
+        // Close dropdown when clicking outside
+        window.addEventListener('click', function(e) {
+            if (!e.target.matches('.profile-btn')) {
+                const dropdown = document.getElementById('profileDropdown');
+                if (dropdown.classList.contains('show')) {
+                    dropdown.classList.remove('show');
+                }
+            }
+        });
+
         // Show alert if not assigned to community
         <?php if (!$communityId): ?>
         alert('You are not assigned to any community yet. Please contact your administrator.');
