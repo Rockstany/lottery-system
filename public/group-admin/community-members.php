@@ -45,7 +45,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'remove' && isset($_GET['user_
 }
 
 // Get all members in this community's sub-communities
-$query = "SELECT u.user_id, u.full_name, u.email, u.phone_number,
+$query = "SELECT u.user_id, u.full_name, u.email, u.mobile_number,
           sc.sub_community_name, sc.sub_community_id,
           scm.joined_date, scm.status
           FROM users u
@@ -291,7 +291,7 @@ $breadcrumbs = [
                                 data-status="<?php echo $member['status']; ?>">
                                 <td><?php echo htmlspecialchars($member['full_name']); ?></td>
                                 <td><?php echo htmlspecialchars($member['email']); ?></td>
-                                <td><?php echo htmlspecialchars($member['phone_number'] ?? 'N/A'); ?></td>
+                                <td><?php echo htmlspecialchars($member['mobile_number'] ?? 'N/A'); ?></td>
                                 <td><?php echo htmlspecialchars($member['sub_community_name']); ?></td>
                                 <td><?php echo date('M d, Y', strtotime($member['joined_date'])); ?></td>
                                 <td>

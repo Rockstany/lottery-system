@@ -46,7 +46,7 @@ $useExisting = isset($_GET['use_existing']) && $_GET['use_existing'] === '1';
 // Get existing users if needed
 $existingUsers = [];
 if ($useExisting) {
-    $usersQuery = "SELECT user_id, full_name, email, phone_number FROM users
+    $usersQuery = "SELECT user_id, full_name, email, mobile_number FROM users
                    WHERE community_id = :community_id AND role = 'member'
                    AND user_id NOT IN (SELECT user_id FROM sub_community_members)
                    ORDER BY full_name";
@@ -61,7 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $subCommunityId = intval($_POST['sub_community_id'] ?? 0);
     $fullName = trim($_POST['full_name'] ?? '');
     $email = trim($_POST['email'] ?? '');
-    $phoneNumber = trim($_POST['phone_number'] ?? '');
+    $phoneNumber = trim($_POST['mobile_number'] ?? '');
     $existingUserId = isset($_POST['existing_user_id']) ? intval($_POST['existing_user_id']) : null;
 
     // Check if sub-community selector field exists and get value from it
@@ -112,13 +112,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $passwordHash = password_hash($defaultPassword, PASSWORD_BCRYPT);
 
                 $insertUserQuery = "INSERT INTO users
-                                   (community_id, full_name, email, phone_number, password_hash, role, status)
-                                   VALUES (:community_id, :full_name, :email, :phone_number, :password_hash, 'member', 'active')";
+                                   (community_id, full_name, email, mobile_number, password_hash, role, status)
+                                   VALUES (:community_id, :full_name, :email, :mobile_number, :password_hash, 'member', 'active')";
                 $insertUserStmt = $db->prepare($insertUserQuery);
                 $insertUserStmt->bindParam(':community_id', $communityId);
                 $insertUserStmt->bindParam(':full_name', $fullName);
                 $insertUserStmt->bindParam(':email', $email);
-                $insertUserStmt->bindParam(':phone_number', $phoneNumber);
+                $insertUserStmt->bindParam(':mobile_number', $phoneNumber);
                 $insertUserStmt->bindParam(':password_hash', $passwordHash);
                 $insertUserStmt->execute();
 
@@ -410,10 +410,10 @@ $breadcrumbs = [
                     </div>
 
                     <div class="form-group">
-                        <label for="phone_number">Phone Number</label>
-                        <input type="tel" id="phone_number" name="phone_number"
+                        <label for="mobile_number">Phone Number</label>
+                        <input type="tel" id="mobile_number" name="mobile_number"
                                placeholder="Enter phone number"
-                               value="<?php echo htmlspecialchars($_POST['phone_number'] ?? ''); ?>">
+                               value="<?php echo htmlspecialchars($_POST['mobile_number'] ?? ''); ?>">
                     </div>
                 <?php endif; ?>
 
