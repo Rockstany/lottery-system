@@ -40,29 +40,12 @@ $fieldsStmt->bindParam(':community_id', $communityId);
 $fieldsStmt->execute();
 $customFields = $fieldsStmt->fetchAll();
 
-// Check if user wants to use existing database (lottery system users)
-$useExisting = isset($_GET['use_existing']) && $_GET['use_existing'] === '1';
-
-// Get existing users if needed
-$existingUsers = [];
-if ($useExisting) {
-    $usersQuery = "SELECT user_id, full_name, email, mobile_number FROM users
-                   WHERE community_id = :community_id AND role = 'member'
-                   AND user_id NOT IN (SELECT user_id FROM sub_community_members)
-                   ORDER BY full_name";
-    $usersStmt = $db->prepare($usersQuery);
-    $usersStmt->bindParam(':community_id', $communityId);
-    $usersStmt->execute();
-    $existingUsers = $usersStmt->fetchAll();
-}
-
 // Handle form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $subCommunityId = intval($_POST['sub_community_id'] ?? 0);
-    $fullName = trim($_POST['full_name'] ?? '');
-    $email = trim($_POST['email'] ?? '');
-    $phoneNumber = trim($_POST['mobile_number'] ?? '');
-    $existingUserId = isset($_POST['existing_user_id']) ? intval($_POST['existing_user_id']) : null;
+    $subCommunityId = 0;
+    $fullName = '';
+    $email = '';
+    $mobileNumber = '';
 
     // Check if sub-community selector field exists and get value from it
     $subCommSelectorField = array_filter($customFields, fn($f) => $f['field_type'] === 'sub_community_selector');
@@ -71,23 +54,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $subCommunityId = intval($_POST['custom_field_' . $selectorField['field_id']] ?? 0);
     }
 
+    // Extract basic user data from custom fields (needed for user account creation)
+    foreach ($customFields as $field) {
+        $fieldValue = $_POST['custom_field_' . $field['field_id']] ?? '';
+
+        // Try to identify name field
+        if (empty($fullName) && in_array(strtolower($field['field_name']), ['full_name', 'name', 'member_name', 'student_name', 'user_name'])) {
+            $fullName = trim($fieldValue);
+        }
+
+        // Try to identify email field
+        if (empty($email) && in_array(strtolower($field['field_name']), ['email', 'email_address', 'e_mail'])) {
+            $email = trim($fieldValue);
+        }
+
+        // Try to identify mobile field
+        if (empty($mobileNumber) && in_array(strtolower($field['field_name']), ['mobile', 'mobile_number', 'phone', 'phone_number', 'contact', 'contact_number'])) {
+            $mobileNumber = trim($fieldValue);
+        }
+    }
+
     // Validation
     $errors = [];
     if ($subCommunityId <= 0) {
-        $errors[] = "Please select a sub-community";
+        $errors[] = "Please select a sub-community (use Sub-Community Selector field)";
     }
 
-    if ($existingUserId) {
-        // Using existing user
-        $newUserId = $existingUserId;
-    } else {
-        // Creating new user
-        if (empty($fullName)) {
-            $errors[] = "Full name is required";
-        }
-        if (empty($email) || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            $errors[] = "Valid email is required";
-        }
+    // Validate basic user data needed for account creation
+    if (empty($fullName)) {
+        $errors[] = "Member name is required (create a text field named 'name', 'full_name', or 'member_name')";
+    }
+    if (empty($email) || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $errors[] = "Valid email is required (create a text field named 'email')";
     }
 
     // Validate custom fields (skip auto_populate fields as they're auto-filled)
@@ -105,25 +103,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             $db->beginTransaction();
 
-            // Create new user if not using existing
-            if (!$existingUserId) {
-                // Generate password
-                $defaultPassword = bin2hex(random_bytes(8));
-                $passwordHash = password_hash($defaultPassword, PASSWORD_BCRYPT);
+            // Create new user
+            // Generate password
+            $defaultPassword = bin2hex(random_bytes(8));
+            $passwordHash = password_hash($defaultPassword, PASSWORD_BCRYPT);
 
-                $insertUserQuery = "INSERT INTO users
-                                   (community_id, full_name, email, mobile_number, password_hash, role, status)
-                                   VALUES (:community_id, :full_name, :email, :mobile_number, :password_hash, 'member', 'active')";
-                $insertUserStmt = $db->prepare($insertUserQuery);
-                $insertUserStmt->bindParam(':community_id', $communityId);
-                $insertUserStmt->bindParam(':full_name', $fullName);
-                $insertUserStmt->bindParam(':email', $email);
-                $insertUserStmt->bindParam(':mobile_number', $phoneNumber);
-                $insertUserStmt->bindParam(':password_hash', $passwordHash);
-                $insertUserStmt->execute();
+            $insertUserQuery = "INSERT INTO users
+                               (community_id, full_name, email, mobile_number, password_hash, role, status)
+                               VALUES (:community_id, :full_name, :email, :mobile_number, :password_hash, 'member', 'active')";
+            $insertUserStmt = $db->prepare($insertUserQuery);
+            $insertUserStmt->bindParam(':community_id', $communityId);
+            $insertUserStmt->bindParam(':full_name', $fullName);
+            $insertUserStmt->bindParam(':email', $email);
+            $insertUserStmt->bindParam(':mobile_number', $mobileNumber);
+            $insertUserStmt->bindParam(':password_hash', $passwordHash);
+            $insertUserStmt->execute();
 
-                $newUserId = $db->lastInsertId();
-            }
+            $newUserId = $db->lastInsertId();
 
             // Assign to sub-community
             $assignQuery = "INSERT INTO sub_community_members
@@ -351,71 +347,7 @@ $breadcrumbs = [
             </div>
 
             <form method="POST" action="">
-                <!-- Sub-Community Selection -->
-                <div class="form-group">
-                    <label for="sub_community_id">
-                        Select Sub-Community <span class="required">*</span>
-                    </label>
-                    <select id="sub_community_id" name="sub_community_id" required>
-                        <option value="">-- Select Sub-Community --</option>
-                        <?php foreach ($subCommunities as $sc): ?>
-                            <option value="<?php echo $sc['sub_community_id']; ?>">
-                                <?php echo htmlspecialchars($sc['sub_community_name']); ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-
-                <?php if ($useExisting && count($existingUsers) > 0): ?>
-                    <!-- Existing User Selection -->
-                    <div class="section-title">Select Existing User</div>
-                    <div class="form-group">
-                        <label for="existing_user_id">
-                            Existing User <span class="required">*</span>
-                        </label>
-                        <select id="existing_user_id" name="existing_user_id" required>
-                            <option value="">-- Select User --</option>
-                            <?php foreach ($existingUsers as $user): ?>
-                                <option value="<?php echo $user['user_id']; ?>">
-                                    <?php echo htmlspecialchars($user['full_name'] . ' (' . $user['email'] . ')'); ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                <?php elseif ($useExisting): ?>
-                    <div class="alert alert-error">
-                        No existing users available. All users are already assigned to sub-communities or you don't have any users yet.
-                        <a href="/public/group-admin/member-register.php">Create a new member instead</a>.
-                    </div>
-                <?php else: ?>
-                    <!-- New User Creation -->
-                    <div class="section-title">Basic Information</div>
-
-                    <div class="form-group">
-                        <label for="full_name">
-                            Full Name <span class="required">*</span>
-                        </label>
-                        <input type="text" id="full_name" name="full_name"
-                               placeholder="Enter full name" required
-                               value="<?php echo htmlspecialchars($_POST['full_name'] ?? ''); ?>">
-                    </div>
-
-                    <div class="form-group">
-                        <label for="email">
-                            Email <span class="required">*</span>
-                        </label>
-                        <input type="email" id="email" name="email"
-                               placeholder="Enter email address" required
-                               value="<?php echo htmlspecialchars($_POST['email'] ?? ''); ?>">
-                    </div>
-
-                    <div class="form-group">
-                        <label for="mobile_number">Phone Number</label>
-                        <input type="tel" id="mobile_number" name="mobile_number"
-                               placeholder="Enter phone number"
-                               value="<?php echo htmlspecialchars($_POST['mobile_number'] ?? ''); ?>">
-                    </div>
-                <?php endif; ?>
+                <!-- Note: All fields are custom fields defined by Group Admin -->
 
                 <!-- Custom Fields -->
                 <?php if (count($customFields) > 0): ?>

@@ -145,6 +145,19 @@ if (isset($_GET['download_sample'])) {
             if ($field['field_type'] === 'dropdown' && $field['field_options']) {
                 $options = json_decode($field['field_options'], true);
                 $sheet->setCellValue($col . '2', $options[0] ?? '');
+            } elseif ($field['field_type'] === 'sub_community_selector') {
+                // For sub-community selector, show example sub-community name
+                $subCommQuery = "SELECT sub_community_name FROM sub_communities
+                               WHERE community_id = :community_id AND status = 'active'
+                               LIMIT 1";
+                $subCommStmt = $db->prepare($subCommQuery);
+                $subCommStmt->bindParam(':community_id', $communityId);
+                $subCommStmt->execute();
+                $sampleSubComm = $subCommStmt->fetchColumn();
+                $sheet->setCellValue($col . '2', $sampleSubComm ?: 'Sub-Community Name');
+            } elseif ($field['field_type'] === 'auto_populate') {
+                // For auto-populate, indicate it can be left empty
+                $sheet->setCellValue($col . '2', '(auto-fills)');
             } else {
                 $sheet->setCellValue($col . '2', 'Sample Value');
             }
@@ -158,13 +171,24 @@ if (isset($_GET['download_sample'])) {
         $instructionSheet->setCellValue('A3', 'Custom Fields (defined by Group Admin):');
 
         $row = 4;
+        $hasSubCommSelector = false;
+        $hasAutoPopulate = false;
+
         foreach ($customFields as $field) {
             $req = $field['is_required'] ? '(Required)' : '(Optional)';
             $text = "- {$field['field_label']} $req - Type: {$field['field_type']}";
+
             if ($field['field_type'] === 'dropdown' && $field['field_options']) {
                 $options = json_decode($field['field_options'], true);
                 $text .= ' - Values: ' . implode(', ', $options);
+            } elseif ($field['field_type'] === 'sub_community_selector') {
+                $text .= ' - Enter sub-community name exactly as it appears';
+                $hasSubCommSelector = true;
+            } elseif ($field['field_type'] === 'auto_populate') {
+                $text .= ' - Can be left empty (will auto-fill from sub-community)';
+                $hasAutoPopulate = true;
             }
+
             $instructionSheet->setCellValue('A' . $row, $text);
             $row++;
         }
@@ -176,6 +200,17 @@ if (isset($_GET['download_sample'])) {
         $row++;
         $instructionSheet->setCellValue('A' . $row, '- Fill in all required fields (marked with *)');
         $row++;
+
+        if ($hasSubCommSelector) {
+            $instructionSheet->setCellValue('A' . $row, '- For Sub-Community Selector: Enter the exact sub-community name');
+            $row++;
+        }
+
+        if ($hasAutoPopulate) {
+            $instructionSheet->setCellValue('A' . $row, '- For Auto-Populate fields: Leave empty or enter custom value');
+            $row++;
+        }
+
         $instructionSheet->setCellValue('A' . $row, '- Delete the sample row before uploading');
 
         $filename = 'members_sample.xlsx';
