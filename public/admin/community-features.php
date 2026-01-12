@@ -39,11 +39,12 @@ if (isset($_GET['toggle'])) {
     if ($action === 'enable') {
         $query = "INSERT INTO community_features (community_id, feature_id, is_enabled, enabled_by, enabled_date)
                   VALUES (:cid, :fid, 1, :uid, NOW())
-                  ON DUPLICATE KEY UPDATE is_enabled = 1, enabled_by = :uid, enabled_date = NOW()";
+                  ON DUPLICATE KEY UPDATE is_enabled = 1, enabled_by = :uid2, enabled_date = NOW()";
         $stmt = $db->prepare($query);
         $stmt->bindParam(':cid', $communityId);
         $stmt->bindParam(':fid', $featureId);
         $stmt->bindParam(':uid', $userId);
+        $stmt->bindParam(':uid2', $userId);
 
         if ($stmt->execute()) {
             $successMessage = "Feature enabled successfully! Group Admin can now access this feature.";
