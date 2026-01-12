@@ -4,41 +4,32 @@
  * Optimized for 50+ age group users
  */
 
-session_start();
-require_once '../../config/database.php';
-require_once '../../includes/auth.php';
+require_once __DIR__ . '/../../config/config.php';
+require_once __DIR__ . '/../../config/feature-access.php';
 
-// Check authentication and feature access
-requireLogin();
-requireRole(['super_admin', 'group_admin']);
+// Authentication
+AuthMiddleware::requireRole('group_admin');
+$userId = AuthMiddleware::getUserId();
+$communityId = AuthMiddleware::getCommunityId();
 
-// Check if CSF feature is enabled for this group
-$group_id = $_SESSION['group_id'] ?? null;
-if (!$group_id) {
-    header('Location: ../dashboard.php');
+// Feature access check
+$featureAccess = new FeatureAccess();
+if (!$featureAccess->isFeatureEnabled($communityId, 'csf_funds')) {
+    $_SESSION['error_message'] = "CSF Funds is not enabled for your community";
+    header('Location: /public/group-admin/dashboard.php');
     exit();
 }
 
-$db = new Database();
-$conn = $db->getConnection();
-
-// Verify CSF feature access
-$stmt = $conn->prepare("SELECT csf_enabled FROM groups WHERE group_id = ?");
-$stmt->execute([$group_id]);
-$group = $stmt->fetch(PDO::FETCH_ASSOC);
-
-if (!$group || !$group['csf_enabled']) {
-    header('Location: ../dashboard.php');
-    exit();
-}
+$database = new Database();
+$db = $database->getConnection();
 
 // Handle delete payment
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'delete_payment') {
     $payment_id = $_POST['payment_id'];
 
     try {
-        $stmt = $conn->prepare("DELETE FROM csf_payments WHERE payment_id = ? AND group_id = ?");
-        $stmt->execute([$payment_id, $group_id]);
+        $stmt = $db->prepare("DELETE FROM csf_payments WHERE payment_id = ? AND community_id = ?");
+        $stmt->execute([$payment_id, $communityId]);
         $success_message = "Payment record deleted successfully";
     } catch (Exception $e) {
         $error_message = "Error deleting payment: " . $e->getMessage();
@@ -60,16 +51,16 @@ $sql = "SELECT
             cp.payment_method,
             cp.reference_number,
             cp.notes,
-            cp.recorded_at,
+            cp.created_at as recorded_at,
             u.full_name,
-            u.phone,
+            u.mobile_number as phone,
             recorder.full_name as recorded_by_name
         FROM csf_payments cp
         INNER JOIN users u ON cp.user_id = u.user_id
-        LEFT JOIN users recorder ON cp.recorded_by = recorder.user_id
-        WHERE cp.group_id = ?";
+        LEFT JOIN users recorder ON cp.collected_by = recorder.user_id
+        WHERE cp.community_id = ?";
 
-$params = [$group_id];
+$params = [$communityId];
 
 if ($filter_user) {
     $sql .= " AND cp.user_id = ?";
@@ -99,19 +90,20 @@ if ($search_query) {
     $params[] = $search_param;
 }
 
-$sql .= " ORDER BY cp.payment_date DESC, cp.recorded_at DESC";
+$sql .= " ORDER BY cp.payment_date DESC, cp.created_at DESC";
 
-$stmt = $conn->prepare($sql);
+$stmt = $db->prepare($sql);
 $stmt->execute($params);
 $payments = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // Get all members for filter dropdown
-$stmt = $conn->prepare("SELECT u.user_id, u.full_name
-                       FROM users u
-                       INNER JOIN user_groups ug ON u.user_id = ug.user_id
-                       WHERE ug.group_id = ?
+$stmt = $db->prepare("SELECT scm.user_id, u.full_name
+                       FROM sub_community_members scm
+                       JOIN users u ON scm.user_id = u.user_id
+                       JOIN sub_communities sc ON scm.sub_community_id = sc.sub_community_id
+                       WHERE sc.community_id = ? AND scm.status = 'active'
                        ORDER BY u.full_name");
-$stmt->execute([$group_id]);
+$stmt->execute([$communityId]);
 $members = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // Calculate summary statistics
@@ -391,8 +383,8 @@ $total_payments = count($payments);
 </head>
 <body>
     <div class="main-container">
-        <a href="csf-dashboard.php" class="back-link">
-            <i class="fas fa-arrow-left"></i> Back to CSF Dashboard
+        <a href="csf-funds.php" class="back-link">
+            <i class="fas fa-arrow-left"></i> Back to CSF Funds
         </a>
 
         <div class="header-section">

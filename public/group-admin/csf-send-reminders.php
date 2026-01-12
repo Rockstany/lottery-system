@@ -4,66 +4,59 @@
  * Optimized for 50+ age group users
  */
 
-session_start();
-require_once '../../config/database.php';
-require_once '../../includes/auth.php';
+require_once __DIR__ . '/../../config/config.php';
+require_once __DIR__ . '/../../config/feature-access.php';
 
-// Check authentication and feature access
-requireLogin();
-requireRole(['super_admin', 'group_admin']);
+// Authentication
+AuthMiddleware::requireRole('group_admin');
+$userId = AuthMiddleware::getUserId();
+$communityId = AuthMiddleware::getCommunityId();
 
-// Check if CSF feature is enabled for this group
-$group_id = $_SESSION['group_id'] ?? null;
-if (!$group_id) {
-    header('Location: ../dashboard.php');
+// Feature access check
+$featureAccess = new FeatureAccess();
+if (!$featureAccess->isFeatureEnabled($communityId, 'csf_funds')) {
+    $_SESSION['error_message'] = "CSF Funds is not enabled for your community";
+    header('Location: /public/group-admin/dashboard.php');
     exit();
 }
 
-$db = new Database();
-$conn = $db->getConnection();
+$database = new Database();
+$db = $database->getConnection();
 
-// Verify CSF feature access
-$stmt = $conn->prepare("SELECT csf_enabled, group_name FROM groups WHERE group_id = ?");
-$stmt->execute([$group_id]);
-$group = $stmt->fetch(PDO::FETCH_ASSOC);
+// Get community name
+$stmt = $db->prepare("SELECT community_name FROM communities WHERE community_id = ?");
+$stmt->execute([$communityId]);
+$community = $stmt->fetch(PDO::FETCH_ASSOC);
+$community_name = $community['community_name'] ?? 'Community';
 
-if (!$group || !$group['csf_enabled']) {
-    header('Location: ../dashboard.php');
-    exit();
-}
-
-$group_name = $group['group_name'];
-
-// Get CSF settings
-$stmt = $conn->prepare("SELECT monthly_contribution FROM csf_settings WHERE group_id = ?");
-$stmt->execute([$group_id]);
-$csf_settings = $stmt->fetch(PDO::FETCH_ASSOC);
-$monthly_contribution = $csf_settings['monthly_contribution'] ?? 100;
+// Default monthly contribution (can be customized later)
+$monthly_contribution = 100;
 
 // Get current month and year
 $current_month = date('m');
 $current_year = date('Y');
 $month_name = date('F Y');
 
-// Get all members in the group
-$stmt = $conn->prepare("SELECT u.user_id, u.full_name, u.phone
-                       FROM users u
-                       INNER JOIN user_groups ug ON u.user_id = ug.user_id
-                       WHERE ug.group_id = ?
+// Get all members in the community
+$stmt = $db->prepare("SELECT scm.user_id, u.full_name, u.mobile_number as phone
+                       FROM sub_community_members scm
+                       JOIN users u ON scm.user_id = u.user_id
+                       JOIN sub_communities sc ON scm.sub_community_id = sc.sub_community_id
+                       WHERE sc.community_id = ? AND scm.status = 'active'
                        ORDER BY u.full_name");
-$stmt->execute([$group_id]);
+$stmt->execute([$communityId]);
 $all_members = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // Get payments for current month
-$stmt = $conn->prepare("SELECT
+$stmt = $db->prepare("SELECT
                            cp.user_id,
                            SUM(cp.amount) as total_paid
                        FROM csf_payments cp
-                       WHERE cp.group_id = ?
+                       WHERE cp.community_id = ?
                        AND MONTH(cp.payment_date) = ?
                        AND YEAR(cp.payment_date) = ?
                        GROUP BY cp.user_id");
-$stmt->execute([$group_id, $current_month, $current_year]);
+$stmt->execute([$communityId, $current_month, $current_year]);
 $payments = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // Create payment lookup array
@@ -98,9 +91,9 @@ foreach ($all_members as $member) {
 }
 
 // Default reminder messages
-$unpaid_message_template = "Dear {name},\n\nThis is a reminder that your CSF contribution of ₹{amount} for {month} is pending.\n\nPlease make the payment at your earliest convenience.\n\nThank you!\n{group_name}";
+$unpaid_message_template = "Dear {name},\n\nThis is a reminder that your CSF contribution of ₹{amount} for {month} is pending.\n\nPlease make the payment at your earliest convenience.\n\nThank you!\n{community_name}";
 
-$partial_message_template = "Dear {name},\n\nYou have paid ₹{paid} for CSF this month. The remaining balance is ₹{balance}.\n\nPlease complete the payment soon.\n\nThank you!\n{group_name}";
+$partial_message_template = "Dear {name},\n\nYou have paid ₹{paid} for CSF this month. The remaining balance is ₹{balance}.\n\nPlease complete the payment soon.\n\nThank you!\n{community_name}";
 
 ?>
 <!DOCTYPE html>
@@ -375,8 +368,8 @@ $partial_message_template = "Dear {name},\n\nYou have paid ₹{paid} for CSF thi
 </head>
 <body>
     <div class="main-container">
-        <a href="csf-dashboard.php" class="back-link">
-            <i class="fas fa-arrow-left"></i> Back to CSF Dashboard
+        <a href="csf-funds.php" class="back-link">
+            <i class="fas fa-arrow-left"></i> Back to CSF Funds
         </a>
 
         <div class="header-section">
@@ -419,8 +412,8 @@ $partial_message_template = "Dear {name},\n\nYou have paid ₹{paid} for CSF thi
 
                     <?php foreach ($unpaid_members as $member):
                         $message = str_replace(
-                            ['{name}', '{amount}', '{month}', '{group_name}'],
-                            [$member['full_name'], number_format($member['balance_due'], 2), $month_name, $group_name],
+                            ['{name}', '{amount}', '{month}', '{community_name}'],
+                            [$member['full_name'], number_format($member['balance_due'], 2), $month_name, $community_name],
                             $unpaid_message_template
                         );
                         $whatsapp_url = "https://wa.me/" . preg_replace('/[^0-9]/', '', $member['phone']) . "?text=" . urlencode($message);
@@ -450,8 +443,8 @@ $partial_message_template = "Dear {name},\n\nYou have paid ₹{paid} for CSF thi
 
                     <?php foreach ($partial_members as $member):
                         $message = str_replace(
-                            ['{name}', '{paid}', '{balance}', '{month}', '{group_name}'],
-                            [$member['full_name'], number_format($member['paid_amount'], 2), number_format($member['balance_due'], 2), $month_name, $group_name],
+                            ['{name}', '{paid}', '{balance}', '{month}', '{community_name}'],
+                            [$member['full_name'], number_format($member['paid_amount'], 2), number_format($member['balance_due'], 2), $month_name, $community_name],
                             $partial_message_template
                         );
                         $whatsapp_url = "https://wa.me/" . preg_replace('/[^0-9]/', '', $member['phone']) . "?text=" . urlencode($message);
@@ -488,12 +481,12 @@ $partial_message_template = "Dear {name},\n\nYou have paid ₹{paid} for CSF thi
                         <span class="variable-tag">{name}</span>
                         <span class="variable-tag">{amount}</span>
                         <span class="variable-tag">{month}</span>
-                        <span class="variable-tag">{group_name}</span>
+                        <span class="variable-tag">{community_name}</span>
                     </div>
                     <div class="message-preview" id="unpaid-preview">
                         <?php echo htmlspecialchars(str_replace(
-                            ['{name}', '{amount}', '{month}', '{group_name}'],
-                            ['John Doe', number_format($monthly_contribution, 2), $month_name, $group_name],
+                            ['{name}', '{amount}', '{month}', '{community_name}'],
+                            ['John Doe', number_format($monthly_contribution, 2), $month_name, $community_name],
                             $unpaid_message_template
                         )); ?>
                     </div>
@@ -507,12 +500,12 @@ $partial_message_template = "Dear {name},\n\nYou have paid ₹{paid} for CSF thi
                         <span class="variable-tag">{paid}</span>
                         <span class="variable-tag">{balance}</span>
                         <span class="variable-tag">{month}</span>
-                        <span class="variable-tag">{group_name}</span>
+                        <span class="variable-tag">{community_name}</span>
                     </div>
                     <div class="message-preview" id="partial-preview">
                         <?php echo htmlspecialchars(str_replace(
-                            ['{name}', '{paid}', '{balance}', '{month}', '{group_name}'],
-                            ['Jane Smith', '50.00', '50.00', $month_name, $group_name],
+                            ['{name}', '{paid}', '{balance}', '{month}', '{community_name}'],
+                            ['Jane Smith', '50.00', '50.00', $month_name, $community_name],
                             $partial_message_template
                         )); ?>
                     </div>
@@ -535,7 +528,7 @@ $partial_message_template = "Dear {name},\n\nYou have paid ₹{paid} for CSF thi
                 .replace('{name}', 'John Doe')
                 .replace('{amount}', '<?php echo number_format($monthly_contribution, 2); ?>')
                 .replace('{month}', '<?php echo $month_name; ?>')
-                .replace('{group_name}', '<?php echo htmlspecialchars($group_name, ENT_QUOTES); ?>');
+                .replace('{community_name}', '<?php echo htmlspecialchars($community_name, ENT_QUOTES); ?>');
             document.getElementById('unpaid-preview').textContent = preview;
         });
 
@@ -546,7 +539,7 @@ $partial_message_template = "Dear {name},\n\nYou have paid ₹{paid} for CSF thi
                 .replace('{paid}', '50.00')
                 .replace('{balance}', '50.00')
                 .replace('{month}', '<?php echo $month_name; ?>')
-                .replace('{group_name}', '<?php echo htmlspecialchars($group_name, ENT_QUOTES); ?>');
+                .replace('{community_name}', '<?php echo htmlspecialchars($community_name, ENT_QUOTES); ?>');
             document.getElementById('partial-preview').textContent = preview;
         });
     </script>

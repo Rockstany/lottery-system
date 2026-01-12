@@ -4,33 +4,24 @@
  * Optimized for 50+ age group users
  */
 
-session_start();
-require_once '../../config/database.php';
-require_once '../../includes/auth.php';
+require_once __DIR__ . '/../../config/config.php';
+require_once __DIR__ . '/../../config/feature-access.php';
 
-// Check authentication and feature access
-requireLogin();
-requireRole(['super_admin', 'group_admin']);
+// Authentication
+AuthMiddleware::requireRole('group_admin');
+$userId = AuthMiddleware::getUserId();
+$communityId = AuthMiddleware::getCommunityId();
 
-// Check if CSF feature is enabled for this group
-$group_id = $_SESSION['group_id'] ?? null;
-if (!$group_id) {
-    header('Location: ../dashboard.php');
+// Feature access check
+$featureAccess = new FeatureAccess();
+if (!$featureAccess->isFeatureEnabled($communityId, 'csf_funds')) {
+    $_SESSION['error_message'] = "CSF Funds is not enabled for your community";
+    header('Location: /public/group-admin/dashboard.php');
     exit();
 }
 
-$db = new Database();
-$conn = $db->getConnection();
-
-// Verify CSF feature access
-$stmt = $conn->prepare("SELECT csf_enabled FROM groups WHERE group_id = ?");
-$stmt->execute([$group_id]);
-$group = $stmt->fetch(PDO::FETCH_ASSOC);
-
-if (!$group || !$group['csf_enabled']) {
-    header('Location: ../dashboard.php');
-    exit();
-}
+$database = new Database();
+$db = $database->getConnection();
 
 // Handle form submission
 $success_message = '';
@@ -47,11 +38,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $reference_number = $_POST['reference_number'] ?? null;
             $notes = $_POST['notes'] ?? null;
 
-            // Validate user belongs to group
-            $stmt = $conn->prepare("SELECT u.user_id, u.full_name FROM users u
-                                   INNER JOIN user_groups ug ON u.user_id = ug.user_id
-                                   WHERE u.user_id = ? AND ug.group_id = ?");
-            $stmt->execute([$user_id, $group_id]);
+            // Validate user belongs to community
+            $stmt = $db->prepare("SELECT scm.user_id, u.full_name
+                                   FROM sub_community_members scm
+                                   JOIN users u ON scm.user_id = u.user_id
+                                   JOIN sub_communities sc ON scm.sub_community_id = sc.sub_community_id
+                                   WHERE scm.user_id = ? AND sc.community_id = ? AND scm.status = 'active'");
+            $stmt->execute([$user_id, $communityId]);
             $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if (!$user) {
@@ -59,18 +52,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             // Insert payment record
-            $stmt = $conn->prepare("INSERT INTO csf_payments
-                                   (group_id, user_id, amount, payment_date, payment_method, reference_number, notes, recorded_by, recorded_at)
+            $stmt = $db->prepare("INSERT INTO csf_payments
+                                   (community_id, user_id, amount, payment_date, payment_method, reference_number, notes, collected_by, created_at)
                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())");
             $stmt->execute([
-                $group_id,
+                $communityId,
                 $user_id,
                 $amount,
                 $payment_date,
                 $payment_method,
                 $reference_number,
                 $notes,
-                $_SESSION['user_id']
+                $userId
             ]);
 
             $success_message = "Payment of ₹" . number_format($amount, 2) . " recorded successfully for " . htmlspecialchars($user['full_name']);
@@ -85,20 +78,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Get all members in the group
-$stmt = $conn->prepare("SELECT u.user_id, u.full_name, u.phone
-                       FROM users u
-                       INNER JOIN user_groups ug ON u.user_id = ug.user_id
-                       WHERE ug.group_id = ?
+// Get all members in the community
+$stmt = $db->prepare("SELECT scm.user_id, u.full_name, u.mobile_number as phone
+                       FROM sub_community_members scm
+                       JOIN users u ON scm.user_id = u.user_id
+                       JOIN sub_communities sc ON scm.sub_community_id = sc.sub_community_id
+                       WHERE sc.community_id = ? AND scm.status = 'active'
                        ORDER BY u.full_name");
-$stmt->execute([$group_id]);
+$stmt->execute([$communityId]);
 $members = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Get CSF settings
-$stmt = $conn->prepare("SELECT monthly_contribution FROM csf_settings WHERE group_id = ?");
-$stmt->execute([$group_id]);
-$csf_settings = $stmt->fetch(PDO::FETCH_ASSOC);
-$default_amount = $csf_settings['monthly_contribution'] ?? 100;
+// Default amount (can be customized later)
+$default_amount = 100;
 
 ?>
 <!DOCTYPE html>
@@ -361,8 +352,8 @@ $default_amount = $csf_settings['monthly_contribution'] ?? 100;
 </head>
 <body>
     <div class="main-container">
-        <a href="csf-dashboard.php" class="back-link">
-            <i class="fas fa-arrow-left"></i> Back to CSF Dashboard
+        <a href="csf-funds.php" class="back-link">
+            <i class="fas fa-arrow-left"></i> Back to CSF Funds
         </a>
 
         <div class="header-section">

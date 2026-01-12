@@ -4,66 +4,55 @@
  * Optimized for 50+ age group users
  */
 
-session_start();
-require_once '../../config/database.php';
-require_once '../../includes/auth.php';
+require_once __DIR__ . '/../../config/config.php';
+require_once __DIR__ . '/../../config/feature-access.php';
 
-// Check authentication and feature access
-requireLogin();
-requireRole(['super_admin', 'group_admin']);
+// Authentication
+AuthMiddleware::requireRole('group_admin');
+$userId = AuthMiddleware::getUserId();
+$communityId = AuthMiddleware::getCommunityId();
 
-// Check if CSF feature is enabled for this group
-$group_id = $_SESSION['group_id'] ?? null;
-if (!$group_id) {
-    header('Location: ../dashboard.php');
+// Feature access check
+$featureAccess = new FeatureAccess();
+if (!$featureAccess->isFeatureEnabled($communityId, 'csf_funds')) {
+    $_SESSION['error_message'] = "CSF Funds is not enabled for your community";
+    header('Location: /public/group-admin/dashboard.php');
     exit();
 }
 
-$db = new Database();
-$conn = $db->getConnection();
-
-// Verify CSF feature access
-$stmt = $conn->prepare("SELECT csf_enabled FROM groups WHERE group_id = ?");
-$stmt->execute([$group_id]);
-$group = $stmt->fetch(PDO::FETCH_ASSOC);
-
-if (!$group || !$group['csf_enabled']) {
-    header('Location: ../dashboard.php');
-    exit();
-}
+$database = new Database();
+$db = $database->getConnection();
 
 // Get selected month and year
 $selected_month = $_GET['month'] ?? date('m');
 $selected_year = $_GET['year'] ?? date('Y');
 
-// Get CSF settings
-$stmt = $conn->prepare("SELECT monthly_contribution FROM csf_settings WHERE group_id = ?");
-$stmt->execute([$group_id]);
-$csf_settings = $stmt->fetch(PDO::FETCH_ASSOC);
-$monthly_contribution = $csf_settings['monthly_contribution'] ?? 100;
+// Default monthly contribution (can be customized later)
+$monthly_contribution = 100;
 
-// Get all members in the group
-$stmt = $conn->prepare("SELECT u.user_id, u.full_name, u.phone, u.email
-                       FROM users u
-                       INNER JOIN user_groups ug ON u.user_id = ug.user_id
-                       WHERE ug.group_id = ?
+// Get all members in the community
+$stmt = $db->prepare("SELECT scm.user_id, u.full_name, u.mobile_number as phone, u.email
+                       FROM sub_community_members scm
+                       JOIN users u ON scm.user_id = u.user_id
+                       JOIN sub_communities sc ON scm.sub_community_id = sc.sub_community_id
+                       WHERE sc.community_id = ? AND scm.status = 'active'
                        ORDER BY u.full_name");
-$stmt->execute([$group_id]);
+$stmt->execute([$communityId]);
 $all_members = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // Get payments for selected month
-$stmt = $conn->prepare("SELECT
+$stmt = $db->prepare("SELECT
                            cp.user_id,
                            SUM(cp.amount) as total_paid,
                            COUNT(*) as payment_count,
                            MAX(cp.payment_date) as last_payment_date,
                            MAX(cp.payment_method) as last_payment_method
                        FROM csf_payments cp
-                       WHERE cp.group_id = ?
+                       WHERE cp.community_id = ?
                        AND MONTH(cp.payment_date) = ?
                        AND YEAR(cp.payment_date) = ?
                        GROUP BY cp.user_id");
-$stmt->execute([$group_id, $selected_month, $selected_year]);
+$stmt->execute([$communityId, $selected_month, $selected_year]);
 $payments = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // Create payment lookup array
@@ -109,15 +98,15 @@ $total_collected = array_sum(array_column($payments, 'total_paid'));
 $total_pending = $total_expected - $total_collected;
 
 // Get yearly statistics
-$stmt = $conn->prepare("SELECT
+$stmt = $db->prepare("SELECT
                            MONTH(payment_date) as month,
                            SUM(amount) as monthly_total,
                            COUNT(DISTINCT user_id) as unique_payers
                        FROM csf_payments
-                       WHERE group_id = ? AND YEAR(payment_date) = ?
+                       WHERE community_id = ? AND YEAR(payment_date) = ?
                        GROUP BY MONTH(payment_date)
                        ORDER BY month");
-$stmt->execute([$group_id, $selected_year]);
+$stmt->execute([$communityId, $selected_year]);
 $yearly_data = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // Create monthly data array
@@ -434,8 +423,8 @@ foreach ($yearly_data as $data) {
 </head>
 <body>
     <div class="main-container">
-        <a href="csf-dashboard.php" class="back-link">
-            <i class="fas fa-arrow-left"></i> Back to CSF Dashboard
+        <a href="csf-funds.php" class="back-link">
+            <i class="fas fa-arrow-left"></i> Back to CSF Funds
         </a>
 
         <div class="header-section">
