@@ -1,0 +1,1024 @@
+<?php
+/**
+ * Lottery Books List & Distribution - Part 4
+ * GetToKnow Community App
+ */
+
+require_once __DIR__ . '/../../config/config.php';
+AuthMiddleware::requireRole('group_admin');
+
+$eventId = Validator::sanitizeInt($_GET['id'] ?? 0);
+$communityId = AuthMiddleware::getCommunityId();
+
+if (!$eventId || !$communityId) {
+    header("Location: /public/group-admin/lottery.php");
+    exit;
+}
+
+$database = new Database();
+$db = $database->getConnection();
+
+// Get event
+$query = "SELECT * FROM lottery_events WHERE event_id = :id AND community_id = :community_id";
+$eventStmt = $db->prepare($query);
+$eventStmt->bindValue(':id', $eventId);
+$eventStmt->bindValue(':community_id', $communityId);
+$eventStmt->execute();
+$event = $eventStmt->fetch();
+
+if (!$event) {
+    header("Location: /public/group-admin/lottery.php");
+    exit;
+}
+
+// Get distribution levels for this event
+$levelsQuery = "SELECT * FROM distribution_levels WHERE event_id = :event_id ORDER BY level_number";
+$levelsStmt = $db->prepare($levelsQuery);
+$levelsStmt->bindValue(':event_id', $eventId);
+$levelsStmt->execute();
+$levels = $levelsStmt->fetchAll();
+
+// Get all level values with parent relationships
+$levelValues = [];
+$allValues = []; // For JavaScript
+foreach ($levels as $level) {
+    $valuesQuery = "SELECT * FROM distribution_level_values WHERE level_id = :level_id ORDER BY value_name";
+    $valuesStmt = $db->prepare($valuesQuery);
+    $valuesStmt->bindValue(':level_id', $level['level_id']);
+    $valuesStmt->execute();
+    $values = $valuesStmt->fetchAll();
+    $levelValues[$level['level_id']] = $values;
+
+    foreach ($values as $val) {
+        $allValues[] = [
+            'value_id' => $val['value_id'],
+            'level_id' => $level['level_id'],
+            'parent_value_id' => $val['parent_value_id'],
+            'value_name' => $val['value_name']
+        ];
+    }
+}
+
+$error = '';
+$success = '';
+
+// Handle bulk assignment
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['bulk_assign'])) {
+    $selectedBooks = $_POST['selected_books'] ?? [];
+    $notes = Validator::sanitizeString($_POST['bulk_notes'] ?? '');
+    $mobile = Validator::sanitizeString($_POST['bulk_mobile'] ?? '');
+
+    if (count($selectedBooks) === 0) {
+        $error = 'Please select at least one book to assign';
+    } else {
+        // Get distribution level selections
+        $distributionData = [];
+        $lastValueId = null;
+
+        foreach ($levels as $level) {
+            $selectedValueId = $_POST["level_{$level['level_id']}_id"] ?? '';
+            $selectedValue = $_POST["level_{$level['level_id']}"] ?? '';
+            $newValue = trim($_POST["new_level_{$level['level_id']}"] ?? '');
+
+            // If "Add New" is selected and new value is provided
+            if ($selectedValue === '__new__' && !empty($newValue)) {
+                // Insert new value with parent relationship
+                $insertQuery = "INSERT INTO distribution_level_values (level_id, value_name, parent_value_id) VALUES (:level_id, :value_name, :parent_value_id)";
+                $insertStmt = $db->prepare($insertQuery);
+                $insertStmt->bindValue(':level_id', $level['level_id']);
+                $insertStmt->bindValue(':value_name', $newValue);
+                $insertStmt->bindValue(':parent_value_id', $lastValueId, PDO::PARAM_INT);
+                $insertStmt->execute();
+                $lastValueId = $db->lastInsertId();
+                $selectedValue = $newValue;
+            } elseif (!empty($selectedValueId)) {
+                // Use existing value ID as parent for next level
+                $lastValueId = $selectedValueId;
+            }
+
+            if (!empty($selectedValue) && $selectedValue !== '__new__') {
+                $distributionData[$level['level_name']] = $selectedValue;
+            }
+        }
+
+        // Validate distribution levels - all configured levels must be selected
+        $missingLevels = [];
+        foreach ($levels as $level) {
+            if (empty($distributionData[$level['level_name']])) {
+                $missingLevels[] = $level['level_name'];
+            }
+        }
+
+        if (count($levels) > 0 && count($missingLevels) > 0) {
+            $error = 'Please select: ' . implode(', ', $missingLevels);
+        } else {
+            // Build distribution path
+            $distributionPath = !empty($distributionData) ? implode(' > ', $distributionData) : '';
+
+            $assigned = 0;
+            $alreadyAssigned = 0;
+
+            foreach ($selectedBooks as $bookId) {
+                // Check if book is available
+                $checkQuery = "SELECT book_status FROM lottery_books WHERE book_id = :book_id";
+                $checkStmt = $db->prepare($checkQuery);
+                $checkStmt->bindValue(':book_id', $bookId);
+                $checkStmt->execute();
+                $bookStatus = $checkStmt->fetch();
+
+                if ($bookStatus && $bookStatus['book_status'] === 'available') {
+                    // Assign book
+                    $query = "INSERT INTO book_distribution (book_id, notes, mobile_number, distribution_path, distributed_by)
+                              VALUES (:book_id, :notes, :mobile, :distribution_path, :distributed_by)";
+                    $assignStmt = $db->prepare($query);
+                    $assignStmt->bindValue(':book_id', $bookId);
+                    $assignStmt->bindValue(':notes', $notes);
+                    $assignStmt->bindValue(':mobile', $mobile);
+                    $assignStmt->bindValue(':distribution_path', $distributionPath);
+                    $distributedBy = AuthMiddleware::getUserId();
+                    $assignStmt->bindValue(':distributed_by', $distributedBy);
+
+                    if ($assignStmt->execute()) {
+                        $assigned++;
+                    }
+                } else {
+                    $alreadyAssigned++;
+                }
+            }
+
+            $success = "Successfully assigned {$assigned} book(s)";
+            if (!empty($distributionPath)) {
+                $success .= " to " . htmlspecialchars($distributionPath);
+            }
+            if (!empty($notes)) {
+                $success .= " - " . htmlspecialchars($notes);
+            }
+            if ($alreadyAssigned > 0) {
+                $success .= " (Skipped {$alreadyAssigned} already assigned books)";
+            }
+        }
+    }
+}
+
+// Handle success messages
+if (isset($_GET['success'])) {
+    $success = match($_GET['success']) {
+        'reassigned' => 'Book reassigned successfully to new location',
+        default => ''
+    };
+}
+
+// Get filter, search, and pagination
+$filter = $_GET['filter'] ?? 'all';
+// For search, use trim and strip_tags only (no htmlspecialchars) since PDO handles SQL injection
+$search = trim(strip_tags($_GET['search'] ?? ''));
+// Get level filters
+$level1Filter = isset($_GET['level1']) ? (int)$_GET['level1'] : 0;
+$level2Filter = isset($_GET['level2']) ? (int)$_GET['level2'] : 0;
+$level3Filter = isset($_GET['level3']) ? (int)$_GET['level3'] : 0;
+$perPage = isset($_GET['per_page']) ? (int)$_GET['per_page'] : 20; // Default 20 per page
+$page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+$offset = ($page - 1) * $perPage;
+
+// Build where clause
+$whereClause = "lb.event_id = :event_id";
+$searchParams = [];
+
+if ($filter === 'available') {
+    $whereClause .= " AND lb.book_status = 'available'";
+} elseif ($filter === 'assigned') {
+    $whereClause .= " AND lb.book_status IN ('distributed', 'collected')";
+}
+
+// Add level filters (filter by level value names in distribution_path)
+if ($level1Filter > 0) {
+    // Get level 1 value name
+    $level1ValueQuery = "SELECT value_name FROM distribution_level_values WHERE value_id = :value_id";
+    $level1ValueStmt = $db->prepare($level1ValueQuery);
+    $level1ValueStmt->bindValue(':value_id', $level1Filter, PDO::PARAM_INT);
+    $level1ValueStmt->execute();
+    $level1ValueName = $level1ValueStmt->fetchColumn();
+    if ($level1ValueName) {
+        $whereClause .= " AND bd.distribution_path LIKE :level1_filter";
+        $searchParams['level1_filter'] = '%' . $level1ValueName . '%';
+    }
+}
+if ($level2Filter > 0) {
+    // Get level 2 value name
+    $level2ValueQuery = "SELECT value_name FROM distribution_level_values WHERE value_id = :value_id";
+    $level2ValueStmt = $db->prepare($level2ValueQuery);
+    $level2ValueStmt->bindValue(':value_id', $level2Filter, PDO::PARAM_INT);
+    $level2ValueStmt->execute();
+    $level2ValueName = $level2ValueStmt->fetchColumn();
+    if ($level2ValueName) {
+        $whereClause .= " AND bd.distribution_path LIKE :level2_filter";
+        $searchParams['level2_filter'] = '%' . $level2ValueName . '%';
+    }
+}
+if ($level3Filter > 0) {
+    // Get level 3 value name
+    $level3ValueQuery = "SELECT value_name FROM distribution_level_values WHERE value_id = :value_id";
+    $level3ValueStmt = $db->prepare($level3ValueQuery);
+    $level3ValueStmt->bindValue(':value_id', $level3Filter, PDO::PARAM_INT);
+    $level3ValueStmt->execute();
+    $level3ValueName = $level3ValueStmt->fetchColumn();
+    if ($level3ValueName) {
+        $whereClause .= " AND bd.distribution_path LIKE :level3_filter";
+        $searchParams['level3_filter'] = '%' . $level3ValueName . '%';
+    }
+}
+
+// Add search conditions
+if (!empty($search)) {
+    // Check if search is a range (e.g., 1000-1040)
+    if (preg_match('/^(\d+)-(\d+)$/', $search, $matches)) {
+        $rangeStart = (int)$matches[1];
+        $rangeEnd = (int)$matches[2];
+        $whereClause .= " AND (lb.start_ticket_number >= :range_start AND lb.start_ticket_number <= :range_end)";
+        $searchParams['range_start'] = $rangeStart;
+        $searchParams['range_end'] = $rangeEnd;
+    }
+    // Check if search is a single ticket number
+    elseif (is_numeric($search)) {
+        $ticketNum = (int)$search;
+        // Find book where the ticket falls in the range (start to end)
+        $whereClause .= " AND (:ticket_num_start BETWEEN lb.start_ticket_number AND lb.end_ticket_number)";
+        $searchParams['ticket_num_start'] = $ticketNum;
+    }
+    // Otherwise search in distribution path, notes
+    else {
+        $searchTerm = '%' . $search . '%';
+        $whereClause .= " AND (bd.distribution_path LIKE :search_path OR bd.notes LIKE :search_notes OR bd.mobile_number LIKE :search_mobile)";
+        $searchParams['search_path'] = $searchTerm;
+        $searchParams['search_notes'] = $searchTerm;
+        $searchParams['search_mobile'] = $searchTerm;
+    }
+}
+
+// Count total books for pagination
+$countQuery = "SELECT COUNT(*) as total
+          FROM lottery_books lb
+          LEFT JOIN book_distribution bd ON lb.book_id = bd.book_id
+          WHERE {$whereClause}";
+
+// DEBUG
+error_log("=== BOOKS COUNT QUERY DEBUG ===");
+error_log("Query: " . $countQuery);
+error_log("WHERE: " . $whereClause);
+error_log("Search params: " . json_encode($searchParams));
+
+$countStmt = $db->prepare($countQuery);
+$countStmt->bindValue(':event_id', $eventId, PDO::PARAM_INT);
+foreach ($searchParams as $key => $value) {
+    error_log("Binding :{$key} = " . var_export($value, true));
+    if (is_int($value)) {
+        $countStmt->bindValue(':' . $key, $value, PDO::PARAM_INT);
+    } else {
+        $countStmt->bindValue(':' . $key, $value, PDO::PARAM_STR);
+    }
+}
+try {
+    $countStmt->execute();
+} catch (PDOException $e) {
+    echo "<h2 style='color: red;'>DEBUG: PDO Error in Count Query</h2>";
+    echo "<pre style='background: #f5f5f5; padding: 20px; border: 2px solid red;'>";
+    echo "<strong>Error:</strong> " . htmlspecialchars($e->getMessage()) . "\n\n";
+    echo "<strong>Query:</strong> " . htmlspecialchars($countQuery) . "\n\n";
+    echo "<strong>WHERE Clause:</strong> " . htmlspecialchars($whereClause) . "\n\n";
+    echo "<strong>Search Input:</strong> " . htmlspecialchars($search) . "\n\n";
+    echo "<strong>Search Params:</strong>\n" . print_r($searchParams, true) . "\n";
+    echo "<strong>Event ID:</strong> " . $eventId . "\n";
+    echo "<strong>Filter:</strong> " . $filter . "\n";
+    echo "</pre>";
+    die();
+}
+$totalBooks = $countStmt->fetch()['total'];
+$totalPages = ceil($totalBooks / $perPage);
+
+// Get paginated books
+$query = "SELECT lb.*, bd.notes, bd.mobile_number, bd.distribution_path, bd.distribution_id,
+                 bd.is_returned, bd.returned_by, bd.is_extra_book, le.book_return_deadline
+          FROM lottery_books lb
+          LEFT JOIN book_distribution bd ON lb.book_id = bd.book_id
+          LEFT JOIN lottery_events le ON lb.event_id = le.event_id
+          WHERE {$whereClause}
+          ORDER BY lb.start_ticket_number, lb.book_number
+          LIMIT :limit OFFSET :offset";
+$booksStmt = $db->prepare($query);
+$booksStmt->bindValue(':event_id', $eventId, PDO::PARAM_INT);
+$booksStmt->bindValue(':limit', $perPage, PDO::PARAM_INT);
+$booksStmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+
+// Bind search parameters
+foreach ($searchParams as $key => $value) {
+    if (is_int($value)) {
+        $booksStmt->bindValue(':' . $key, $value, PDO::PARAM_INT);
+    } else {
+        $booksStmt->bindValue(':' . $key, $value, PDO::PARAM_STR);
+    }
+}
+
+$booksStmt->execute();
+$books = $booksStmt->fetchAll();
+
+// Stats (all books)
+$statsQuery = "SELECT
+    COUNT(*) as total,
+    SUM(CASE WHEN book_status = 'available' THEN 1 ELSE 0 END) as available,
+    SUM(CASE WHEN book_status = 'distributed' THEN 1 ELSE 0 END) as distributed,
+    SUM(CASE WHEN book_status = 'collected' THEN 1 ELSE 0 END) as collected
+    FROM lottery_books WHERE event_id = :event_id";
+$statsStmt = $db->prepare($statsQuery);
+$statsStmt->bindParam(':event_id', $eventId);
+$statsStmt->execute();
+$stats = $statsStmt->fetch();
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lottery Books - <?php echo APP_NAME; ?></title>
+    <link rel="stylesheet" href="/public/css/main.css">
+    <link rel="stylesheet" href="/public/css/enhancements.css">
+    <link rel="stylesheet" href="/public/css/lottery-responsive.css">
+    <style>
+        .header {
+            background: linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%);
+            color: white;
+            padding: var(--spacing-xl) 0;
+            margin-bottom: var(--spacing-xl);
+        }
+        .header h1 { color: white; margin: 0; }
+        .stats-bar {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: var(--spacing-md);
+            margin-bottom: var(--spacing-lg);
+        }
+        .stat-box {
+            background: white;
+            padding: var(--spacing-md);
+            border-radius: var(--radius-md);
+            text-align: center;
+            box-shadow: var(--shadow-sm);
+        }
+        .stat-value {
+            font-size: var(--font-size-2xl);
+            font-weight: 700;
+        }
+        .tabs {
+            display: flex;
+            gap: 0;
+            border-bottom: 2px solid var(--gray-200);
+            margin-bottom: var(--spacing-lg);
+        }
+        .tab {
+            padding: var(--spacing-md) var(--spacing-xl);
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+            color: var(--gray-600);
+            border-bottom: 3px solid transparent;
+            transition: all var(--transition-base);
+            text-decoration: none;
+        }
+        .tab:hover {
+            color: var(--primary-color);
+            background: var(--gray-50);
+        }
+        .tab.active {
+            color: var(--primary-color);
+            border-bottom-color: var(--primary-color);
+        }
+        .bulk-actions {
+            background: var(--gray-50);
+            padding: var(--spacing-lg);
+            border-radius: var(--radius-md);
+            margin-bottom: var(--spacing-lg);
+            border: 2px solid var(--primary-color);
+        }
+        .bulk-actions.hidden {
+            display: none;
+        }
+        .assigned-row {
+            background-color: #f3f4f6;
+            opacity: 0.7;
+        }
+        .btn-xs {
+            font-size: 0.7rem;
+            padding: 0.15rem 0.4rem;
+            line-height: 1.2;
+        }
+        .checkbox-cell {
+            width: 40px;
+            text-align: center;
+        }
+        .add-new-field {
+            display: none;
+            margin-top: var(--spacing-xs);
+        }
+        .add-new-field.show {
+            display: block;
+        }
+
+        /* Mobile Responsiveness */
+        @media (max-width: 768px) {
+            .stats-bar {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .tabs {
+                flex-direction: column;
+            }
+
+            .tab {
+                text-align: center;
+                border-bottom: 1px solid var(--gray-200);
+            }
+
+            .help-box-toggle {
+                font-size: 0.9rem;
+                padding: var(--spacing-sm) !important;
+            }
+
+            .card-header {
+                flex-direction: column !important;
+                align-items: flex-start !important;
+            }
+
+            .card-header h3 {
+                margin-bottom: var(--spacing-sm) !important;
+            }
+
+            .card-header > div {
+                width: 100%;
+                display: flex;
+                gap: var(--spacing-xs);
+                flex-wrap: wrap;
+            }
+
+            .card-header .btn {
+                flex: 1;
+                min-width: 120px;
+            }
+
+            .button-group-mobile {
+                display: flex;
+                flex-direction: column;
+                gap: var(--spacing-sm);
+            }
+
+            .button-group-mobile .btn {
+                width: 100%;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .stats-bar {
+                grid-template-columns: 1fr;
+            }
+
+            .btn-sm {
+                font-size: 0.75rem;
+                padding: 0.25rem 0.5rem;
+                min-width: 35px !important;
+            }
+
+            .card-header .btn {
+                font-size: 0.8rem;
+                padding: 0.375rem 0.5rem;
+            }
+        }
+    </style>
+    <script src="/public/js/toast.js"></script>
+</head>
+<body>
+    <?php include __DIR__ . '/includes/navigation.php'; ?>
+
+    <div class="header">
+        <div class="container">
+            <h1><?php echo htmlspecialchars($event['event_name']); ?> - Books</h1>
+            <p style="margin: 0; opacity: 0.9;">Part 4 of 6</p>
+        </div>
+    </div>
+
+    <div class="container main-content">
+        <!-- Back Button at Top -->
+        <div style="margin-bottom: var(--spacing-lg); display: flex; gap: var(--spacing-sm); flex-wrap: wrap;">
+            <a href="/public/group-admin/lottery.php" class="btn btn-secondary">← Back to Events</a>
+            <a href="/public/group-admin/lottery-book-bulk-assign.php?id=<?php echo $eventId; ?>" class="btn btn-primary">📚 Bulk Assign Books</a>
+            <a href="/public/group-admin/lottery-payments.php?id=<?php echo $eventId; ?>" class="btn btn-success">View Payments</a>
+        </div>
+
+        <?php include __DIR__ . '/includes/toast-handler.php'; ?>
+
+        <div class="stats-bar">
+            <div class="stat-box">
+                <div class="stat-value"><?php echo $stats['total']; ?></div>
+                <div class="stat-label">Total Books</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-value" style="color: var(--success-color);"><?php echo $stats['available']; ?></div>
+                <div class="stat-label">Available</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-value" style="color: var(--info-color);"><?php echo $stats['distributed']; ?></div>
+                <div class="stat-label">Distributed</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-value">₹<?php echo number_format($event['price_per_ticket'] * $event['tickets_per_book']); ?></div>
+                <div class="stat-label">Per Book</div>
+            </div>
+        </div>
+
+        <!-- Search Box -->
+        <div class="card" style="margin-bottom: var(--spacing-md);">
+            <div class="card-body">
+                <form method="GET" action="" style="display: flex; gap: var(--spacing-sm); flex-wrap: wrap; align-items: end;">
+                    <input type="hidden" name="id" value="<?php echo $eventId; ?>">
+                    <input type="hidden" name="filter" value="<?php echo htmlspecialchars($filter); ?>">
+                    <div style="flex: 1; min-width: 250px;">
+                        <label class="form-label">🔍 Search Books</label>
+                        <input
+                            type="text"
+                            name="search"
+                            class="form-control"
+                            placeholder="Enter ticket number (1000) or range (1000-1040) or location"
+                            value="<?php echo htmlspecialchars($search); ?>"
+                        >
+                        <small class="form-text">Examples: 1000, 1000-1040, Wing A, Floor 1, or member name</small>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Search</button>
+                    <?php if (!empty($search)): ?>
+                        <a href="?id=<?php echo $eventId; ?>&filter=<?php echo $filter; ?>" class="btn btn-secondary">Clear</a>
+                    <?php endif; ?>
+                </form>
+            </div>
+        </div>
+
+        <!-- Level Filters -->
+        <?php if (count($levels) > 0): ?>
+        <div class="card" style="margin-bottom: var(--spacing-md);">
+            <div class="card-body">
+                <form method="GET" action="" id="levelFilterForm">
+                    <input type="hidden" name="id" value="<?php echo $eventId; ?>">
+                    <input type="hidden" name="filter" value="<?php echo htmlspecialchars($filter); ?>">
+                    <input type="hidden" name="search" value="<?php echo htmlspecialchars($search); ?>">
+                    <input type="hidden" name="per_page" value="<?php echo $perPage; ?>">
+
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--spacing-md); align-items: end;">
+                        <?php foreach ($levels as $index => $level): ?>
+                        <div>
+                            <label class="form-label"><?php echo htmlspecialchars($level['level_name']); ?></label>
+                            <select
+                                name="level<?php echo $level['level_number']; ?>"
+                                class="form-control level-filter-select"
+                                data-level="<?php echo $level['level_number']; ?>"
+                                onchange="handleLevelFilterChange(<?php echo $level['level_number']; ?>)"
+                            >
+                                <option value="">All <?php echo htmlspecialchars($level['level_name']); ?></option>
+                                <?php
+                                $currentLevelFilter = ${'level' . $level['level_number'] . 'Filter'};
+                                foreach ($levelValues[$level['level_id']] as $value):
+                                    // For dependent levels, filter by parent
+                                    if ($level['level_number'] == 2 && $level1Filter > 0) {
+                                        // Only show Level 2 values that belong to selected Level 1
+                                        if ($value['parent_value_id'] != $level1Filter) continue;
+                                    } elseif ($level['level_number'] == 3 && $level2Filter > 0) {
+                                        // Only show Level 3 values that belong to selected Level 2
+                                        if ($value['parent_value_id'] != $level2Filter) continue;
+                                    }
+                                ?>
+                                <option value="<?php echo $value['value_id']; ?>" <?php echo $currentLevelFilter == $value['value_id'] ? 'selected' : ''; ?>>
+                                    <?php echo htmlspecialchars($value['value_name']); ?>
+                                </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <?php endforeach; ?>
+
+                        <div style="display: flex; gap: var(--spacing-xs);">
+                            <button type="submit" class="btn btn-primary">Apply Filter</button>
+                            <?php if ($level1Filter > 0 || $level2Filter > 0 || $level3Filter > 0): ?>
+                                <a href="?id=<?php echo $eventId; ?>&filter=<?php echo $filter; ?>&search=<?php echo urlencode($search); ?>&per_page=<?php echo $perPage; ?>" class="btn btn-secondary">Clear</a>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+        <?php endif; ?>
+
+        <!-- Collapsible Help Box -->
+        <div class="help-box mb-3" style="border: 2px solid #3b82f6; border-radius: var(--radius-md); overflow: hidden;">
+            <button type="button" class="help-box-toggle" onclick="toggleHelpBox()" style="width: 100%; text-align: left; background: #eff6ff; border: none; padding: var(--spacing-md); cursor: pointer; display: flex; justify-content: space-between; align-items: center; font-weight: 600; color: #1e40af;">
+                <span>💡 Instructions: How to Assign & Reassign Books</span>
+                <span id="helpBoxIcon" style="font-size: 1.25rem;">▼</span>
+            </button>
+            <div id="helpBoxContent" style="display: none; padding: var(--spacing-md); background: white;">
+                <ul style="margin: 0;">
+                    <li><strong>Assign Books (First Time):</strong>
+                        <ol style="margin: var(--spacing-xs) 0;">
+                            <li>Use search above to find specific books by ticket number or range</li>
+                            <li>Select available books using checkboxes</li>
+                            <?php if (count($levels) > 0): ?>
+                                <li>Fill in required distribution levels: <?php echo implode(', ', array_column($levels, 'level_name')); ?></li>
+                            <?php endif; ?>
+                            <li>Optionally add notes and mobile number</li>
+                            <li>Click "Assign Selected Books" to complete</li>
+                        </ol>
+                    </li>
+                    <li><strong>Reassign Books (Fix Wrong Assignment):</strong>
+                        <ol style="margin: var(--spacing-xs) 0;">
+                            <li>Find the incorrectly assigned book in the table</li>
+                            <li>Click the <span class="badge badge-warning" style="display: inline-block; padding: 4px 8px;">🔄 Reassign</span> button in the Actions column</li>
+                            <li>Select the correct distribution location</li>
+                            <li>Update mobile number and notes if needed</li>
+                            <li>Click "Reassign Book" to save changes</li>
+                        </ol>
+                    </li>
+                </ul>
+                <p style="margin: var(--spacing-sm) 0 0 0;"><strong>Tip:</strong> Use filters below to view Available or Assigned books separately. Reassigning does NOT affect existing payment records.</p>
+            </div>
+        </div>
+
+        <!-- Filter Tabs -->
+        <div class="tabs">
+            <a href="?id=<?php echo $eventId; ?>&filter=all<?php echo !empty($search) ? '&search=' . urlencode($search) : ''; ?>" class="tab <?php echo $filter === 'all' ? 'active' : ''; ?>">
+                📚 All Books (<?php echo $stats['total']; ?>)
+            </a>
+            <a href="?id=<?php echo $eventId; ?>&filter=available<?php echo !empty($search) ? '&search=' . urlencode($search) : ''; ?>" class="tab <?php echo $filter === 'available' ? 'active' : ''; ?>">
+                ✅ Available (<?php echo $stats['available']; ?>)
+            </a>
+            <a href="?id=<?php echo $eventId; ?>&filter=assigned<?php echo !empty($search) ? '&search=' . urlencode($search) : ''; ?>" class="tab <?php echo $filter === 'assigned' ? 'active' : ''; ?>">
+                📝 Assigned (<?php echo $stats['distributed'] + $stats['collected']; ?>)
+            </a>
+        </div>
+
+        <!-- Per Page Selector & Pagination Info -->
+        <div class="card" style="margin-bottom: var(--spacing-sm); background: #f8fafc;">
+            <div class="card-body" style="padding: var(--spacing-md);">
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--spacing-sm);">
+                    <div style="display: flex; align-items: center; gap: var(--spacing-sm);">
+                        <span style="font-weight: 600;">Show:</span>
+                        <?php
+                        $perPageOptions = [10, 20, 50, 100];
+                        foreach ($perPageOptions as $option):
+                            $isActive = $perPage == $option;
+                            $linkParams = http_build_query(array_filter([
+                                'id' => $eventId,
+                                'filter' => $filter,
+                                'search' => $search,
+                                'level1' => $level1Filter,
+                                'level2' => $level2Filter,
+                                'level3' => $level3Filter,
+                                'per_page' => $option,
+                                'page' => 1
+                            ]));
+                        ?>
+                            <a href="?<?php echo $linkParams; ?>"
+                               class="btn btn-sm <?php echo $isActive ? 'btn-primary' : 'btn-secondary'; ?>"
+                               style="min-width: 50px;">
+                                <?php echo $option; ?>
+                            </a>
+                        <?php endforeach; ?>
+                        <span style="color: var(--gray-600); margin-left: var(--spacing-sm);">
+                            Showing <?php echo min($offset + 1, $totalBooks); ?>-<?php echo min($offset + $perPage, $totalBooks); ?> of <?php echo $totalBooks; ?> books
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--spacing-sm);">
+                <h3 class="card-title" style="margin: 0;">
+                    <?php
+                    if ($filter === 'available') {
+                        echo "Available Books (" . $totalBooks . " total)";
+                    } elseif ($filter === 'assigned') {
+                        echo "Assigned Books (" . $totalBooks . " total)";
+                    } else {
+                        echo "All Books (" . $totalBooks . " total)";
+                    }
+                    ?>
+                </h3>
+                <div style="display: flex; gap: var(--spacing-xs); flex-wrap: wrap;">
+                    <button type="button" class="btn btn-sm btn-primary" onclick="selectAll()">Select All on Page</button>
+                    <button type="button" class="btn btn-sm btn-secondary" onclick="deselectAll()">Deselect All</button>
+                </div>
+            </div>
+            <div class="card-body" style="padding: 0;">
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>First Ticket No</th>
+                                <?php foreach ($levels as $level): ?>
+                                    <th><?php echo htmlspecialchars($level['level_name']); ?></th>
+                                <?php endforeach; ?>
+                                <?php if (count($levels) === 0): ?>
+                                    <th>Location</th>
+                                <?php endif; ?>
+                                <th>Status</th>
+                                <th>Book Return</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php if (count($books) === 0): ?>
+                                <tr>
+                                    <td colspan="<?php echo 2 + count($levels); ?>" style="text-align: center; padding: var(--spacing-2xl); color: var(--gray-500);">
+                                        No books found in this category
+                                    </td>
+                                </tr>
+                            <?php else: ?>
+                                <?php foreach ($books as $book):
+                                    // Parse distribution_path into individual levels
+                                    $levelValues = [];
+                                    if (!empty($book['distribution_path'])) {
+                                        $levelValues = explode(' > ', $book['distribution_path']);
+                                    }
+                                ?>
+                                    <tr class="<?php echo $book['book_status'] !== 'available' ? 'assigned-row' : ''; ?>">
+                                        <td><strong><?php echo $book['start_ticket_number']; ?></strong></td>
+                                        <?php
+                                        // Display dynamic level columns
+                                        if (count($levels) > 0) {
+                                            for ($i = 0; $i < count($levels); $i++) {
+                                                echo '<td>' . htmlspecialchars($levelValues[$i] ?? '-') . '</td>';
+                                            }
+                                        } else {
+                                            // Fallback if no levels configured
+                                            echo '<td>' . htmlspecialchars($book['distribution_path'] ?? '-') . '</td>';
+                                        }
+                                        ?>
+                                        <td>
+                                            <?php if ($book['book_status'] === 'available'): ?>
+                                                <span class="badge badge-success">Available</span>
+                                            <?php elseif ($book['book_status'] === 'distributed'): ?>
+                                                <span class="badge badge-info">Distributed</span>
+                                            <?php else: ?>
+                                                <span class="badge badge-danger">Collected</span>
+                                            <?php endif; ?>
+                                            <?php if ($book['is_extra_book'] == 1): ?>
+                                                <br><span class="badge badge-warning" style="margin-top: 4px;" title="This book qualifies for extra book commission">📚 Extra Book</span>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td>
+                                            <?php if ($book['book_status'] !== 'available'): ?>
+                                                <?php
+                                                // Check if past deadline
+                                                $isPastDeadline = false;
+                                                if (!empty($book['book_return_deadline'])) {
+                                                    $deadline = strtotime($book['book_return_deadline']);
+                                                    $today = strtotime(date('Y-m-d'));
+                                                    $isPastDeadline = $today > $deadline;
+                                                }
+
+                                                // Determine return status
+                                                if ($book['is_returned'] == 1): ?>
+                                                    <span class="badge badge-success" title="Book has been returned">✓ Returned</span>
+                                                    <form method="POST" action="/public/group-admin/book-return-toggle.php" style="display: inline; margin-top: var(--spacing-xs);">
+                                                        <input type="hidden" name="distribution_id" value="<?php echo $book['distribution_id']; ?>">
+                                                        <input type="hidden" name="action" value="mark_not_returned">
+                                                        <button type="submit" class="btn btn-xs btn-secondary" onclick="return confirm('Mark this book as not returned?')">Undo</button>
+                                                    </form>
+                                                <?php elseif ($isPastDeadline): ?>
+                                                    <span class="badge badge-danger" title="Book not returned after deadline">⚠️ Not Returned</span>
+                                                    <form method="POST" action="/public/group-admin/book-return-toggle.php" style="display: inline; margin-top: var(--spacing-xs);">
+                                                        <input type="hidden" name="distribution_id" value="<?php echo $book['distribution_id']; ?>">
+                                                        <input type="hidden" name="action" value="mark_returned">
+                                                        <button type="submit" class="btn btn-xs btn-success">Mark Returned</button>
+                                                    </form>
+                                                <?php else: ?>
+                                                    <span class="badge badge-warning" title="Awaiting return">📦 Pending Return</span>
+                                                    <form method="POST" action="/public/group-admin/book-return-toggle.php" style="display: inline; margin-top: var(--spacing-xs);">
+                                                        <input type="hidden" name="distribution_id" value="<?php echo $book['distribution_id']; ?>">
+                                                        <input type="hidden" name="action" value="mark_returned">
+                                                        <button type="submit" class="btn btn-xs btn-success">Mark Returned</button>
+                                                    </form>
+                                                <?php endif; ?>
+                                            <?php else: ?>
+                                                <span style="color: var(--gray-400);">-</span>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td>
+                                            <?php if ($book['book_status'] === 'available'): ?>
+                                                <a href="/public/group-admin/lottery-book-assign.php?book_id=<?php echo $book['book_id']; ?>&event_id=<?php echo $eventId; ?>"
+                                                   class="btn btn-sm btn-primary">Assign</a>
+                                            <?php else: ?>
+                                                <div style="display: flex; gap: var(--spacing-xs); flex-wrap: wrap;">
+                                                    <a href="/public/group-admin/lottery-payments.php?id=<?php echo $eventId; ?>"
+                                                       class="btn btn-sm btn-success">View Payments</a>
+                                                    <a href="/public/group-admin/lottery-book-reassign.php?dist_id=<?php echo $book['distribution_id']; ?>"
+                                                       class="btn btn-sm btn-warning"
+                                                       title="Change assignment to different unit">🔄 Reassign</a>
+                                                </div>
+                                            <?php endif; ?>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pagination Controls -->
+        <?php if ($totalPages > 1): ?>
+        <div class="card" style="margin-top: var(--spacing-sm); background: #f8fafc;">
+            <div class="card-body" style="padding: var(--spacing-md);">
+                <div style="display: flex; justify-content: center; align-items: center; gap: var(--spacing-xs); flex-wrap: wrap;">
+                    <?php
+                    // Previous button
+                    if ($page > 1):
+                        $prevParams = http_build_query(array_filter([
+                            'id' => $eventId,
+                            'filter' => $filter,
+                            'search' => $search,
+                            'level1' => $level1Filter,
+                            'level2' => $level2Filter,
+                            'level3' => $level3Filter,
+                            'per_page' => $perPage,
+                            'page' => $page - 1
+                        ]));
+                    ?>
+                        <a href="?<?php echo $prevParams; ?>" class="btn btn-sm btn-secondary">« Previous</a>
+                    <?php endif; ?>
+
+                    <?php
+                    // Page numbers
+                    $startPage = max(1, $page - 2);
+                    $endPage = min($totalPages, $page + 2);
+
+                    if ($startPage > 1):
+                        $firstParams = http_build_query(array_filter([
+                            'id' => $eventId,
+                            'filter' => $filter,
+                            'search' => $search,
+                            'level1' => $level1Filter,
+                            'level2' => $level2Filter,
+                            'level3' => $level3Filter,
+                            'per_page' => $perPage,
+                            'page' => 1
+                        ]));
+                    ?>
+                        <a href="?<?php echo $firstParams; ?>" class="btn btn-sm btn-secondary">1</a>
+                        <?php if ($startPage > 2): ?>
+                            <span style="padding: 0 var(--spacing-xs);">...</span>
+                        <?php endif; ?>
+                    <?php endif; ?>
+
+                    <?php for ($i = $startPage; $i <= $endPage; $i++):
+                        $pageParams = http_build_query(array_filter([
+                            'id' => $eventId,
+                            'filter' => $filter,
+                            'search' => $search,
+                            'level1' => $level1Filter,
+                            'level2' => $level2Filter,
+                            'level3' => $level3Filter,
+                            'per_page' => $perPage,
+                            'page' => $i
+                        ]));
+                    ?>
+                        <a href="?<?php echo $pageParams; ?>"
+                           class="btn btn-sm <?php echo $i == $page ? 'btn-primary' : 'btn-secondary'; ?>"
+                           style="min-width: 40px;">
+                            <?php echo $i; ?>
+                        </a>
+                    <?php endfor; ?>
+
+                    <?php if ($endPage < $totalPages):
+                        if ($endPage < $totalPages - 1):
+                        ?>
+                            <span style="padding: 0 var(--spacing-xs);">...</span>
+                        <?php endif;
+                        $lastParams = http_build_query(array_filter([
+                            'id' => $eventId,
+                            'filter' => $filter,
+                            'search' => $search,
+                            'level1' => $level1Filter,
+                            'level2' => $level2Filter,
+                            'level3' => $level3Filter,
+                            'per_page' => $perPage,
+                            'page' => $totalPages
+                        ]));
+                    ?>
+                        <a href="?<?php echo $lastParams; ?>" class="btn btn-sm btn-secondary"><?php echo $totalPages; ?></a>
+                    <?php endif; ?>
+
+                    <?php
+                    // Next button
+                    if ($page < $totalPages):
+                        $nextParams = http_build_query(array_filter([
+                            'id' => $eventId,
+                            'filter' => $filter,
+                            'search' => $search,
+                            'level1' => $level1Filter,
+                            'level2' => $level2Filter,
+                            'level3' => $level3Filter,
+                            'per_page' => $perPage,
+                            'page' => $page + 1
+                        ]));
+                    ?>
+                        <a href="?<?php echo $nextParams; ?>" class="btn btn-sm btn-secondary">Next »</a>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
+        <?php endif; ?>
+
+    </div>
+
+    <?php include __DIR__ . '/includes/footer.php'; ?>
+
+    <script>
+        // Toggle help box
+        function toggleHelpBox() {
+            const content = document.getElementById('helpBoxContent');
+            const icon = document.getElementById('helpBoxIcon');
+            if (content.style.display === 'none') {
+                content.style.display = 'block';
+                icon.textContent = '▲';
+            } else {
+                content.style.display = 'none';
+                icon.textContent = '▼';
+            }
+        }
+
+        // Store all level data for cascading
+        const allLevels = <?php echo json_encode($levels); ?>;
+        const allLevelValues = <?php echo json_encode($allValues); ?>;
+
+        // Handle level filter changes (for dependent dropdowns)
+        function handleLevelFilterChange(levelNumber) {
+            // Update dependent dropdowns based on parent selection
+            if (levelNumber === 1) {
+                const level1Select = document.querySelector('select[data-level="1"]');
+                const level2Select = document.querySelector('select[data-level="2"]');
+                const level3Select = document.querySelector('select[data-level="3"]');
+
+                const selectedLevel1 = level1Select ? parseInt(level1Select.value) : 0;
+
+                // Clear level 2 and 3 selections
+                if (level2Select) level2Select.value = '';
+                if (level3Select) level3Select.value = '';
+
+                // Update Level 2 options
+                if (level2Select && allLevels.length >= 2) {
+                    updateLevelOptions(level2Select, allLevels[1].level_id, selectedLevel1);
+                }
+
+                // Clear Level 3 options (no parent selected)
+                if (level3Select && allLevels.length >= 3) {
+                    updateLevelOptions(level3Select, allLevels[2].level_id, 0);
+                }
+            }
+            else if (levelNumber === 2) {
+                const level2Select = document.querySelector('select[data-level="2"]');
+                const level3Select = document.querySelector('select[data-level="3"]');
+
+                const selectedLevel2 = level2Select ? parseInt(level2Select.value) : 0;
+
+                // Clear level 3 selection
+                if (level3Select) level3Select.value = '';
+
+                // Update Level 3 options
+                if (level3Select && allLevels.length >= 3) {
+                    updateLevelOptions(level3Select, allLevels[2].level_id, selectedLevel2);
+                }
+            }
+
+            // Auto-submit the form
+            document.getElementById('levelFilterForm').submit();
+        }
+
+        // Update dropdown options based on parent selection
+        function updateLevelOptions(selectElement, levelId, parentValueId) {
+            // Keep the first option (All...)
+            const firstOption = selectElement.options[0];
+            selectElement.innerHTML = '';
+            selectElement.appendChild(firstOption);
+
+            // Filter values by parent
+            const filteredValues = allLevelValues.filter(val => {
+                if (val.level_id != levelId) return false;
+                if (parentValueId === 0) return true; // Show all if no parent selected
+                return val.parent_value_id == parentValueId;
+            });
+
+            // Add filtered options
+            filteredValues.forEach(val => {
+                const option = document.createElement('option');
+                option.value = val.value_id;
+                option.textContent = val.value_name;
+                selectElement.appendChild(option);
+            });
+        }
+    </script>
+</body>
+</html>
