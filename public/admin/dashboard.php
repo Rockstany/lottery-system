@@ -312,7 +312,7 @@ $recentActivity = $stmt->fetchAll();
                         <div class="action-icon">🖥️</div>
                         <div>System Health</div>
                     </a>
-                    <a href="/public/admin/test-features.php?community_id=1" class="action-btn" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none;">
+                    <a href="/public/admin/community-features.php?community_id=1" class="action-btn" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none;">
                         <div class="action-icon">⚙️</div>
                         <div>Manage Features</div>
                     </a>
@@ -347,7 +347,7 @@ $recentActivity = $stmt->fetchAll();
                                     <span class="badge badge-secondary" style="margin-left: var(--spacing-sm);">Inactive</span>
                                 <?php endif; ?>
                             </div>
-                            <a href="/public/admin/test-features.php?community_id=<?php echo $comm['community_id']; ?>"
+                            <a href="/public/admin/community-features.php?community_id=<?php echo $comm['community_id']; ?>"
                                class="btn btn-primary btn-sm">
                                 ⚙️ Manage Features
                             </a>
