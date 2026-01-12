@@ -64,6 +64,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $phoneNumber = trim($_POST['phone_number'] ?? '');
     $existingUserId = isset($_POST['existing_user_id']) ? intval($_POST['existing_user_id']) : null;
 
+    // Check if sub-community selector field exists and get value from it
+    $subCommSelectorField = array_filter($customFields, fn($f) => $f['field_type'] === 'sub_community_selector');
+    if (count($subCommSelectorField) > 0) {
+        $selectorField = reset($subCommSelectorField);
+        $subCommunityId = intval($_POST['custom_field_' . $selectorField['field_id']] ?? 0);
+    }
+
     // Validation
     $errors = [];
     if ($subCommunityId <= 0) {
@@ -83,8 +90,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    // Validate custom fields
+    // Validate custom fields (skip auto_populate fields as they're auto-filled)
     foreach ($customFields as $field) {
+        if ($field['field_type'] === 'auto_populate') {
+            continue; // Skip validation for auto-populate fields
+        }
         $fieldValue = $_POST['custom_field_' . $field['field_id']] ?? '';
         if ($field['is_required'] && empty($fieldValue)) {
             $errors[] = $field['field_label'] . " is required";
@@ -127,7 +137,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             // Save custom field values
             foreach ($customFields as $field) {
-                $fieldValue = $_POST['custom_field_' . $field['field_id']] ?? '';
+                $fieldValue = '';
+
+                // Handle different field types
+                if ($field['field_type'] === 'sub_community_selector') {
+                    // Store the sub-community ID
+                    $fieldValue = $subCommunityId;
+                } elseif ($field['field_type'] === 'auto_populate') {
+                    // Auto-populate value from source field
+                    if ($field['auto_populate_from'] === 'sub_community' && $field['source_field_id']) {
+                        // Get value from sub-community's custom field
+                        $sourceQuery = "SELECT field_value FROM sub_community_custom_data
+                                       WHERE sub_community_id = :sub_community_id AND field_id = :field_id";
+                        $sourceStmt = $db->prepare($sourceQuery);
+                        $sourceStmt->bindParam(':sub_community_id', $subCommunityId);
+                        $sourceStmt->bindParam(':field_id', $field['source_field_id']);
+                        $sourceStmt->execute();
+                        $fieldValue = $sourceStmt->fetchColumn() ?: '';
+                    }
+                } else {
+                    // Regular field - get from POST
+                    $fieldValue = $_POST['custom_field_' . $field['field_id']] ?? '';
+                }
+
                 if (!empty($fieldValue)) {
                     $customDataQuery = "INSERT INTO member_custom_data
                                        (user_id, field_id, field_value)
@@ -439,6 +471,38 @@ $breadcrumbs = [
                                         </option>
                                     <?php endforeach; ?>
                                 </select>
+
+                            <?php elseif ($field['field_type'] === 'sub_community_selector'): ?>
+                                <select id="custom_field_<?php echo $field['field_id']; ?>"
+                                        name="custom_field_<?php echo $field['field_id']; ?>"
+                                        class="sub-community-selector"
+                                        data-field-id="<?php echo $field['field_id']; ?>"
+                                        <?php echo $field['is_required'] ? 'required' : ''; ?>
+                                        onchange="handleSubCommunityChange(this)">
+                                    <option value="">-- Select Sub-Community --</option>
+                                    <?php foreach ($subCommunities as $subComm): ?>
+                                        <option value="<?php echo $subComm['sub_community_id']; ?>">
+                                            <?php echo htmlspecialchars($subComm['sub_community_name']); ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <small style="color: #666; display: block; margin-top: 5px;">
+                                    Select which sub-community this member belongs to
+                                </small>
+
+                            <?php elseif ($field['field_type'] === 'auto_populate'): ?>
+                                <input type="text"
+                                       id="custom_field_<?php echo $field['field_id']; ?>"
+                                       name="custom_field_<?php echo $field['field_id']; ?>"
+                                       class="auto-populate-field"
+                                       data-source-field="<?php echo $field['source_field_id']; ?>"
+                                       data-source-type="<?php echo $field['auto_populate_from']; ?>"
+                                       readonly
+                                       style="background-color: #f5f5f5;"
+                                       placeholder="Will auto-populate when sub-community is selected">
+                                <small style="color: #666; display: block; margin-top: 5px;">
+                                    This field automatically copies data from the selected sub-community
+                                </small>
                             <?php endif; ?>
                         </div>
                     <?php endforeach; ?>
@@ -451,5 +515,45 @@ $breadcrumbs = [
             </form>
         </div>
     </div>
+
+    <script>
+        // Prepare sub-community data for auto-population
+        const subCommunityData = {};
+
+        // Function to fetch and populate auto-populate fields
+        async function handleSubCommunityChange(selectElement) {
+            const subCommunityId = selectElement.value;
+
+            if (!subCommunityId) {
+                // Clear all auto-populate fields
+                document.querySelectorAll('.auto-populate-field').forEach(field => {
+                    field.value = '';
+                });
+                return;
+            }
+
+            // Find all auto-populate fields
+            const autoPopulateFields = document.querySelectorAll('.auto-populate-field');
+
+            for (const field of autoPopulateFields) {
+                const sourceFieldId = field.getAttribute('data-source-field');
+                const sourceType = field.getAttribute('data-source-type');
+
+                if (sourceType === 'sub_community') {
+                    // Fetch value from sub_community_custom_data
+                    try {
+                        const response = await fetch(`/public/group-admin/get-field-value.php?sub_community_id=${subCommunityId}&field_id=${sourceFieldId}`);
+                        const data = await response.json();
+
+                        if (data.success) {
+                            field.value = data.value || '';
+                        }
+                    } catch (error) {
+                        console.error('Error fetching auto-populate value:', error);
+                    }
+                }
+            }
+        }
+    </script>
 </body>
 </html>

@@ -49,6 +49,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $appliesTo = $_POST['applies_to'] ?? 'member';
     $isRequired = isset($_POST['is_required']) ? 1 : 0;
     $fieldOptions = trim($_POST['field_options'] ?? '');
+    $sourceFieldId = !empty($_POST['source_field_id']) ? intval($_POST['source_field_id']) : null;
+    $autoPopulateFrom = $_POST['auto_populate_from'] ?? null;
 
     // Generate field_name from label if empty
     if (empty($fieldName) && !empty($fieldLabel)) {
@@ -58,6 +60,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Validation
     if (empty($fieldLabel) || empty($fieldName)) {
         $_SESSION['error_message'] = "Field label and name are required";
+    } elseif ($fieldType === 'sub_community_selector' && $appliesTo !== 'member') {
+        $_SESSION['error_message'] = "Sub-Community Selector can only be used for members";
+    } elseif ($fieldType === 'auto_populate' && empty($sourceFieldId)) {
+        $_SESSION['error_message'] = "Auto-populate fields require a source field";
     } else {
         try {
             // For dropdown, convert options to JSON
@@ -68,14 +74,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             $insertQuery = "INSERT INTO custom_field_definitions
-                            (community_id, field_name, field_label, field_type, field_options, is_required, applies_to, created_by)
-                            VALUES (:community_id, :field_name, :field_label, :field_type, :field_options, :is_required, :applies_to, :created_by)";
+                            (community_id, field_name, field_label, field_type, field_options, source_field_id, auto_populate_from, is_required, applies_to, created_by)
+                            VALUES (:community_id, :field_name, :field_label, :field_type, :field_options, :source_field_id, :auto_populate_from, :is_required, :applies_to, :created_by)";
             $stmt = $db->prepare($insertQuery);
             $stmt->bindParam(':community_id', $communityId);
             $stmt->bindParam(':field_name', $fieldName);
             $stmt->bindParam(':field_label', $fieldLabel);
             $stmt->bindParam(':field_type', $fieldType);
             $stmt->bindParam(':field_options', $optionsJson);
+            $stmt->bindParam(':source_field_id', $sourceFieldId);
+            $stmt->bindParam(':auto_populate_from', $autoPopulateFrom);
             $stmt->bindParam(':is_required', $isRequired);
             $stmt->bindParam(':applies_to', $appliesTo);
             $stmt->bindParam(':created_by', $userId);
@@ -321,17 +329,20 @@ $breadcrumbs = [
                 <div class="form-row">
                     <div class="form-group">
                         <label for="field_type">Field Type *</label>
-                        <select id="field_type" name="field_type" onchange="toggleOptions()" required>
+                        <select id="field_type" name="field_type" onchange="toggleFieldOptions()" required>
                             <option value="text">Text</option>
                             <option value="number">Number</option>
                             <option value="phone">Phone</option>
                             <option value="dropdown">Dropdown</option>
                             <option value="date">Date</option>
+                            <option value="sub_community_selector">Sub-Community Selector</option>
+                            <option value="auto_populate">Auto-Populate from Linked Field</option>
                         </select>
+                        <div class="help-text" id="field-type-help"></div>
                     </div>
                     <div class="form-group">
                         <label for="applies_to">Applies To *</label>
-                        <select id="applies_to" name="applies_to" required>
+                        <select id="applies_to" name="applies_to" onchange="toggleFieldOptions()" required>
                             <option value="member">Member</option>
                             <option value="sub_community">Sub-Community</option>
                         </select>
@@ -342,6 +353,25 @@ $breadcrumbs = [
                     <label for="field_options">Dropdown Options</label>
                     <textarea id="field_options" name="field_options" rows="3" placeholder="Enter options separated by commas. e.g., IT, HR, Finance, Marketing"></textarea>
                     <div class="help-text">Separate options with commas</div>
+                </div>
+
+                <div class="form-group" id="auto-populate-group" style="display: none;">
+                    <label for="source_field_id">Source Field *</label>
+                    <select id="source_field_id" name="source_field_id">
+                        <option value="">-- Select Field to Copy From --</option>
+                        <?php foreach ($subCommunityFields as $field): ?>
+                            <option value="<?php echo $field['field_id']; ?>" data-applies-to="sub_community">
+                                <?php echo htmlspecialchars($field['field_label']); ?> (Sub-Community)
+                            </option>
+                        <?php endforeach; ?>
+                        <?php foreach ($memberFields as $field): ?>
+                            <option value="<?php echo $field['field_id']; ?>" data-applies-to="member">
+                                <?php echo htmlspecialchars($field['field_label']); ?> (Member)
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                    <input type="hidden" id="auto_populate_from" name="auto_populate_from">
+                    <div class="help-text">This field will automatically copy value from the selected field</div>
                 </div>
 
                 <div class="form-group">
@@ -372,7 +402,7 @@ $breadcrumbs = [
                                 <div class="field-info">
                                     <h4><?php echo htmlspecialchars($field['field_label']); ?></h4>
                                     <div class="field-meta">
-                                        <span class="badge badge-type"><?php echo ucfirst($field['field_type']); ?></span>
+                                        <span class="badge badge-type"><?php echo ucfirst(str_replace('_', ' ', $field['field_type'])); ?></span>
                                         <span class="badge <?php echo $field['is_required'] ? 'badge-required' : 'badge-optional'; ?>">
                                             <?php echo $field['is_required'] ? 'Required' : 'Optional'; ?>
                                         </span>
@@ -380,6 +410,21 @@ $breadcrumbs = [
                                     <?php if ($field['field_type'] === 'dropdown' && $field['field_options']): ?>
                                         <div class="help-text" style="margin-top: 8px;">
                                             Options: <?php echo htmlspecialchars(implode(', ', json_decode($field['field_options']))); ?>
+                                        </div>
+                                    <?php elseif ($field['field_type'] === 'auto_populate' && $field['source_field_id']): ?>
+                                        <?php
+                                            $sourceQuery = "SELECT field_label FROM custom_field_definitions WHERE field_id = :fid";
+                                            $sourceStmt = $db->prepare($sourceQuery);
+                                            $sourceStmt->bindParam(':fid', $field['source_field_id']);
+                                            $sourceStmt->execute();
+                                            $sourceLabel = $sourceStmt->fetchColumn();
+                                        ?>
+                                        <div class="help-text" style="margin-top: 8px;">
+                                            Auto-populated from: <strong><?php echo htmlspecialchars($sourceLabel); ?></strong> (<?php echo ucfirst($field['auto_populate_from']); ?>)
+                                        </div>
+                                    <?php elseif ($field['field_type'] === 'sub_community_selector'): ?>
+                                        <div class="help-text" style="margin-top: 8px;">
+                                            Allows member to select their sub-community
                                         </div>
                                     <?php endif; ?>
                                 </div>
@@ -434,11 +479,47 @@ $breadcrumbs = [
     </div>
 
     <script>
-        function toggleOptions() {
+        function toggleFieldOptions() {
             const fieldType = document.getElementById('field_type').value;
+            const appliesTo = document.getElementById('applies_to').value;
             const optionsGroup = document.getElementById('options-group');
-            optionsGroup.style.display = (fieldType === 'dropdown') ? 'block' : 'none';
+            const autoPopulateGroup = document.getElementById('auto-populate-group');
+            const fieldTypeHelp = document.getElementById('field-type-help');
+
+            // Hide all groups first
+            optionsGroup.style.display = 'none';
+            autoPopulateGroup.style.display = 'none';
+            fieldTypeHelp.textContent = '';
+
+            // Show appropriate group based on field type
+            if (fieldType === 'dropdown') {
+                optionsGroup.style.display = 'block';
+            } else if (fieldType === 'auto_populate') {
+                autoPopulateGroup.style.display = 'block';
+                fieldTypeHelp.textContent = 'This field will automatically copy data from another field';
+            } else if (fieldType === 'sub_community_selector') {
+                fieldTypeHelp.textContent = 'Allows members to select which sub-community they belong to';
+                if (appliesTo !== 'member') {
+                    alert('Sub-Community Selector can only be used for members');
+                    document.getElementById('applies_to').value = 'member';
+                }
+            }
         }
+
+        // Update auto_populate_from when source field changes
+        document.addEventListener('DOMContentLoaded', function() {
+            const sourceFieldSelect = document.getElementById('source_field_id');
+            const autoPopulateFromInput = document.getElementById('auto_populate_from');
+
+            sourceFieldSelect.addEventListener('change', function() {
+                const selectedOption = this.options[this.selectedIndex];
+                if (selectedOption.value) {
+                    autoPopulateFromInput.value = selectedOption.getAttribute('data-applies-to');
+                } else {
+                    autoPopulateFromInput.value = '';
+                }
+            });
+        });
 
         function confirmDelete(id) {
             if (confirm('Are you sure you want to delete this field? All associated data will be lost.')) {
