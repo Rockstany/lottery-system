@@ -3,6 +3,9 @@
 ## Table of Contents
 1. [Project Overview](#project-overview)
 2. [System Architecture](#system-architecture)
+   - [Architectural Principles and Data Flow](#architectural-principles-and-data-flow)
+   - [Universal Rule: Community Building as Backbone](#universal-rule-community-building-as-backbone)
+   - [Future Vision and Use Cases](#future-vision-and-use-cases)
 3. [Database Structure](#database-structure)
 4. [File Structure](#file-structure)
 5. [Core Features](#core-features)
@@ -15,7 +18,9 @@
 12. [Deployment Guide](#deployment-guide)
 13. [Troubleshooting](#troubleshooting)
 14. [Future Roadmap](#future-roadmap)
+    - [Lottery System Migration to Backbone Architecture](#lottery-system-migration-to-backbone-architecture)
 15. [Rules & Regulations](#rules--regulations)
+    - [Universal Architectural Principle](#universal-architectural-principle)
 
 ---
 
@@ -73,6 +78,150 @@
 │                   (MySQL/MariaDB)                           │
 └─────────────────────────────────────────────────────────────┘
 ```
+
+## Architectural Principles and Data Flow
+
+### Universal Rule: Community Building as Backbone
+
+**CRITICAL PRINCIPLE:**
+Community Building is the **BACKBONE** and **CORE** of the entire platform. This is a fundamental architectural rule:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                 COMMUNITY BUILDING (Backbone)               │
+│  ┌──────────────────────────────────────────────────────┐  │
+│  │  - Communities                                        │  │
+│  │  - Sub-Communities (Areas, Zones, Blocks)            │  │
+│  │  - Members (Families, Individuals)                   │  │
+│  │  - Custom Fields (Dynamic Schema)                    │  │
+│  │  - Roles & Responsibilities (President, Treasurer)   │  │
+│  └──────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              │ ONE-WAY DATA FLOW
+                              │ (Features USE Community Building)
+                              │
+        ┌─────────────────────┼─────────────────────┐
+        │                     │                     │
+        ▼                     ▼                     ▼
+┌───────────────┐   ┌────────────────┐   ┌──────────────┐
+│    LOTTERY    │   │     EVENT      │   │    FUTURE    │
+│    SYSTEM     │   │  MANAGEMENT    │   │   FEATURES   │
+│               │   │                │   │              │
+│ References    │   │  References    │   │  Reference   │
+│ Community     │   │  Community     │   │  Community   │
+│ Members       │   │  Members       │   │  Members     │
+└───────────────┘   └────────────────┘   └──────────────┘
+```
+
+**The Rule:**
+- ✅ **Community Building CANNOT use other features' databases**
+- ✅ **All other features MUST use Community Building database**
+- ✅ **Community Building is the single source of truth for all members**
+- ❌ **Never create duplicate member/participant tables in other features**
+- ❌ **Never make Community Building depend on other features**
+
+### Future Vision and Use Cases
+
+The platform is designed for hierarchical community management with role-based responsibilities:
+
+**Example Structure:**
+```
+Community: "XYZ Residents Association"
+├── Sub-Community: Area 1
+│   ├── 10 Families/Members
+│   └── Roles:
+│       ├── President (contact person, decision maker)
+│       ├── Treasurer (financial responsibility)
+│       └── Secretary (administrative tasks)
+│
+└── Sub-Community: Area 2
+    ├── 15 Families/Members
+    └── Roles:
+        ├── President
+        ├── Treasurer
+        └── Executive Committee Member
+```
+
+**Future Capabilities:**
+1. **Role-Based Communication:**
+   - Contact only Presidents for announcements
+   - Notify Treasurers for payment collection
+   - Alert Executive Committee for urgent matters
+
+2. **Responsibility Assignment:**
+   - Assign tasks to specific roles (President handles lottery distribution in Area 1)
+   - Track responsibilities by sub-community
+   - Delegate feature access to role holders
+
+3. **Flexible Hierarchy:**
+   - Sub-communities represent Areas, Zones, Blocks, Buildings, etc.
+   - Members can have multiple roles within sub-community
+   - Custom fields define role-specific information
+
+4. **Feature Integration:**
+   - Lottery: Assign books to Presidents for distribution
+   - Events: Presidents RSVP on behalf of area
+   - Payments: Treasurers collect and report
+   - Announcements: Target specific roles or areas
+
+### Integration Strategy for All Features
+
+All features must follow this integration pattern:
+
+**Database Schema Pattern:**
+```sql
+-- Example: Lottery System Integration
+CREATE TABLE lottery_events (
+    event_id INT(10) UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+    community_id INT(10) UNSIGNED NOT NULL,
+    -- Other lottery-specific fields
+    FOREIGN KEY (community_id) REFERENCES communities(community_id)
+);
+
+CREATE TABLE book_distribution (
+    distribution_id INT(10) UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+    event_id INT(10) UNSIGNED NOT NULL,
+    member_id INT(10) UNSIGNED NOT NULL,  -- Reference Community Building member
+    assigned_quantity INT,
+    -- DO NOT duplicate mobile_number, name, etc.
+    FOREIGN KEY (member_id) REFERENCES sub_community_members(member_id),
+    FOREIGN KEY (event_id) REFERENCES lottery_events(event_id)
+);
+```
+
+**Key Points:**
+- Features reference `sub_community_members.member_id` (NOT create own participant tables)
+- Member details come from Community Building custom fields
+- Sub-community hierarchy used for organizing feature data
+- Contact information always fetched from Community Building
+
+### Why This Matters
+
+**Scenario Without Backbone Architecture:**
+- Lottery has participants table with mobile numbers
+- Events has attendees table with names/emails
+- Announcements has recipients table
+- Result: Same person exists 3+ times, data inconsistency, maintenance nightmare
+
+**Scenario With Backbone Architecture:**
+- All features reference `sub_community_members`
+- Update member mobile once → reflects everywhere
+- President role assigned once → all features can target presidents
+- Single source of truth → data consistency guaranteed
+
+### Migration Strategy for Existing Features
+
+For features that were built before this architecture (like Lottery System), the migration path is:
+
+1. **Add `member_id` columns** to existing tables (e.g., `book_distribution.member_id`)
+2. **Link existing participants** to Community Building members (match by mobile/email)
+3. **Update queries** to JOIN with `sub_community_members` for member details
+4. **Update UI** to select members from Community Building instead of free-text input
+5. **Deprecate duplicate fields** (keep `mobile_number` for backward compatibility initially)
+6. **Full migration** after validation period
+
+This ensures **Community Building remains the backbone** while allowing phased migration of existing features.
 
 ## Technology Stack
 
@@ -1685,6 +1834,101 @@ community_id INT(10) UNSIGNED
 
 # Future Roadmap
 
+## Lottery System Migration to Backbone Architecture
+
+**Current Status:** Lottery System exists but does NOT use Community Building as backbone
+**Priority:** High (Architectural alignment)
+**Goal:** Restructure lottery to reference Community Building members
+
+### Current Issues with Lottery System:
+1. **No centralized participant management** - participants scattered across tables
+2. **Participants stored as text** - mobile numbers in `book_distribution.mobile_number`, names in `lottery_winners`
+3. **No link to Community Building** - cannot leverage sub-community structure or roles
+4. **Data duplication** - same participant exists in multiple places
+5. **Cannot target roles** - no way to assign books to Presidents, notify Treasurers
+
+### Recommended Migration Approach:
+
+**Option 1: Direct Reference to Community Building (Recommended)**
+
+Add `member_id` foreign keys to lottery tables:
+
+```sql
+-- Add member_id to book_distribution
+ALTER TABLE book_distribution
+ADD COLUMN member_id INT(10) UNSIGNED NULL AFTER mobile_number,
+ADD COLUMN participant_name VARCHAR(255) NULL,
+ADD CONSTRAINT fk_book_dist_member
+    FOREIGN KEY (member_id) REFERENCES sub_community_members(member_id) ON DELETE SET NULL;
+
+-- Add member_id to lottery_winners
+ALTER TABLE lottery_winners
+ADD COLUMN member_id INT(10) UNSIGNED NULL AFTER winner_name,
+ADD CONSTRAINT fk_lottery_winner_member
+    FOREIGN KEY (member_id) REFERENCES sub_community_members(member_id) ON DELETE SET NULL;
+```
+
+**Pros:**
+- Clean architecture (Features → Community Building)
+- No data duplication
+- Custom fields available to lottery
+- Role-based assignments possible (assign books to Presidents)
+
+**Cons:**
+- Requires data migration for existing participants
+- Lottery participants MUST exist in Community Building first
+
+### Migration Strategy (Phased Approach):
+
+**Phase 1: Add Parallel Fields** (Non-breaking)
+- Add `member_id` columns alongside existing `mobile_number`
+- New events: Use member_id
+- Existing events: Continue using mobile_number
+
+**Phase 2: Data Migration**
+- Link existing mobile numbers to Community Building members
+- Create "Lottery Legacy Participants" sub-community for unmatched records
+- Update records with matched member_id
+
+**Phase 3: UI Updates**
+- Change participant selection from text input → member dropdown
+- Show sub-community in selection (e.g., "John Doe (Area 1)")
+- Filter members by sub-community for targeted distribution
+
+**Phase 4: Role-Based Features** (Future)
+- Assign books to Presidents for distribution
+- Notify Treasurers for payment collection
+- Generate reports by sub-community/area
+
+### Files Requiring Updates:
+
+Priority files for migration:
+1. [lottery-book-assign.php](public/group-admin/lottery-book-assign.php) - Participant selection UI
+2. [lottery-books-generate.php](public/group-admin/lottery-books-generate.php) - Book generation logic
+3. [lottery-winners.php](public/group-admin/lottery-winners.php) - Winner management
+4. [lottery-payments.php](public/group-admin/lottery-payments.php) - Payment tracking
+5. [lottery-commission-setup.php](public/group-admin/lottery-commission-setup.php) - Commission calculation
+
+### Benefits After Migration:
+
+**For Group Admins:**
+- ✅ Select participants from existing members (no manual data entry)
+- ✅ Assign books to entire sub-communities at once
+- ✅ Contact Presidents for distribution updates
+- ✅ Generate reports by area/zone
+- ✅ Track participation across features (lottery + events + payments)
+
+**For System Architecture:**
+- ✅ Single source of truth for all members
+- ✅ Consistent data across all features
+- ✅ Leverages sub-community hierarchy
+- ✅ Supports role-based workflows
+- ✅ Maintains architectural principle (Lottery → Community Building)
+
+**Note:** This migration requires planning and should be done incrementally to avoid breaking existing lottery events.
+
+---
+
 ## Planned Features (v5.0+)
 
 ### 1. Event Management System
@@ -1840,6 +2084,27 @@ Track all admin actions for compliance
 
 ## Architecture Rules
 
+### Universal Architectural Principle
+
+**CRITICAL - MUST FOLLOW:**
+
+1. **Community Building is the BACKBONE of the entire platform**
+   - Community Building CANNOT use other features' databases
+   - All other features MUST use Community Building as the source of truth for members
+   - ONE-WAY data flow: Features → Community Building (never reverse)
+   - See "Architectural Principles and Data Flow" section for complete details
+
+2. **NEVER create duplicate member/participant tables in features**
+   - ALWAYS reference `sub_community_members.member_id`
+   - Fetch member details from Community Building custom fields
+   - Use sub-community hierarchy for organizing feature data
+
+3. **All features MUST be designed with role-based capabilities in mind**
+   - Sub-communities = Areas, Zones, Blocks, etc.
+   - Members can have roles (President, Treasurer, Secretary, etc.)
+   - Features should support targeting specific roles or sub-communities
+   - Example: Assign lottery books to Presidents, notify Treasurers for payments
+
 ### Feature Development
 
 1. **Every feature MUST be registered in `features` table**
@@ -1858,6 +2123,11 @@ Track all admin actions for compliance
 5. **Every feature's data MUST be isolated by community**
    - Include `community_id` in all tables
    - Filter all queries by `community_id`
+
+6. **Every feature MUST integrate with Community Building for member management**
+   - Reference members via `member_id` foreign key
+   - Never duplicate name, email, mobile fields
+   - Leverage sub-community structure for organization
 
 ### Database Rules
 
@@ -2138,22 +2408,33 @@ LEFT JOIN community_features cf ON f.feature_id = cf.feature_id AND cf.community
 6. Test with multiple communities
 7. Deploy to production
 
-**Remember:** Always filter by `community_id`, always check feature access, always use prepared statements!
+**Remember:** Always filter by `community_id`, always check feature access, always use prepared statements, and always reference Community Building as the backbone!
 
 ---
 
-**Document Version:** 1.1
+**Document Version:** 1.2
 **Last Updated:** January 12, 2026
 **Platform Version:** v4.1
 **Maintained By:** Development Team
 
+**Major Updates in v1.2:**
+- ✅ Added "Architectural Principles and Data Flow" section
+- ✅ Documented Universal Rule: Community Building as Backbone
+- ✅ Added Future Vision for role-based hierarchy (President, Treasurer, etc.)
+- ✅ Documented Lottery System migration strategy
+- ✅ Updated Architecture Rules with backbone principle
+- ✅ Added integration patterns for all features
+
 When you read this document in future, you will have complete understanding of:
 - What GetToKnow is and how it works
+- **CRITICAL:** Community Building backbone architecture (ONE-WAY data flow)
 - Database structure and relationships
-- How to add new features
+- How to add new features that integrate with Community Building
+- Future vision: Role-based hierarchy and responsibilities
 - All rules and standards
 - Security best practices
 - Deployment procedures
 - Troubleshooting common issues
+- Lottery System migration path to backbone architecture
 
 This is the SINGLE SOURCE OF TRUTH for the GetToKnow platform.
