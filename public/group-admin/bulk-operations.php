@@ -35,74 +35,27 @@ if (isset($_GET['download_sample'])) {
     $sheet = $spreadsheet->getActiveSheet();
 
     if ($type === 'sub_communities') {
-        // Sub-Communities Sample
+        // Sub-Communities Sample - ONLY CUSTOM FIELDS
         $sheet->setTitle('Sub-Communities');
-        $sheet->setCellValue('A1', 'Sub-Community Name');
-        $sheet->setCellValue('B1', 'Description');
-        $sheet->setCellValue('C1', 'Status');
 
-        // Sample data
-        $sheet->setCellValue('A2', 'IT Department');
-        $sheet->setCellValue('B2', 'Information Technology team members');
-        $sheet->setCellValue('C2', 'active');
-
-        $sheet->setCellValue('A3', 'HR Department');
-        $sheet->setCellValue('B3', 'Human Resources team');
-        $sheet->setCellValue('C3', 'active');
-
-        $sheet->setCellValue('A4', 'Finance Department');
-        $sheet->setCellValue('B4', 'Finance and accounting team');
-        $sheet->setCellValue('C4', 'active');
-
-        // Instructions sheet
-        $instructionSheet = $spreadsheet->createSheet();
-        $instructionSheet->setTitle('Instructions');
-        $instructionSheet->setCellValue('A1', 'INSTRUCTIONS FOR BULK IMPORT');
-        $instructionSheet->setCellValue('A3', 'Column A: Sub-Community Name (Required)');
-        $instructionSheet->setCellValue('A4', 'Column B: Description (Optional)');
-        $instructionSheet->setCellValue('A5', 'Column C: Status (Required) - Values: active or inactive');
-        $instructionSheet->setCellValue('A7', 'Notes:');
-        $instructionSheet->setCellValue('A8', '- Do not modify the header row');
-        $instructionSheet->setCellValue('A9', '- Sub-Community Name must be unique');
-        $instructionSheet->setCellValue('A10', '- Status can only be "active" or "inactive"');
-        $instructionSheet->setCellValue('A11', '- Delete the sample rows before uploading');
-
-        $filename = 'sub_communities_sample.xlsx';
-
-    } else {
-        // Members Sample with dynamic custom fields
-        $sheet->setTitle('Members');
-
-        // Get custom fields
+        // Get custom fields for sub-communities
         $fieldsQuery = "SELECT field_name, field_label, field_type, is_required, field_options
                         FROM custom_field_definitions
-                        WHERE community_id = :community_id AND applies_to = 'member' AND status = 'active'
+                        WHERE community_id = :community_id AND applies_to = 'sub_community' AND status = 'active'
                         ORDER BY display_order";
         $fieldsStmt = $db->prepare($fieldsQuery);
         $fieldsStmt->bindParam(':community_id', $communityId);
         $fieldsStmt->execute();
         $customFields = $fieldsStmt->fetchAll();
 
-        // Get sub-communities for dropdown
-        $subCommQuery = "SELECT sub_community_name FROM sub_communities
-                        WHERE community_id = :community_id AND status = 'active'";
-        $subCommStmt = $db->prepare($subCommQuery);
-        $subCommStmt->bindParam(':community_id', $communityId);
-        $subCommStmt->execute();
-        $subCommunities = $subCommStmt->fetchAll(PDO::FETCH_COLUMN);
+        if (count($customFields) === 0) {
+            $_SESSION['error_message'] = "No custom fields defined for sub-communities. Please define custom fields first.";
+            header('Location: /public/group-admin/custom-fields.php');
+            exit();
+        }
 
-        // Headers
+        // Headers - ONLY custom fields
         $col = 'A';
-        $sheet->setCellValue($col . '1', 'Full Name');
-        $col++;
-        $sheet->setCellValue($col . '1', 'Email');
-        $col++;
-        $sheet->setCellValue($col . '1', 'Phone Number');
-        $col++;
-        $sheet->setCellValue($col . '1', 'Sub-Community');
-        $col++;
-
-        // Custom field headers
         foreach ($customFields as $field) {
             $header = $field['field_label'];
             if ($field['is_required']) {
@@ -112,14 +65,82 @@ if (isset($_GET['download_sample'])) {
             $col++;
         }
 
-        // Sample data
-        $sheet->setCellValue('A2', 'John Doe');
-        $sheet->setCellValue('B2', 'john.doe@example.com');
-        $sheet->setCellValue('C2', '1234567890');
-        $sheet->setCellValue('D2', count($subCommunities) > 0 ? $subCommunities[0] : 'IT Department');
+        // Sample data row
+        $col = 'A';
+        foreach ($customFields as $field) {
+            if ($field['field_type'] === 'dropdown' && $field['field_options']) {
+                $options = json_decode($field['field_options'], true);
+                $sheet->setCellValue($col . '2', $options[0] ?? 'Sample Value');
+            } else {
+                $sheet->setCellValue($col . '2', 'Sample Value');
+            }
+            $col++;
+        }
 
-        // Sample custom field data
-        $col = 'E';
+        // Instructions sheet
+        $instructionSheet = $spreadsheet->createSheet();
+        $instructionSheet->setTitle('Instructions');
+        $instructionSheet->setCellValue('A1', 'INSTRUCTIONS FOR BULK IMPORT - SUB-COMMUNITIES');
+        $instructionSheet->setCellValue('A3', 'Custom Fields:');
+
+        $row = 4;
+        foreach ($customFields as $idx => $field) {
+            $colLetter = chr(65 + $idx); // A, B, C...
+            $req = $field['is_required'] ? '(Required)' : '(Optional)';
+            $text = "Column $colLetter: {$field['field_label']} $req - Type: {$field['field_type']}";
+            if ($field['field_type'] === 'dropdown' && $field['field_options']) {
+                $options = json_decode($field['field_options'], true);
+                $text .= ' - Values: ' . implode(', ', $options);
+            }
+            $instructionSheet->setCellValue('A' . $row, $text);
+            $row++;
+        }
+
+        $row += 2;
+        $instructionSheet->setCellValue('A' . $row, 'Notes:');
+        $row++;
+        $instructionSheet->setCellValue('A' . $row, '- Do not modify the header row');
+        $row++;
+        $instructionSheet->setCellValue('A' . $row, '- Fill in all required fields (marked with *)');
+        $row++;
+        $instructionSheet->setCellValue('A' . $row, '- Delete the sample row before uploading');
+
+        $filename = 'sub_communities_sample.xlsx';
+
+    } else {
+        // Members Sample with dynamic custom fields ONLY
+        $sheet->setTitle('Members');
+
+        // Get custom fields for members
+        $fieldsQuery = "SELECT field_name, field_label, field_type, is_required, field_options
+                        FROM custom_field_definitions
+                        WHERE community_id = :community_id AND applies_to = 'member' AND status = 'active'
+                        ORDER BY display_order";
+        $fieldsStmt = $db->prepare($fieldsQuery);
+        $fieldsStmt->bindParam(':community_id', $communityId);
+        $fieldsStmt->execute();
+        $customFields = $fieldsStmt->fetchAll();
+
+        // Check if custom fields exist
+        if (count($customFields) === 0) {
+            $_SESSION['error_message'] = "No custom fields defined for members. Please create custom fields first.";
+            header('Location: /public/group-admin/custom-fields.php');
+            exit();
+        }
+
+        // Headers - ONLY custom fields
+        $col = 'A';
+        foreach ($customFields as $field) {
+            $header = $field['field_label'];
+            if ($field['is_required']) {
+                $header .= ' *';
+            }
+            $sheet->setCellValue($col . '1', $header);
+            $col++;
+        }
+
+        // Sample data - ONLY custom fields
+        $col = 'A';
         foreach ($customFields as $field) {
             if ($field['field_type'] === 'dropdown' && $field['field_options']) {
                 $options = json_decode($field['field_options'], true);
@@ -134,16 +155,9 @@ if (isset($_GET['download_sample'])) {
         $instructionSheet = $spreadsheet->createSheet();
         $instructionSheet->setTitle('Instructions');
         $instructionSheet->setCellValue('A1', 'INSTRUCTIONS FOR BULK MEMBER IMPORT');
-        $instructionSheet->setCellValue('A3', 'Required Columns:');
-        $instructionSheet->setCellValue('A4', '- Full Name (Required)');
-        $instructionSheet->setCellValue('A5', '- Email (Required, must be valid email)');
-        $instructionSheet->setCellValue('A6', '- Sub-Community (Required, must exist)');
-        $instructionSheet->setCellValue('A8', 'Optional Columns:');
-        $instructionSheet->setCellValue('A9', '- Phone Number');
+        $instructionSheet->setCellValue('A3', 'Custom Fields (defined by Group Admin):');
 
-        $row = 11;
-        $instructionSheet->setCellValue('A' . $row, 'Custom Fields:');
-        $row++;
+        $row = 4;
         foreach ($customFields as $field) {
             $req = $field['is_required'] ? '(Required)' : '(Optional)';
             $text = "- {$field['field_label']} $req - Type: {$field['field_type']}";
@@ -156,21 +170,11 @@ if (isset($_GET['download_sample'])) {
         }
 
         $row += 2;
-        $instructionSheet->setCellValue('A' . $row, 'Available Sub-Communities:');
-        $row++;
-        foreach ($subCommunities as $sc) {
-            $instructionSheet->setCellValue('A' . $row, '- ' . $sc);
-            $row++;
-        }
-
-        $row += 2;
         $instructionSheet->setCellValue('A' . $row, 'Notes:');
         $row++;
         $instructionSheet->setCellValue('A' . $row, '- Do not modify the header row');
         $row++;
-        $instructionSheet->setCellValue('A' . $row, '- Email must be unique');
-        $row++;
-        $instructionSheet->setCellValue('A' . $row, '- One member can only be in one sub-community');
+        $instructionSheet->setCellValue('A' . $row, '- Fill in all required fields (marked with *)');
         $row++;
         $instructionSheet->setCellValue('A' . $row, '- Delete the sample row before uploading');
 
@@ -196,30 +200,50 @@ if (isset($_GET['export'])) {
 
     if ($type === 'sub_communities') {
         $sheet->setTitle('Sub-Communities');
-        $sheet->setCellValue('A1', 'ID');
-        $sheet->setCellValue('B1', 'Sub-Community Name');
-        $sheet->setCellValue('C1', 'Description');
-        $sheet->setCellValue('D1', 'Status');
-        $sheet->setCellValue('E1', 'Member Count');
 
-        $query = "SELECT sc.sub_community_id, sc.sub_community_name, sc.description, sc.status,
-                  COUNT(scm.user_id) as member_count
-                  FROM sub_communities sc
-                  LEFT JOIN sub_community_members scm ON sc.sub_community_id = scm.sub_community_id
-                  WHERE sc.community_id = :community_id
-                  GROUP BY sc.sub_community_id";
+        // Get custom fields for sub-communities
+        $fieldsQuery = "SELECT field_id, field_name, field_label
+                        FROM custom_field_definitions
+                        WHERE community_id = :community_id AND applies_to = 'sub_community' AND status = 'active'
+                        ORDER BY display_order";
+        $fieldsStmt = $db->prepare($fieldsQuery);
+        $fieldsStmt->bindParam(':community_id', $communityId);
+        $fieldsStmt->execute();
+        $customFields = $fieldsStmt->fetchAll();
+
+        // Headers - ONLY custom fields
+        $col = 'A';
+        foreach ($customFields as $field) {
+            $sheet->setCellValue($col . '1', $field['field_label']);
+            $col++;
+        }
+
+        // Get sub-communities
+        $query = "SELECT sub_community_id FROM sub_communities
+                  WHERE community_id = :community_id
+                  ORDER BY created_at DESC";
         $stmt = $db->prepare($query);
         $stmt->bindParam(':community_id', $communityId);
         $stmt->execute();
-        $data = $stmt->fetchAll();
+        $subCommunities = $stmt->fetchAll();
 
         $row = 2;
-        foreach ($data as $item) {
-            $sheet->setCellValue('A' . $row, $item['sub_community_id']);
-            $sheet->setCellValue('B' . $row, $item['sub_community_name']);
-            $sheet->setCellValue('C' . $row, $item['description']);
-            $sheet->setCellValue('D' . $row, $item['status']);
-            $sheet->setCellValue('E' . $row, $item['member_count']);
+        foreach ($subCommunities as $subComm) {
+            $col = 'A';
+
+            // Get custom field values
+            foreach ($customFields as $field) {
+                $valueQuery = "SELECT field_value FROM sub_community_custom_data
+                              WHERE sub_community_id = :sub_community_id AND field_id = :field_id";
+                $valueStmt = $db->prepare($valueQuery);
+                $valueStmt->bindParam(':sub_community_id', $subComm['sub_community_id']);
+                $valueStmt->bindParam(':field_id', $field['field_id']);
+                $valueStmt->execute();
+                $value = $valueStmt->fetchColumn();
+
+                $sheet->setCellValue($col . $row, $value ?: '');
+                $col++;
+            }
             $row++;
         }
 
@@ -228,7 +252,7 @@ if (isset($_GET['export'])) {
     } else {
         $sheet->setTitle('Members');
 
-        // Get custom fields
+        // Get custom fields for members
         $fieldsQuery = "SELECT field_id, field_name, field_label
                         FROM custom_field_definitions
                         WHERE community_id = :community_id AND applies_to = 'member' AND status = 'active'
@@ -238,31 +262,19 @@ if (isset($_GET['export'])) {
         $fieldsStmt->execute();
         $customFields = $fieldsStmt->fetchAll();
 
-        // Headers
+        // Headers - ONLY custom fields
         $col = 'A';
-        $sheet->setCellValue($col . '1', 'User ID');
-        $col++;
-        $sheet->setCellValue($col . '1', 'Full Name');
-        $col++;
-        $sheet->setCellValue($col . '1', 'Email');
-        $col++;
-        $sheet->setCellValue($col . '1', 'Phone Number');
-        $col++;
-        $sheet->setCellValue($col . '1', 'Sub-Community');
-        $col++;
-
         foreach ($customFields as $field) {
             $sheet->setCellValue($col . '1', $field['field_label']);
             $col++;
         }
 
-        // Get members with custom data
-        $query = "SELECT u.user_id, u.full_name, u.email, u.phone_number, sc.sub_community_name
-                  FROM users u
-                  JOIN sub_community_members scm ON u.user_id = scm.user_id
+        // Get members from sub_community_members
+        $query = "SELECT DISTINCT scm.user_id
+                  FROM sub_community_members scm
                   JOIN sub_communities sc ON scm.sub_community_id = sc.sub_community_id
                   WHERE sc.community_id = :community_id
-                  ORDER BY u.full_name";
+                  ORDER BY scm.user_id";
         $stmt = $db->prepare($query);
         $stmt->bindParam(':community_id', $communityId);
         $stmt->execute();
@@ -271,16 +283,6 @@ if (isset($_GET['export'])) {
         $row = 2;
         foreach ($members as $member) {
             $col = 'A';
-            $sheet->setCellValue($col . $row, $member['user_id']);
-            $col++;
-            $sheet->setCellValue($col . $row, $member['full_name']);
-            $col++;
-            $sheet->setCellValue($col . $row, $member['email']);
-            $col++;
-            $sheet->setCellValue($col . $row, $member['phone_number']);
-            $col++;
-            $sheet->setCellValue($col . $row, $member['sub_community_name']);
-            $col++;
 
             // Get custom field values
             foreach ($customFields as $field) {
