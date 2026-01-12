@@ -757,6 +757,19 @@ class FeatureAccess {
 - **Single Sub-Community Rule:** Each member can only belong to one sub-community (enforced by database constraint)
 - **Field Types:** Text, Number, Phone, Dropdown (with options), Date
 - **Validation:** Required/optional field support
+- **Bulk Operations:** Excel import/export for adding 100+ items at once
+- **Multi-Select:** Checkbox selection for bulk delete
+- **Undo Functionality:** Recover deleted items with one click
+
+**Bulk Operations (NEW!):**
+- **Download Sample Format:** Excel template with instructions and custom fields
+- **Export Current Data:** Export all data to Excel for bulk editing
+- **Bulk Import:** Upload Excel to add/update multiple items (100+ at once)
+- **Bulk Delete:** Select multiple items with checkboxes and delete
+- **Preview Changes:** Review all changes before applying
+- **Undo Delete:** Restore deleted items immediately after deletion
+- **Validation:** Comprehensive validation before processing
+- **Error Reporting:** Clear error messages for invalid data
 
 **Database Schema:**
 ```sql

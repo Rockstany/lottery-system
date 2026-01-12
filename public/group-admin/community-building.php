@@ -227,6 +227,14 @@ $breadcrumbs = [
                     <p>Register and manage community members</p>
                 </div>
             </a>
+
+            <a href="/public/group-admin/bulk-operations.php" style="text-decoration: none;">
+                <div class="action-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white;">
+                    <div class="icon">📊</div>
+                    <h3 style="color: white;">Bulk Operations</h3>
+                    <p style="color: rgba(255,255,255,0.9);">Import/export with Excel, bulk edit and delete</p>
+                </div>
+            </a>
         </div>
 
         <!-- Recent Sub-Communities -->
