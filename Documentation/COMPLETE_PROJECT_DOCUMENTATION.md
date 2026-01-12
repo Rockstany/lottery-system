@@ -32,7 +32,7 @@
 - **Modular Architecture**: Easy to add new features without affecting existing ones
 - **Role-Based Access**: Admin, Group Admin, and Member roles
 
-### Current Version: 4.0 (SAAS Architecture)
+### Current Version: 4.1 (SAAS Architecture with Community Building)
 
 ---
 
@@ -274,6 +274,87 @@ CREATE TABLE tickets (
 );
 ```
 
+## Community Building System Tables (Feature-Specific)
+
+### 9. `sub_communities` - Sub-Communities
+```sql
+CREATE TABLE sub_communities (
+    sub_community_id INT(10) UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+    community_id INT(10) UNSIGNED NOT NULL,
+    sub_community_name VARCHAR(255) NOT NULL,
+    description TEXT,
+    status ENUM('active', 'inactive') DEFAULT 'active',
+    created_by INT(10) UNSIGNED NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (community_id) REFERENCES communities(community_id) ON DELETE CASCADE
+);
+```
+
+### 10. `custom_field_definitions` - Dynamic Field Definitions
+```sql
+CREATE TABLE custom_field_definitions (
+    field_id INT(10) UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+    community_id INT(10) UNSIGNED NOT NULL,
+    field_name VARCHAR(100) NOT NULL,
+    field_label VARCHAR(255) NOT NULL,
+    field_type ENUM('text', 'number', 'phone', 'dropdown', 'date') NOT NULL,
+    field_options TEXT, -- JSON array for dropdown options
+    is_required TINYINT(1) DEFAULT 0,
+    applies_to ENUM('member', 'sub_community') NOT NULL,
+    display_order INT(11) DEFAULT 0,
+    status ENUM('active', 'inactive') DEFAULT 'active',
+    created_by INT(10) UNSIGNED NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (community_id) REFERENCES communities(community_id) ON DELETE CASCADE
+);
+```
+
+### 11. `sub_community_members` - Member Assignments
+```sql
+CREATE TABLE sub_community_members (
+    id INT(10) UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+    sub_community_id INT(10) UNSIGNED NOT NULL,
+    user_id INT(10) UNSIGNED NOT NULL,
+    joined_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    assigned_by INT(10) UNSIGNED,
+    status ENUM('active', 'inactive') DEFAULT 'active',
+    FOREIGN KEY (sub_community_id) REFERENCES sub_communities(sub_community_id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+    UNIQUE KEY unique_user_subcommunity (user_id) -- One member = one sub-community
+);
+```
+
+### 12. `member_custom_data` - Member Custom Field Values
+```sql
+CREATE TABLE member_custom_data (
+    id INT(10) UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+    user_id INT(10) UNSIGNED NOT NULL,
+    field_id INT(10) UNSIGNED NOT NULL,
+    field_value TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+    FOREIGN KEY (field_id) REFERENCES custom_field_definitions(field_id) ON DELETE CASCADE,
+    UNIQUE KEY unique_user_field (user_id, field_id)
+);
+```
+
+### 13. `sub_community_custom_data` - Sub-Community Custom Field Values
+```sql
+CREATE TABLE sub_community_custom_data (
+    id INT(10) UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+    sub_community_id INT(10) UNSIGNED NOT NULL,
+    field_id INT(10) UNSIGNED NOT NULL,
+    field_value TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (sub_community_id) REFERENCES sub_communities(sub_community_id) ON DELETE CASCADE,
+    FOREIGN KEY (field_id) REFERENCES custom_field_definitions(field_id) ON DELETE CASCADE,
+    UNIQUE KEY unique_subcommunity_field (sub_community_id, field_id)
+);
+```
+
 ## Database Relationships
 
 ```
@@ -301,6 +382,28 @@ lottery_events
 tickets
   ├─ event_id → lottery_events
   └─ member_id → users
+
+sub_communities
+  ├─ community_id → communities
+  └─ created_by → users
+
+custom_field_definitions
+  ├─ community_id → communities
+  ├─ applies_to (member/sub_community)
+  └─ field_options (JSON for dropdown)
+
+sub_community_members
+  ├─ sub_community_id → sub_communities
+  ├─ user_id → users (UNIQUE - one sub-community per member)
+  └─ assigned_by → users
+
+member_custom_data
+  ├─ user_id → users
+  └─ field_id → custom_field_definitions
+
+sub_community_custom_data
+  ├─ sub_community_id → sub_communities
+  └─ field_id → custom_field_definitions
 ```
 
 ---
@@ -613,6 +716,52 @@ class FeatureAccess {
 - `lottery_events`
 - `tickets`
 - `payments` (if implemented)
+
+---
+
+### 2. Community Building System
+**Feature Key:** `community_building`
+**Status:** ✅ Implemented (v4.1)
+**Description:** Create sub-communities with custom member fields and manage community structure
+
+**Capabilities:**
+1. Create and manage sub-communities within main community
+2. Define custom fields (text, number, phone, dropdown, date) for members and sub-communities
+3. Register new members with dynamic custom fields
+4. Use existing database (lottery system members) or create new members
+5. Assign members to sub-communities (one member = one sub-community)
+6. View member directory with filtering
+7. Track member details with flexible schema
+
+**Files:**
+- `public/group-admin/community-building.php` - Main dashboard
+- `public/group-admin/sub-communities.php` - Sub-community list
+- `public/group-admin/sub-community-create.php` - Create sub-community
+- `public/group-admin/sub-community-edit.php` - Edit sub-community
+- `public/group-admin/sub-community-view.php` - View sub-community details
+- `public/group-admin/custom-fields.php` - Custom field builder
+- `public/group-admin/community-members.php` - Member directory
+- `public/group-admin/member-register.php` - Register member with dynamic form
+
+**Database Tables:**
+- `sub_communities` - Sub-community definitions
+- `custom_field_definitions` - Dynamic field definitions
+- `sub_community_members` - Member assignments
+- `member_custom_data` - Custom field values for members
+- `sub_community_custom_data` - Custom field values for sub-communities
+
+**Key Features:**
+- **Dynamic Form Builder:** Group Admin defines custom fields, system generates forms automatically
+- **Flexible Schema:** Store any type of data using JSON-based field system
+- **Data Reuse:** Option to use existing users from lottery system or other features
+- **Single Sub-Community Rule:** Each member can only belong to one sub-community (enforced by database constraint)
+- **Field Types:** Text, Number, Phone, Dropdown (with options), Date
+- **Validation:** Required/optional field support
+
+**Database Schema:**
+```sql
+-- See database/community_building_schema.sql for complete schema
+```
 
 ---
 
@@ -1940,7 +2089,7 @@ LEFT JOIN community_features cf ON f.feature_id = cf.feature_id AND cf.community
 
 # Summary
 
-**GetToKnow v4.0** is a SAAS multi-tenant community management platform with:
+**GetToKnow v4.1** is a SAAS multi-tenant community management platform with:
 
 ✅ Feature-based access control
 ✅ Multi-tenant architecture
@@ -1949,21 +2098,40 @@ LEFT JOIN community_features cf ON f.feature_id = cf.feature_id AND cf.community
 ✅ Role-based permissions
 ✅ Complete data isolation
 ✅ Easy feature management
+✅ Dynamic custom fields (NEW in v4.1)
+✅ Sub-community management (NEW in v4.1)
 
 **Core Principle:** Admin enables features per community → Group Admin sees enabled features as cards → Modular system allows unlimited features
 
+**Current Features (v4.1):**
+1. **Lottery System** - Complete 6-part lottery event management
+2. **Community Building** - Sub-communities with dynamic member fields and flexible data structure
+
+**Community Building Highlights:**
+- Create sub-communities within main communities
+- Define custom fields (text, number, phone, dropdown, date) dynamically
+- Register members with custom fields or use existing database
+- One member = one sub-community rule (database enforced)
+- Flexible schema using JSON for dropdown options
+- Complete CRUD operations for sub-communities and members
+- Filter and search capabilities
+
 **Next Steps:**
-1. Fix feature icons (run FIX_ALL_FEATURES.sql)
-2. Add your 2 new features
-3. Test with multiple communities
-4. Deploy to production
+1. Run database migration: `database/community_building_schema.sql`
+2. Enable Community Building feature for test community
+3. Define custom fields for members
+4. Create sub-communities
+5. Register members
+6. Test with multiple communities
+7. Deploy to production
 
 **Remember:** Always filter by `community_id`, always check feature access, always use prepared statements!
 
 ---
 
-**Document Version:** 1.0
+**Document Version:** 1.1
 **Last Updated:** January 12, 2026
+**Platform Version:** v4.1
 **Maintained By:** Development Team
 
 When you read this document in future, you will have complete understanding of:

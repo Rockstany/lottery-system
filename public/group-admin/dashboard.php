@@ -393,12 +393,13 @@ $breadcrumbs = [
                 <div class="features-grid">
                     <?php foreach ($enabledFeatures as $feature): ?>
                         <?php
-                        $featureUrl = '/public/group-admin/lottery.php'; // Default to lottery
-                        $featureIcon = '🎟️'; // Default icon
+                        $featureUrl = '/public/group-admin/dashboard.php'; // Default
+                        $featureIcon = $feature['feature_icon'] ?? '🎯'; // Use icon from database
 
                         if ($feature['feature_key'] === 'lottery_system') {
                             $featureUrl = '/public/group-admin/lottery.php';
-                            $featureIcon = '🎟️';
+                        } elseif ($feature['feature_key'] === 'community_building') {
+                            $featureUrl = '/public/group-admin/community-building.php';
                         }
                         ?>
                         <a href="<?php echo $featureUrl; ?>" class="feature-card">
