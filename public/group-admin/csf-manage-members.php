@@ -50,7 +50,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             $user_id = $existing_user['user_id'];
 
             // Check if already a member of this sub-community
-            $stmt = $db->prepare("SELECT member_id FROM sub_community_members WHERE user_id = ? AND sub_community_id = ?");
+            $stmt = $db->prepare("SELECT user_id FROM sub_community_members WHERE user_id = ? AND sub_community_id = ?");
             $stmt->execute([$user_id, $sub_community_id]);
             if ($stmt->fetch()) {
                 throw new Exception("Member already exists in this area");
@@ -121,7 +121,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     $user_id = $existing_user['user_id'];
 
                     // Check if already in sub-community
-                    $stmt = $db->prepare("SELECT member_id FROM sub_community_members WHERE user_id = ? AND sub_community_id = ?");
+                    $stmt = $db->prepare("SELECT user_id FROM sub_community_members WHERE user_id = ? AND sub_community_id = ?");
                     $stmt->execute([$user_id, $sub_community_id]);
                     if ($stmt->fetch()) {
                         $skipped_count++;
