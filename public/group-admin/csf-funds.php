@@ -33,14 +33,12 @@ $statsQuery = "SELECT
     SUM(p.amount) as total_amount,
     (SELECT COUNT(*) FROM sub_community_members scm
      JOIN sub_communities sc ON scm.sub_community_id = sc.sub_community_id
-     WHERE sc.community_id = :community_id AND scm.status = 'active') as total_members
+     WHERE sc.community_id = ? AND scm.status = 'active') as total_members
     FROM csf_payments p
-    WHERE p.community_id = :community_id
-    AND JSON_CONTAINS(p.payment_for_months, JSON_QUOTE(:current_month))";
+    WHERE p.community_id = ?
+    AND DATE_FORMAT(p.payment_date, '%Y-%m') = ?";
 $statsStmt = $db->prepare($statsQuery);
-$statsStmt->bindParam(':community_id', $communityId);
-$statsStmt->bindParam(':current_month', $currentMonth);
-$statsStmt->execute();
+$statsStmt->execute([$communityId, $communityId, $currentMonth]);
 $stats = $statsStmt->fetch();
 
 // Breadcrumb navigation

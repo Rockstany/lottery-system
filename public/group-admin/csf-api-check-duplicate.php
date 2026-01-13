@@ -28,17 +28,14 @@ $db = $database->getConnection();
 $duplicates = [];
 
 foreach ($months as $month) {
-    // Check if payment exists for this month
+    // Check if payment exists for this month (using payment_date)
     $checkQuery = "SELECT COUNT(*) as count FROM csf_payments
-                   WHERE community_id = :community_id
-                   AND user_id = :user_id
-                   AND JSON_CONTAINS(payment_for_months, JSON_QUOTE(:month))";
+                   WHERE community_id = ?
+                   AND user_id = ?
+                   AND DATE_FORMAT(payment_date, '%Y-%m') = ?";
 
     $stmt = $db->prepare($checkQuery);
-    $stmt->bindParam(':community_id', $communityId);
-    $stmt->bindParam(':user_id', $userId);
-    $stmt->bindParam(':month', $month);
-    $stmt->execute();
+    $stmt->execute([$communityId, $userId, $month]);
 
     $result = $stmt->fetch();
 
