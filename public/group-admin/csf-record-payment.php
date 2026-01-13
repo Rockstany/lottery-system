@@ -51,10 +51,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new Exception("Invalid member selected");
             }
 
+            // Calculate payment_for_months (current month in YYYY-MM format)
+            $payment_for_months = date('Y-m', strtotime($payment_date));
+
             // Insert payment record
             $stmt = $db->prepare("INSERT INTO csf_payments
-                                   (community_id, user_id, amount, payment_date, payment_method, transaction_id, notes, collected_by, created_at)
-                                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())");
+                                   (community_id, user_id, amount, payment_date, payment_method, transaction_id, notes, collected_by, payment_for_months, created_at)
+                                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())");
             $stmt->execute([
                 $communityId,
                 $user_id,
@@ -63,7 +66,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $payment_method,
                 $transaction_id,
                 $notes,
-                $userId
+                $userId,
+                $payment_for_months
             ]);
 
             $success_message = "Payment of ₹" . number_format($amount, 2) . " recorded successfully for " . htmlspecialchars($user['full_name']);
