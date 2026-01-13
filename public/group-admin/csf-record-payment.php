@@ -51,8 +51,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new Exception("Invalid member selected");
             }
 
-            // Calculate payment_for_months (current month in YYYY-MM format)
-            $payment_for_months = date('Y-m', strtotime($payment_date));
+            // Calculate payment_for_months (JSON array format with single month)
+            // The constraint likely expects: JSON_VALID(payment_for_months) AND JSON_LENGTH(payment_for_months) > 0
+            $payment_month = date('Y-m', strtotime($payment_date));
+            $payment_for_months = json_encode([$payment_month], JSON_UNESCAPED_SLASHES);
 
             // Insert payment record
             $stmt = $db->prepare("INSERT INTO csf_payments
