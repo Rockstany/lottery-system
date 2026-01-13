@@ -50,7 +50,6 @@ $sql = "SELECT
             cp.payment_date,
             cp.payment_method,
             cp.transaction_id,
-            cp.proof_image,
             cp.notes,
             cp.created_at as recorded_at,
             u.full_name,
