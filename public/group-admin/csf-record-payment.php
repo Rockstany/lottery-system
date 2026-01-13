@@ -571,6 +571,9 @@ $default_amount = 100;
     <script>
         let currentStep = 1;
         const totalSteps = 5;
+        let selectedMemberName = '';
+        let selectedMemberMobile = '';
+        let selectedMemberArea = '';
 
         function updateStepIndicators() {
             for (let i = 1; i <= totalSteps; i++) {
@@ -663,9 +666,7 @@ $default_amount = 100;
 
         function updateSummary() {
             // Member
-            const userSelect = document.getElementById('user_id');
-            const selectedOption = userSelect.options[userSelect.selectedIndex];
-            document.getElementById('summary_member').textContent = selectedOption.text;
+            document.getElementById('summary_member').textContent = selectedMemberName + ' (' + selectedMemberMobile + ')';
 
             // Amount
             const amount = document.getElementById('amount').value;
@@ -770,6 +771,11 @@ $default_amount = 100;
             userIdInput.value = userId;
             memberSearchInput.value = fullName;
             searchResults.innerHTML = '';
+
+            // Store member details globally for summary
+            selectedMemberName = fullName;
+            selectedMemberMobile = mobile;
+            selectedMemberArea = area;
 
             selectedMemberInfo.innerHTML = `
                 <div style="font-size: 20px;">
