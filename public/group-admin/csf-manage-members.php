@@ -162,8 +162,93 @@ $stmt = $db->prepare("SELECT sub_community_id, sub_community_name FROM sub_commu
 $stmt->execute([$communityId]);
 $areas = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+// Handle Edit Member
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'edit_member') {
+    try {
+        $user_id = intval($_POST['user_id']);
+        $full_name = trim($_POST['edit_full_name']);
+        $mobile_number = trim($_POST['edit_mobile_number']);
+        $email = trim($_POST['edit_email']) ?: null;
+        $new_sub_community_id = intval($_POST['edit_sub_community_id']);
+
+        // Verify the member belongs to this community
+        $stmt = $db->prepare("SELECT scm.user_id
+                              FROM sub_community_members scm
+                              JOIN sub_communities sc ON scm.sub_community_id = sc.sub_community_id
+                              WHERE scm.user_id = ? AND sc.community_id = ?");
+        $stmt->execute([$user_id, $communityId]);
+        if (!$stmt->fetch()) {
+            throw new Exception("Member not found or access denied");
+        }
+
+        // Check if mobile number is taken by another user
+        $stmt = $db->prepare("SELECT user_id FROM users WHERE mobile_number = ? AND user_id != ?");
+        $stmt->execute([$mobile_number, $user_id]);
+        if ($stmt->fetch()) {
+            throw new Exception("Mobile number already exists for another user");
+        }
+
+        // Validate new sub-community belongs to this community
+        $stmt = $db->prepare("SELECT sub_community_id FROM sub_communities WHERE sub_community_id = ? AND community_id = ?");
+        $stmt->execute([$new_sub_community_id, $communityId]);
+        if (!$stmt->fetch()) {
+            throw new Exception("Invalid area selected");
+        }
+
+        // Update user details
+        $stmt = $db->prepare("UPDATE users SET full_name = ?, mobile_number = ?, email = ? WHERE user_id = ?");
+        $stmt->execute([$full_name, $mobile_number, $email, $user_id]);
+
+        // Update sub-community assignment
+        $stmt = $db->prepare("UPDATE sub_community_members SET sub_community_id = ? WHERE user_id = ?");
+        $stmt->execute([$new_sub_community_id, $user_id]);
+
+        $success_message = "Member updated successfully!";
+
+    } catch (Exception $e) {
+        $error_message = "Error: " . $e->getMessage();
+    }
+}
+
+// Handle Remove Member
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'remove_member') {
+    try {
+        $user_id = intval($_POST['user_id']);
+
+        // Verify the member belongs to this community
+        $stmt = $db->prepare("SELECT scm.user_id
+                              FROM sub_community_members scm
+                              JOIN sub_communities sc ON scm.sub_community_id = sc.sub_community_id
+                              WHERE scm.user_id = ? AND sc.community_id = ?");
+        $stmt->execute([$user_id, $communityId]);
+        if (!$stmt->fetch()) {
+            throw new Exception("Member not found or access denied");
+        }
+
+        // Check if member has CSF payment records
+        $stmt = $db->prepare("SELECT COUNT(*) as payment_count FROM csf_payments WHERE user_id = ?");
+        $stmt->execute([$user_id]);
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if ($result['payment_count'] > 0) {
+            // Soft delete - mark as inactive
+            $stmt = $db->prepare("UPDATE sub_community_members SET status = 'inactive' WHERE user_id = ?");
+            $stmt->execute([$user_id]);
+            $success_message = "Member marked as inactive (has payment history)";
+        } else {
+            // Hard delete - remove completely
+            $stmt = $db->prepare("DELETE FROM sub_community_members WHERE user_id = ?");
+            $stmt->execute([$user_id]);
+            $success_message = "Member removed successfully!";
+        }
+
+    } catch (Exception $e) {
+        $error_message = "Error: " . $e->getMessage();
+    }
+}
+
 // Get all current members
-$stmt = $db->prepare("SELECT u.user_id, u.full_name, u.mobile_number, u.email, sc.sub_community_name, scm.joined_date
+$stmt = $db->prepare("SELECT u.user_id, u.full_name, u.mobile_number, u.email, sc.sub_community_id, sc.sub_community_name, scm.joined_date
                        FROM sub_community_members scm
                        JOIN users u ON scm.user_id = u.user_id
                        JOIN sub_communities sc ON scm.sub_community_id = sc.sub_community_id
@@ -287,6 +372,26 @@ $members = $stmt->fetchAll(PDO::FETCH_ASSOC);
             padding: 15px 20px;
             margin-bottom: 20px;
             border-radius: 5px;
+        }
+        .btn-sm {
+            font-size: 14px;
+            padding: 6px 12px;
+            margin-right: 5px;
+        }
+        .table td {
+            vertical-align: middle;
+        }
+        .modal-content {
+            border-radius: 15px;
+        }
+        .modal-header {
+            background: #f8f9fa;
+            border-top-left-radius: 15px;
+            border-top-right-radius: 15px;
+        }
+        .modal-title {
+            font-size: 24px;
+            font-weight: bold;
         }
     </style>
 </head>
@@ -431,6 +536,7 @@ Jane Smith, 9876543211"></textarea>
                                         <th>Mobile</th>
                                         <th>Email</th>
                                         <th>Joined Date</th>
+                                        <th>Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -441,6 +547,14 @@ Jane Smith, 9876543211"></textarea>
                                             <td><?php echo htmlspecialchars($member['mobile_number']); ?></td>
                                             <td><?php echo htmlspecialchars($member['email'] ?: '-'); ?></td>
                                             <td><?php echo date('d M Y', strtotime($member['joined_date'])); ?></td>
+                                            <td>
+                                                <button class="btn btn-sm btn-warning" onclick="editMember(<?php echo $member['user_id']; ?>, '<?php echo htmlspecialchars($member['full_name'], ENT_QUOTES); ?>', '<?php echo htmlspecialchars($member['mobile_number'], ENT_QUOTES); ?>', '<?php echo htmlspecialchars($member['email'] ?: '', ENT_QUOTES); ?>', <?php echo $member['sub_community_id']; ?>)">
+                                                    <i class="fas fa-edit"></i> Edit
+                                                </button>
+                                                <button class="btn btn-sm btn-danger" onclick="removeMember(<?php echo $member['user_id']; ?>, '<?php echo htmlspecialchars($member['full_name'], ENT_QUOTES); ?>')">
+                                                    <i class="fas fa-trash"></i> Remove
+                                                </button>
+                                            </td>
                                         </tr>
                                     <?php endforeach; ?>
                                 </tbody>
@@ -456,6 +570,86 @@ Jane Smith, 9876543211"></textarea>
         </div>
     </div>
 
+    <!-- Edit Member Modal -->
+    <div class="modal fade" id="editMemberModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3 class="modal-title"><i class="fas fa-edit"></i> Edit Member</h3>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form method="POST" id="editMemberForm">
+                    <input type="hidden" name="action" value="edit_member">
+                    <input type="hidden" name="user_id" id="edit_user_id">
+
+                    <div class="modal-body">
+                        <div class="mb-4">
+                            <label class="form-label">Select Area / Sub-Community</label>
+                            <select class="form-select" name="edit_sub_community_id" id="edit_sub_community_id" required>
+                                <option value="">-- Choose Area --</option>
+                                <?php foreach ($areas as $area): ?>
+                                    <option value="<?php echo $area['sub_community_id']; ?>">
+                                        <?php echo htmlspecialchars($area['sub_community_name']); ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="form-label">Full Name *</label>
+                            <input type="text" class="form-control" name="edit_full_name" id="edit_full_name" required>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="form-label">Mobile Number *</label>
+                            <input type="tel" class="form-control" name="edit_mobile_number" id="edit_mobile_number" pattern="[0-9]{10}" required>
+                            <small class="text-muted">10 digit mobile number</small>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="form-label">Email (Optional)</label>
+                            <input type="email" class="form-control" name="edit_email" id="edit_email">
+                        </div>
+                    </div>
+
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> Save Changes
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Remove Member Form (Hidden) -->
+    <form method="POST" id="removeMemberForm" style="display: none;">
+        <input type="hidden" name="action" value="remove_member">
+        <input type="hidden" name="user_id" id="remove_user_id">
+    </form>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Edit Member Function
+        function editMember(userId, fullName, mobileNumber, email, subCommunityId) {
+            document.getElementById('edit_user_id').value = userId;
+            document.getElementById('edit_full_name').value = fullName;
+            document.getElementById('edit_mobile_number').value = mobileNumber;
+            document.getElementById('edit_email').value = email;
+            document.getElementById('edit_sub_community_id').value = subCommunityId;
+
+            const modal = new bootstrap.Modal(document.getElementById('editMemberModal'));
+            modal.show();
+        }
+
+        // Remove Member Function
+        function removeMember(userId, fullName) {
+            if (confirm('Are you sure you want to remove "' + fullName + '" from the CSF system?\n\nNote: If the member has payment history, they will be marked as inactive instead of being permanently deleted.')) {
+                document.getElementById('remove_user_id').value = userId;
+                document.getElementById('removeMemberForm').submit();
+            }
+        }
+    </script>
 </body>
 </html>
