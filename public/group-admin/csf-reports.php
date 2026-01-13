@@ -61,27 +61,19 @@ foreach ($payments as $payment) {
     $payment_lookup[$payment['user_id']] = $payment;
 }
 
-// Classify members
+// Classify members - SIMPLE: Either PAID (any amount > 0) or UNPAID (no payment)
 $paid_members = [];
 $unpaid_members = [];
-$partial_members = [];
 
 foreach ($all_members as $member) {
     $user_id = $member['user_id'];
 
     if (isset($payment_lookup[$user_id])) {
-        $paid_amount = $payment_lookup[$user_id]['total_paid'];
-
-        if ($paid_amount >= $monthly_contribution) {
-            $member['payment_info'] = $payment_lookup[$user_id];
-            $paid_members[] = $member;
-        } else {
-            $member['payment_info'] = $payment_lookup[$user_id];
-            $member['balance_due'] = $monthly_contribution - $paid_amount;
-            $partial_members[] = $member;
-        }
+        // Member has made a payment (any amount counts as PAID)
+        $member['payment_info'] = $payment_lookup[$user_id];
+        $paid_members[] = $member;
     } else {
-        $member['balance_due'] = $monthly_contribution;
+        // Member has not made any payment
         $unpaid_members[] = $member;
     }
 }
@@ -90,12 +82,15 @@ foreach ($all_members as $member) {
 $total_members = count($all_members);
 $paid_count = count($paid_members);
 $unpaid_count = count($unpaid_members);
-$partial_count = count($partial_members);
+$partial_count = 0; // No longer used, but kept for backward compatibility with charts
 $collection_rate = $total_members > 0 ? ($paid_count / $total_members) * 100 : 0;
 
-$total_expected = $total_members * $monthly_contribution;
+// Total collected is sum of all payments
 $total_collected = array_sum(array_column($payments, 'total_paid'));
-$total_pending = $total_expected - $total_collected;
+
+// No "expected" amount since each member pays their own amount
+// We'll show average payment instead
+$average_payment = $paid_count > 0 ? $total_collected / $paid_count : 0;
 
 // Get yearly statistics
 $stmt = $db->prepare("SELECT
@@ -127,6 +122,7 @@ foreach ($yearly_data as $data) {
     <title>Reports - CSF</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
     <style>
         body {
             font-size: 18px;
@@ -367,6 +363,28 @@ foreach ($yearly_data as $data) {
             margin-bottom: 20px;
         }
 
+        .charts-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+
+        .chart-wrapper {
+            position: relative;
+            height: 350px;
+        }
+
+        @media (max-width: 768px) {
+            .charts-row {
+                grid-template-columns: 1fr;
+            }
+
+            .chart-wrapper {
+                height: 300px;
+            }
+        }
+
         .month-bar {
             background: #f8f9fa;
             padding: 15px 20px;
@@ -483,11 +501,6 @@ foreach ($yearly_data as $data) {
                 <div class="stat-value"><?php echo $paid_count; ?></div>
             </div>
 
-            <div class="stat-card warning">
-                <div class="stat-label">Partial Payment</div>
-                <div class="stat-value"><?php echo $partial_count; ?></div>
-            </div>
-
             <div class="stat-card danger">
                 <div class="stat-label">Unpaid Members</div>
                 <div class="stat-value"><?php echo $unpaid_count; ?></div>
@@ -504,18 +517,51 @@ foreach ($yearly_data as $data) {
             </div>
 
             <div class="stat-card">
-                <div class="stat-label">Expected Amount</div>
-                <div class="stat-value">₹<?php echo number_format($total_expected, 0); ?></div>
-            </div>
-
-            <div class="stat-card danger">
-                <div class="stat-label">Pending Amount</div>
-                <div class="stat-value">₹<?php echo number_format($total_pending, 0); ?></div>
+                <div class="stat-label">Average Payment</div>
+                <div class="stat-value">₹<?php echo number_format($average_payment, 0); ?></div>
             </div>
         </div>
 
+        <!-- Interactive Charts Section -->
+        <div class="charts-row">
+            <!-- Pie Chart: Payment Status Distribution -->
+            <div class="chart-container">
+                <h3><i class="fas fa-chart-pie"></i> Payment Status Distribution</h3>
+                <div class="chart-wrapper">
+                    <canvas id="statusPieChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Doughnut Chart: Collection Rate -->
+            <div class="chart-container">
+                <h3><i class="fas fa-percentage"></i> Collection Rate</h3>
+                <div class="chart-wrapper">
+                    <canvas id="collectionDoughnutChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="charts-row">
+            <!-- Bar Chart: Monthly Trend -->
+            <div class="chart-container" style="grid-column: 1 / -1;">
+                <h3><i class="fas fa-chart-bar"></i> Monthly Collection Trend - <?php echo $selected_year; ?></h3>
+                <div class="chart-wrapper" style="height: 400px;">
+                    <canvas id="monthlyBarChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Line Chart: Amount vs Members -->
         <div class="chart-container">
-            <h3><i class="fas fa-calendar-alt"></i> Monthly Collection Trend - <?php echo $selected_year; ?></h3>
+            <h3><i class="fas fa-chart-line"></i> Collection Amount vs Number of Members</h3>
+            <div class="chart-wrapper">
+                <canvas id="amountMembersLineChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Original Monthly Bars (Keep for comparison) -->
+        <div class="chart-container">
+            <h3><i class="fas fa-calendar-alt"></i> Detailed Monthly Breakdown - <?php echo $selected_year; ?></h3>
             <?php
             $month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
             for ($m = 1; $m <= 12; $m++):
@@ -583,60 +629,7 @@ foreach ($yearly_data as $data) {
             </div>
         <?php endif; ?>
 
-        <!-- Partial Payment Members -->
-        <?php if (!empty($partial_members)): ?>
-            <div class="section-header warning">
-                <h2><i class="fas fa-exclamation-circle"></i> Partial Payment (<?php echo count($partial_members); ?>)</h2>
-            </div>
-            <div class="members-table">
-                <div class="table-responsive">
-                    <table class="table table-hover">
-                        <thead>
-                            <tr>
-                                <th>Member Name</th>
-                                <th>Contact</th>
-                                <th>Amount Paid</th>
-                                <th>Balance Due</th>
-                                <th>Payment Date</th>
-                                <th>Status</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($partial_members as $member): ?>
-                                <tr>
-                                    <td><strong><?php echo htmlspecialchars($member['full_name']); ?></strong></td>
-                                    <td>
-                                        <?php if ($member['phone']): ?>
-                                            <i class="fas fa-phone"></i> <?php echo htmlspecialchars($member['phone']); ?><br>
-                                        <?php endif; ?>
-                                        <?php if ($member['email']): ?>
-                                            <i class="fas fa-envelope"></i> <?php echo htmlspecialchars($member['email']); ?>
-                                        <?php endif; ?>
-                                    </td>
-                                    <td>
-                                        <span class="amount-display amount-warning">
-                                            ₹<?php echo number_format($member['payment_info']['total_paid'], 2); ?>
-                                        </span>
-                                    </td>
-                                    <td>
-                                        <span class="amount-display amount-danger">
-                                            ₹<?php echo number_format($member['balance_due'], 2); ?>
-                                        </span>
-                                    </td>
-                                    <td>
-                                        <?php
-                                        $date = new DateTime($member['payment_info']['last_payment_date']);
-                                        echo $date->format('d M Y');
-                                        ?>
-                                    </td>
-                                    <td><span class="status-badge status-partial">Partial</span></td>
-                                </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        <?php endif; ?>
+        <!-- Partial Payment section removed - CSF only supports PAID or UNPAID -->
 
         <!-- Unpaid Members -->
         <?php if (!empty($unpaid_members)): ?>
@@ -650,7 +643,6 @@ foreach ($yearly_data as $data) {
                             <tr>
                                 <th>Member Name</th>
                                 <th>Contact</th>
-                                <th>Amount Due</th>
                                 <th>Status</th>
                             </tr>
                         </thead>
@@ -666,11 +658,6 @@ foreach ($yearly_data as $data) {
                                             <i class="fas fa-envelope"></i> <?php echo htmlspecialchars($member['email']); ?>
                                         <?php endif; ?>
                                     </td>
-                                    <td>
-                                        <span class="amount-display amount-danger">
-                                            ₹<?php echo number_format($member['balance_due'], 2); ?>
-                                        </span>
-                                    </td>
                                     <td><span class="status-badge status-unpaid">Unpaid</span></td>
                                 </tr>
                             <?php endforeach; ?>
@@ -680,7 +667,7 @@ foreach ($yearly_data as $data) {
             </div>
         <?php endif; ?>
 
-        <?php if (empty($paid_members) && empty($partial_members) && empty($unpaid_members)): ?>
+        <?php if (empty($paid_members) && empty($unpaid_members)): ?>
             <div class="members-table">
                 <div class="no-members">
                     <i class="fas fa-users"></i>
@@ -692,5 +679,265 @@ foreach ($yearly_data as $data) {
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Chart.js Configuration
+        Chart.defaults.font.size = 16;
+        Chart.defaults.font.family = 'system-ui, -apple-system, sans-serif';
+
+        // 1. Payment Status Pie Chart (PAID vs UNPAID only)
+        const statusPieCtx = document.getElementById('statusPieChart').getContext('2d');
+        new Chart(statusPieCtx, {
+            type: 'pie',
+            data: {
+                labels: ['Paid', 'Unpaid'],
+                datasets: [{
+                    data: [<?php echo $paid_count; ?>, <?php echo $unpaid_count; ?>],
+                    backgroundColor: [
+                        'rgba(40, 167, 69, 0.8)',   // Green for Paid
+                        'rgba(220, 53, 69, 0.8)'    // Red for Unpaid
+                    ],
+                    borderColor: [
+                        'rgba(40, 167, 69, 1)',
+                        'rgba(220, 53, 69, 1)'
+                    ],
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            padding: 20,
+                            font: {
+                                size: 16
+                            }
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const label = context.label || '';
+                                const value = context.parsed || 0;
+                                const total = <?php echo $total_members; ?>;
+                                const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                                return label + ': ' + value + ' (' + percentage + '%)';
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        // 2. Member Status Doughnut Chart (Paid vs Unpaid Members)
+        const collectionDoughnutCtx = document.getElementById('collectionDoughnutChart').getContext('2d');
+        new Chart(collectionDoughnutCtx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Paid Members', 'Unpaid Members'],
+                datasets: [{
+                    data: [<?php echo $paid_count; ?>, <?php echo $unpaid_count; ?>],
+                    backgroundColor: [
+                        'rgba(40, 167, 69, 0.8)',
+                        'rgba(220, 53, 69, 0.8)'
+                    ],
+                    borderColor: [
+                        'rgba(40, 167, 69, 1)',
+                        'rgba(220, 53, 69, 1)'
+                    ],
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            padding: 20,
+                            font: {
+                                size: 16
+                            }
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const label = context.label || '';
+                                const value = context.parsed || 0;
+                                const total = <?php echo $total_members; ?>;
+                                const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                                return label + ': ' + value + ' (' + percentage + '%)';
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        // 3. Monthly Bar Chart
+        const monthlyBarCtx = document.getElementById('monthlyBarChart').getContext('2d');
+        const monthLabels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const monthlyAmounts = [
+            <?php
+            for ($m = 1; $m <= 12; $m++) {
+                echo $monthly_stats[$m]['total'];
+                if ($m < 12) echo ', ';
+            }
+            ?>
+        ];
+        const monthlyPayers = [
+            <?php
+            for ($m = 1; $m <= 12; $m++) {
+                echo $monthly_stats[$m]['payers'];
+                if ($m < 12) echo ', ';
+            }
+            ?>
+        ];
+
+        new Chart(monthlyBarCtx, {
+            type: 'bar',
+            data: {
+                labels: monthLabels,
+                datasets: [{
+                    label: 'Amount Collected (₹)',
+                    data: monthlyAmounts,
+                    backgroundColor: 'rgba(0, 123, 255, 0.8)',
+                    borderColor: 'rgba(0, 123, 255, 1)',
+                    borderWidth: 2,
+                    yAxisID: 'y'
+                }, {
+                    label: 'Number of Payers',
+                    data: monthlyPayers,
+                    backgroundColor: 'rgba(40, 167, 69, 0.8)',
+                    borderColor: 'rgba(40, 167, 69, 1)',
+                    borderWidth: 2,
+                    yAxisID: 'y1'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    mode: 'index',
+                    intersect: false
+                },
+                scales: {
+                    y: {
+                        type: 'linear',
+                        display: true,
+                        position: 'left',
+                        title: {
+                            display: true,
+                            text: 'Amount (₹)',
+                            font: {
+                                size: 16,
+                                weight: 'bold'
+                            }
+                        }
+                    },
+                    y1: {
+                        type: 'linear',
+                        display: true,
+                        position: 'right',
+                        title: {
+                            display: true,
+                            text: 'Number of Payers',
+                            font: {
+                                size: 16,
+                                weight: 'bold'
+                            }
+                        },
+                        grid: {
+                            drawOnChartArea: false
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        position: 'top',
+                        labels: {
+                            padding: 20,
+                            font: {
+                                size: 16
+                            }
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                let label = context.dataset.label || '';
+                                if (label) {
+                                    label += ': ';
+                                }
+                                if (context.datasetIndex === 0) {
+                                    label += '₹' + context.parsed.y.toLocaleString('en-IN');
+                                } else {
+                                    label += context.parsed.y + ' members';
+                                }
+                                return label;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        // 4. Line Chart: Amount vs Members
+        const amountMembersLineCtx = document.getElementById('amountMembersLineChart').getContext('2d');
+        new Chart(amountMembersLineCtx, {
+            type: 'line',
+            data: {
+                labels: monthLabels,
+                datasets: [{
+                    label: 'Total Amount (₹)',
+                    data: monthlyAmounts,
+                    borderColor: 'rgba(0, 123, 255, 1)',
+                    backgroundColor: 'rgba(0, 123, 255, 0.1)',
+                    borderWidth: 3,
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 6,
+                    pointHoverRadius: 8
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: 'Amount Collected (₹)',
+                            font: {
+                                size: 16,
+                                weight: 'bold'
+                            }
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return 'Amount: ₹' + context.parsed.y.toLocaleString('en-IN');
+                            },
+                            afterLabel: function(context) {
+                                const memberCount = monthlyPayers[context.dataIndex];
+                                return 'Members: ' + memberCount;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    </script>
 </body>
 </html>

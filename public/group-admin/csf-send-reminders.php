@@ -65,9 +65,8 @@ foreach ($payments as $payment) {
     $payment_lookup[$payment['user_id']] = $payment['total_paid'];
 }
 
-// Identify unpaid and partial payment members
+// Identify unpaid members only (no partial payment concept)
 $unpaid_members = [];
-$partial_members = [];
 
 foreach ($all_members as $member) {
     $user_id = $member['user_id'];
@@ -80,20 +79,14 @@ foreach ($all_members as $member) {
 
     $paid_amount = $payment_lookup[$user_id] ?? 0;
 
+    // Only UNPAID members (no payment at all)
     if ($paid_amount == 0) {
-        $member['balance_due'] = $monthly_contribution;
         $unpaid_members[] = $member;
-    } elseif ($paid_amount < $monthly_contribution) {
-        $member['paid_amount'] = $paid_amount;
-        $member['balance_due'] = $monthly_contribution - $paid_amount;
-        $partial_members[] = $member;
     }
 }
 
-// Default reminder messages
-$unpaid_message_template = "Dear {name},\n\nThis is a reminder that your CSF contribution of ₹{amount} for {month} is pending.\n\nPlease make the payment at your earliest convenience.\n\nThank you!\n{community_name}";
-
-$partial_message_template = "Dear {name},\n\nYou have paid ₹{paid} for CSF this month. The remaining balance is ₹{balance}.\n\nPlease complete the payment soon.\n\nThank you!\n{community_name}";
+// Default reminder message (removed partial payment template)
+$unpaid_message_template = "Dear {name},\n\nThis is a reminder that your CSF contribution for {month} is pending.\n\nPlease make the payment at your earliest convenience.\n\nThank you!\n{community_name}";
 
 ?>
 <!DOCTYPE html>
@@ -390,13 +383,9 @@ $partial_message_template = "Dear {name},\n\nYou have paid ₹{paid} for CSF thi
                 <div class="stat-label">Unpaid Members</div>
                 <div class="stat-value"><?php echo count($unpaid_members); ?></div>
             </div>
-            <div class="stat-card warning">
-                <div class="stat-label">Partial Payment</div>
-                <div class="stat-value"><?php echo count($partial_members); ?></div>
-            </div>
         </div>
 
-        <?php if (empty($unpaid_members) && empty($partial_members)): ?>
+        <?php if (empty($unpaid_members)): ?>
             <div class="members-section">
                 <div class="no-members">
                     <i class="fas fa-check-circle"></i>
@@ -412,8 +401,8 @@ $partial_message_template = "Dear {name},\n\nYou have paid ₹{paid} for CSF thi
 
                     <?php foreach ($unpaid_members as $member):
                         $message = str_replace(
-                            ['{name}', '{amount}', '{month}', '{community_name}'],
-                            [$member['full_name'], number_format($member['balance_due'], 2), $month_name, $community_name],
+                            ['{name}', '{month}', '{community_name}'],
+                            [$member['full_name'], $month_name, $community_name],
                             $unpaid_message_template
                         );
                         $whatsapp_url = "https://wa.me/" . preg_replace('/[^0-9]/', '', $member['phone']) . "?text=" . urlencode($message);
@@ -426,7 +415,7 @@ $partial_message_template = "Dear {name},\n\nYou have paid ₹{paid} for CSF thi
                                 <i class="fas fa-phone"></i> <?php echo htmlspecialchars($member['phone']); ?>
                             </div>
                             <div class="member-amount">
-                                Amount Due: ₹<?php echo number_format($member['balance_due'], 2); ?>
+                                Status: No Payment Made
                             </div>
                             <a href="<?php echo $whatsapp_url; ?>" target="_blank" class="btn btn-whatsapp">
                                 <i class="fab fa-whatsapp"></i> Send WhatsApp Reminder
@@ -436,77 +425,27 @@ $partial_message_template = "Dear {name},\n\nYou have paid ₹{paid} for CSF thi
                 </div>
             <?php endif; ?>
 
-            <!-- Partial Payment Members -->
-            <?php if (!empty($partial_members)): ?>
-                <div class="members-section">
-                    <h2><i class="fas fa-exclamation-triangle"></i> Partial Payment (<?php echo count($partial_members); ?>)</h2>
-
-                    <?php foreach ($partial_members as $member):
-                        $message = str_replace(
-                            ['{name}', '{paid}', '{balance}', '{month}', '{community_name}'],
-                            [$member['full_name'], number_format($member['paid_amount'], 2), number_format($member['balance_due'], 2), $month_name, $community_name],
-                            $partial_message_template
-                        );
-                        $whatsapp_url = "https://wa.me/" . preg_replace('/[^0-9]/', '', $member['phone']) . "?text=" . urlencode($message);
-                    ?>
-                        <div class="member-card partial">
-                            <div class="member-name">
-                                <i class="fas fa-user"></i> <?php echo htmlspecialchars($member['full_name']); ?>
-                            </div>
-                            <div class="member-phone">
-                                <i class="fas fa-phone"></i> <?php echo htmlspecialchars($member['phone']); ?>
-                            </div>
-                            <div class="member-amount warning">
-                                Paid: ₹<?php echo number_format($member['paid_amount'], 2); ?> |
-                                Balance: ₹<?php echo number_format($member['balance_due'], 2); ?>
-                            </div>
-                            <a href="<?php echo $whatsapp_url; ?>" target="_blank" class="btn btn-whatsapp">
-                                <i class="fab fa-whatsapp"></i> Send WhatsApp Reminder
-                            </a>
-                        </div>
-                    <?php endforeach; ?>
-                </div>
-            <?php endif; ?>
+            <!-- Partial Payment section removed - CSF only supports PAID or UNPAID -->
 
             <div class="section-divider"></div>
 
             <!-- Message Templates -->
             <div class="template-section">
-                <h3><i class="fas fa-edit"></i> Customize Message Templates</h3>
+                <h3><i class="fas fa-edit"></i> Customize Message Template</h3>
 
                 <div class="mb-4">
                     <label class="form-label">Template for Unpaid Members</label>
                     <textarea class="form-control" id="unpaid-template"><?php echo htmlspecialchars($unpaid_message_template); ?></textarea>
                     <div class="variable-tags">
                         <span class="variable-tag">{name}</span>
-                        <span class="variable-tag">{amount}</span>
                         <span class="variable-tag">{month}</span>
                         <span class="variable-tag">{community_name}</span>
                     </div>
                     <div class="message-preview" id="unpaid-preview">
                         <?php echo htmlspecialchars(str_replace(
-                            ['{name}', '{amount}', '{month}', '{community_name}'],
-                            ['John Doe', number_format($monthly_contribution, 2), $month_name, $community_name],
+                            ['{name}', '{month}', '{community_name}'],
+                            ['John Doe', $month_name, $community_name],
                             $unpaid_message_template
-                        )); ?>
-                    </div>
-                </div>
-
-                <div class="mb-4">
-                    <label class="form-label">Template for Partial Payment Members</label>
-                    <textarea class="form-control" id="partial-template"><?php echo htmlspecialchars($partial_message_template); ?></textarea>
-                    <div class="variable-tags">
-                        <span class="variable-tag">{name}</span>
-                        <span class="variable-tag">{paid}</span>
-                        <span class="variable-tag">{balance}</span>
-                        <span class="variable-tag">{month}</span>
-                        <span class="variable-tag">{community_name}</span>
-                    </div>
-                    <div class="message-preview" id="partial-preview">
-                        <?php echo htmlspecialchars(str_replace(
-                            ['{name}', '{paid}', '{balance}', '{month}', '{community_name}'],
-                            ['Jane Smith', '50.00', '50.00', $month_name, $community_name],
-                            $partial_message_template
                         )); ?>
                     </div>
                 </div>
@@ -526,21 +465,9 @@ $partial_message_template = "Dear {name},\n\nYou have paid ₹{paid} for CSF thi
             const template = this.value;
             const preview = template
                 .replace('{name}', 'John Doe')
-                .replace('{amount}', '<?php echo number_format($monthly_contribution, 2); ?>')
                 .replace('{month}', '<?php echo $month_name; ?>')
                 .replace('{community_name}', '<?php echo htmlspecialchars($community_name, ENT_QUOTES); ?>');
             document.getElementById('unpaid-preview').textContent = preview;
-        });
-
-        document.getElementById('partial-template').addEventListener('input', function() {
-            const template = this.value;
-            const preview = template
-                .replace('{name}', 'Jane Smith')
-                .replace('{paid}', '50.00')
-                .replace('{balance}', '50.00')
-                .replace('{month}', '<?php echo $month_name; ?>')
-                .replace('{community_name}', '<?php echo htmlspecialchars($community_name, ENT_QUOTES); ?>');
-            document.getElementById('partial-preview').textContent = preview;
         });
     </script>
 </body>

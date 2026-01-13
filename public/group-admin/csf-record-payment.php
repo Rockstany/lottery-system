@@ -240,7 +240,11 @@ $default_amount = 100;
             border-radius: 10px;
             font-weight: 600;
             min-width: 180px;
+            min-height: 60px;
             margin: 10px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
         }
 
         .btn-next {
@@ -278,6 +282,43 @@ $default_amount = 100;
             justify-content: center;
             gap: 20px;
             margin-top: 40px;
+            flex-wrap: wrap;
+        }
+
+        /* Mobile optimization for buttons */
+        @media (max-width: 768px) {
+            .btn-custom {
+                font-size: 20px;
+                padding: 16px 30px;
+                min-width: 150px;
+                min-height: 56px;
+                margin: 8px;
+            }
+
+            .button-group {
+                gap: 15px;
+                margin-top: 30px;
+            }
+
+            .form-section {
+                padding: 25px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .btn-custom {
+                font-size: 18px;
+                padding: 14px 25px;
+                min-width: 140px;
+                width: 100%;
+                max-width: 250px;
+            }
+
+            .button-group {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 12px;
+            }
         }
 
         .step-content {
