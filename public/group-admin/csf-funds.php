@@ -168,6 +168,13 @@ $breadcrumbs = [
         <!-- Action Cards -->
         <div class="action-grid">
             <div class="action-card">
+                <div class="action-icon">👥</div>
+                <h3>Manage Members</h3>
+                <p style="color: #666;">Add members single or bulk import</p>
+                <a href="/public/group-admin/csf-manage-members.php" class="action-btn">Manage Members</a>
+            </div>
+
+            <div class="action-card">
                 <div class="action-icon">💵</div>
                 <h3>Record Payment</h3>
                 <p style="color: #666;">Collect and record CSF contributions from members</p>

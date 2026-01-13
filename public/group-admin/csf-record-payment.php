@@ -406,18 +406,18 @@ $default_amount = 100;
                 <div class="step-content active" id="step-1">
                     <h3 class="mb-4">Step 1: Select Member</h3>
                     <div class="mb-4">
-                        <label class="form-label">Choose Member</label>
-                        <select class="form-select" name="user_id" id="user_id" required>
-                            <option value="">-- Select Member --</option>
-                            <?php foreach ($members as $member): ?>
-                                <option value="<?php echo $member['user_id']; ?>">
-                                    <?php echo htmlspecialchars($member['full_name']); ?>
-                                    <?php if ($member['phone']): ?>
-                                        (<?php echo htmlspecialchars($member['phone']); ?>)
-                                    <?php endif; ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
+                        <label class="form-label">Search Member</label>
+                        <input type="text" class="form-control" id="member_search" placeholder="Type name, mobile, or use @Area1 @Akshit" autocomplete="off">
+                        <input type="hidden" name="user_id" id="user_id" required>
+                        <div id="search_results" style="position: relative; margin-top: 10px;"></div>
+                        <small class="text-muted" style="font-size: 16px;">
+                            <i class="fas fa-lightbulb"></i> <strong>Smart Search:</strong> Use @Area @Name to filter by area<br>
+                            Example: <code>@Area1 @Akshit</code> finds Akshit in Area 1
+                        </small>
+                    </div>
+                    <div id="selected_member" style="display: none; background: #e7f3ff; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
+                        <h5 style="margin-bottom: 10px;">Selected Member:</h5>
+                        <div id="selected_member_info"></div>
                     </div>
                     <div class="button-group">
                         <button type="button" class="btn btn-custom btn-next" onclick="nextStep(1)">
@@ -716,6 +716,84 @@ $default_amount = 100;
                 radio.checked = true;
                 selectPaymentMethod(radio.value);
             });
+        });
+
+        // Smart Search Autocomplete
+        let searchTimeout;
+        const memberSearchInput = document.getElementById('member_search');
+        const searchResults = document.getElementById('search_results');
+        const userIdInput = document.getElementById('user_id');
+        const selectedMemberDiv = document.getElementById('selected_member');
+        const selectedMemberInfo = document.getElementById('selected_member_info');
+
+        memberSearchInput.addEventListener('input', function() {
+            clearTimeout(searchTimeout);
+            const query = this.value.trim();
+
+            if (query.length < 2) {
+                searchResults.innerHTML = '';
+                return;
+            }
+
+            searchTimeout = setTimeout(() => {
+                fetch(`/public/group-admin/csf-api-search-member.php?q=${encodeURIComponent(query)}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success && data.members.length > 0) {
+                            let html = '<div style="background: white; border: 2px solid #007bff; border-radius: 10px; max-height: 400px; overflow-y: auto; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">';
+
+                            data.members.forEach(member => {
+                                html += `<div class="search-result-item" onclick="selectMember(${member.user_id}, '${escapeHtml(member.full_name)}', '${escapeHtml(member.mobile_number)}', '${escapeHtml(member.sub_community_name)}')"
+                                    style="padding: 15px; border-bottom: 1px solid #eee; cursor: pointer; font-size: 18px;">
+                                    <strong>${escapeHtml(member.full_name)}</strong><br>
+                                    <span style="color: #666; font-size: 16px;">
+                                        <i class="fas fa-phone"></i> ${escapeHtml(member.mobile_number)} |
+                                        <i class="fas fa-map-marker-alt"></i> ${escapeHtml(member.sub_community_name)}
+                                    </span>
+                                </div>`;
+                            });
+
+                            html += '</div>';
+                            searchResults.innerHTML = html;
+                        } else {
+                            searchResults.innerHTML = '<div style="padding: 15px; background: #fff3cd; border-radius: 8px; color: #856404;">No members found</div>';
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Search error:', error);
+                        searchResults.innerHTML = '<div style="padding: 15px; background: #f8d7da; border-radius: 8px; color: #721c24;">Search failed</div>';
+                    });
+            }, 300);
+        });
+
+        function selectMember(userId, fullName, mobile, area) {
+            userIdInput.value = userId;
+            memberSearchInput.value = fullName;
+            searchResults.innerHTML = '';
+
+            selectedMemberInfo.innerHTML = `
+                <div style="font-size: 20px;">
+                    <strong>${fullName}</strong><br>
+                    <span style="color: #666;">
+                        <i class="fas fa-phone"></i> ${mobile} |
+                        <i class="fas fa-map-marker-alt"></i> ${area}
+                    </span>
+                </div>
+            `;
+            selectedMemberDiv.style.display = 'block';
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Clear search results when clicking outside
+        document.addEventListener('click', function(e) {
+            if (!memberSearchInput.contains(e.target) && !searchResults.contains(e.target)) {
+                searchResults.innerHTML = '';
+            }
         });
     </script>
 </body>
