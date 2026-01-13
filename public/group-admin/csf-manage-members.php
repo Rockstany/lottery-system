@@ -56,10 +56,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 throw new Exception("Member already exists in this area");
             }
         } else {
-            // Create new user
-            $password = password_hash('Welcome@123', PASSWORD_DEFAULT);
-            $stmt = $db->prepare("INSERT INTO users (full_name, email, mobile_number, password, role, created_at) VALUES (?, ?, ?, ?, 'user', NOW())");
-            $stmt->execute([$full_name, $email, $mobile_number, $password]);
+            // Create new user (role must be group_admin as per schema, CSF members are in sub_community_members table)
+            $password_hash = password_hash('Welcome@123', PASSWORD_DEFAULT);
+            $plain_password = 'Welcome@123';
+            $stmt = $db->prepare("INSERT INTO users (full_name, email, mobile_number, password_hash, plain_password, role, created_at) VALUES (?, ?, ?, ?, ?, 'group_admin', NOW())");
+            $stmt->execute([$full_name, $email, $mobile_number, $password_hash, $plain_password]);
             $user_id = $db->lastInsertId();
         }
 
@@ -128,10 +129,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                         continue;
                     }
                 } else {
-                    // Create new user
-                    $password = password_hash('Welcome@123', PASSWORD_DEFAULT);
-                    $stmt = $db->prepare("INSERT INTO users (full_name, email, mobile_number, password, role, created_at) VALUES (?, ?, ?, ?, 'user', NOW())");
-                    $stmt->execute([$full_name, $email, $mobile_number, $password]);
+                    // Create new user (role must be group_admin as per schema, CSF members are in sub_community_members table)
+                    $password_hash = password_hash('Welcome@123', PASSWORD_DEFAULT);
+                    $plain_password = 'Welcome@123';
+                    $stmt = $db->prepare("INSERT INTO users (full_name, email, mobile_number, password_hash, plain_password, role, created_at) VALUES (?, ?, ?, ?, ?, 'group_admin', NOW())");
+                    $stmt->execute([$full_name, $email, $mobile_number, $password_hash, $plain_password]);
                     $user_id = $db->lastInsertId();
                 }
 

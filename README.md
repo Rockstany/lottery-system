@@ -8,10 +8,11 @@
 
 ## Project Overview
 
-GetToKnow is a modern, senior-friendly community management platform focused on two core features:
+GetToKnow is a modern, senior-friendly community management platform focused on three core features:
 
 1. **Lottery System** - Complete 6-part workflow for managing community lottery events
-2. **Transaction Collection** - CSV-based payment tracking with WhatsApp reminders
+2. **Community Building** - Hierarchical community structure with sub-communities and member management
+3. **CSF (Community Social Funds)** - Monthly contribution tracking with smart member search and bulk import
 
 **Target Users:** Community administrators aged 40-60 years
 **Design Philosophy:** MyGate-inspired, simple, interactive, and accessible
