@@ -38,8 +38,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $transaction_id = $_POST['transaction_id'] ?? null;
             $notes = $_POST['notes'] ?? null;
 
-            // Validate user belongs to community
-            $stmt = $db->prepare("SELECT scm.user_id, u.full_name
+            // Validate user belongs to community and get sub_community_id
+            $stmt = $db->prepare("SELECT scm.user_id, scm.sub_community_id, u.full_name
                                    FROM sub_community_members scm
                                    JOIN users u ON scm.user_id = u.user_id
                                    JOIN sub_communities sc ON scm.sub_community_id = sc.sub_community_id
@@ -51,17 +51,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new Exception("Invalid member selected");
             }
 
+            $sub_community_id = $user['sub_community_id'];
+
             // Calculate payment_for_months (JSON array format with single month)
             // The constraint likely expects: JSON_VALID(payment_for_months) AND JSON_LENGTH(payment_for_months) > 0
             $payment_month = date('Y-m', strtotime($payment_date));
             $payment_for_months = json_encode([$payment_month], JSON_UNESCAPED_SLASHES);
 
-            // Insert payment record
+            // Insert payment record with all required fields
             $stmt = $db->prepare("INSERT INTO csf_payments
-                                   (community_id, user_id, amount, payment_date, payment_method, transaction_id, notes, collected_by, payment_for_months, created_at)
-                                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())");
+                                   (community_id, sub_community_id, user_id, amount, payment_date, payment_method, transaction_id, notes, collected_by, payment_for_months, created_at)
+                                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())");
             $stmt->execute([
                 $communityId,
+                $sub_community_id,
                 $user_id,
                 $amount,
                 $payment_date,
