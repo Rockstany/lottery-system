@@ -37,9 +37,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $payment_method = $_POST['payment_method'];
             $transaction_id = $_POST['transaction_id'] ?? null;
             $notes = $_POST['notes'] ?? null;
+            $payment_months_json = $_POST['payment_months'] ?? '[]';
 
             // Validate user belongs to community and get sub_community_id
-            $stmt = $db->prepare("SELECT scm.user_id, scm.sub_community_id, u.full_name
+            $stmt = $db->prepare("SELECT scm.user_id, scm.sub_community_id, u.full_name, u.mobile_number
                                    FROM sub_community_members scm
                                    JOIN users u ON scm.user_id = u.user_id
                                    JOIN sub_communities sc ON scm.sub_community_id = sc.sub_community_id
@@ -53,29 +54,56 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $sub_community_id = $user['sub_community_id'];
 
-            // Calculate payment_for_months (JSON array format with single month)
-            // The constraint likely expects: JSON_VALID(payment_for_months) AND JSON_LENGTH(payment_for_months) > 0
-            $payment_month = date('Y-m', strtotime($payment_date));
-            $payment_for_months = json_encode([$payment_month], JSON_UNESCAPED_SLASHES);
+            // Parse selected months
+            $payment_months = json_decode($payment_months_json, true);
+            if (empty($payment_months) || !is_array($payment_months)) {
+                throw new Exception("Please select at least one month");
+            }
 
-            // Insert payment record with all required fields
+            // Check for duplicates before inserting
+            $duplicates = [];
+            foreach ($payment_months as $month) {
+                $checkStmt = $db->prepare("SELECT COUNT(*) as count FROM csf_payments
+                                           WHERE community_id = ? AND user_id = ? AND DATE_FORMAT(payment_date, '%Y-%m') = ?");
+                $checkStmt->execute([$communityId, $user_id, $month]);
+                $result = $checkStmt->fetch(PDO::FETCH_ASSOC);
+
+                if ($result['count'] > 0) {
+                    $duplicates[] = date('F Y', strtotime($month . '-01'));
+                }
+            }
+
+            if (!empty($duplicates)) {
+                throw new Exception("Member " . htmlspecialchars($user['full_name']) . " (Mobile: " . htmlspecialchars($user['mobile_number']) . ") has already paid for: " . implode(', ', $duplicates));
+            }
+
+            // Insert payment records for each month
             $stmt = $db->prepare("INSERT INTO csf_payments
                                    (community_id, sub_community_id, user_id, amount, payment_date, payment_method, transaction_id, notes, collected_by, payment_for_months, created_at)
                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())");
-            $stmt->execute([
-                $communityId,
-                $sub_community_id,
-                $user_id,
-                $amount,
-                $payment_date,
-                $payment_method,
-                $transaction_id,
-                $notes,
-                $userId,
-                $payment_for_months
-            ]);
 
-            $success_message = "Payment of ₹" . number_format($amount, 2) . " recorded successfully for " . htmlspecialchars($user['full_name']);
+            $insertedCount = 0;
+            foreach ($payment_months as $month) {
+                // Use the actual payment_date but store month in payment_for_months
+                $payment_for_months = json_encode([$month], JSON_UNESCAPED_SLASHES);
+
+                $stmt->execute([
+                    $communityId,
+                    $sub_community_id,
+                    $user_id,
+                    $amount,
+                    $payment_date,
+                    $payment_method,
+                    $transaction_id,
+                    $notes,
+                    $userId,
+                    $payment_for_months
+                ]);
+                $insertedCount++;
+            }
+
+            $monthsText = count($payment_months) === 1 ? '1 month' : count($payment_months) . ' months';
+            $success_message = "Payment of ₹" . number_format($amount, 2) . " recorded successfully for " . htmlspecialchars($user['full_name']) . " (" . $monthsText . ")";
 
             // Reset form
             $_POST = [];
@@ -497,14 +525,83 @@ $default_amount = 100;
                     </div>
                 </div>
 
-                <!-- Step 3: Select Date -->
+                <!-- Step 3: Select Date & Months -->
                 <div class="step-content" id="step-3">
-                    <h3 class="mb-4">Step 3: Select Payment Date</h3>
+                    <h3 class="mb-4">Step 3: Select Payment Date & Months</h3>
+
                     <div class="mb-4">
                         <label class="form-label">Payment Date</label>
                         <input type="date" class="form-control" name="payment_date" id="payment_date"
                                value="<?php echo date('Y-m-d'); ?>" max="<?php echo date('Y-m-d'); ?>" required>
+                        <small class="text-muted" style="font-size: 16px;">
+                            <i class="fas fa-info-circle"></i> Date when payment was received
+                        </small>
                     </div>
+
+                    <div class="mb-4">
+                        <label class="form-label">Payment For Months</label>
+                        <div id="month-selection-container" style="background: #f8f9fa; padding: 20px; border-radius: 10px; border: 2px solid #dee2e6;">
+                            <div class="mb-3">
+                                <label style="font-size: 18px; font-weight: 600; color: #2c3e50;">
+                                    <input type="checkbox" id="select-single-month" checked style="width: 20px; height: 20px; margin-right: 10px;">
+                                    Single Month (Current)
+                                </label>
+                            </div>
+                            <div class="mb-3">
+                                <label style="font-size: 18px; font-weight: 600; color: #2c3e50;">
+                                    <input type="checkbox" id="select-multiple-months" style="width: 20px; height: 20px; margin-right: 10px;">
+                                    Multiple Months
+                                </label>
+                            </div>
+
+                            <!-- Single Month Selection (Default) -->
+                            <div id="single-month-selector" style="margin-top: 15px;">
+                                <select class="form-select" id="single-month" style="font-size: 18px;">
+                                    <?php
+                                    // Generate last 12 months options
+                                    for ($i = 0; $i < 12; $i++) {
+                                        $monthDate = date('Y-m', strtotime("-$i months"));
+                                        $monthLabel = date('F Y', strtotime("-$i months"));
+                                        $selected = ($i == 0) ? 'selected' : '';
+                                        echo "<option value='$monthDate' $selected>$monthLabel</option>";
+                                    }
+                                    ?>
+                                </select>
+                            </div>
+
+                            <!-- Multiple Months Selection -->
+                            <div id="multiple-months-selector" style="display: none; margin-top: 15px;">
+                                <div style="max-height: 300px; overflow-y: auto; background: white; padding: 15px; border-radius: 8px;">
+                                    <?php
+                                    // Generate checkboxes for last 12 months
+                                    for ($i = 0; $i < 12; $i++) {
+                                        $monthDate = date('Y-m', strtotime("-$i months"));
+                                        $monthLabel = date('F Y', strtotime("-$i months"));
+                                        echo '<div style="margin-bottom: 10px;">';
+                                        echo '<label style="font-size: 18px; display: flex; align-items: center; cursor: pointer; padding: 10px; border-radius: 5px; background: #f8f9fa;">';
+                                        echo '<input type="checkbox" class="month-checkbox" value="'.$monthDate.'" style="width: 20px; height: 20px; margin-right: 10px;">';
+                                        echo '<span>'.$monthLabel.'</span>';
+                                        echo '</label>';
+                                        echo '</div>';
+                                    }
+                                    ?>
+                                </div>
+                                <div id="selected-months-count" style="margin-top: 10px; font-size: 16px; color: #007bff; font-weight: 600;">
+                                    0 months selected
+                                </div>
+                            </div>
+
+                            <input type="hidden" name="payment_months" id="payment_months" required>
+                        </div>
+                    </div>
+
+                    <div id="duplicate-warning" style="display: none; background: #f8d7da; border: 2px solid #dc3545; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
+                        <div style="font-size: 20px; color: #721c24; font-weight: bold;">
+                            <i class="fas fa-exclamation-triangle"></i> Payment Already Exists
+                        </div>
+                        <div id="duplicate-message" style="font-size: 18px; color: #721c24; margin-top: 10px;"></div>
+                    </div>
+
                     <div class="button-group">
                         <button type="button" class="btn btn-custom btn-prev" onclick="prevStep(3)">
                             <i class="fas fa-arrow-left"></i> Previous
@@ -648,7 +745,7 @@ $default_amount = 100;
             window.scrollTo(0, 0);
         }
 
-        function validateStep(step) {
+        async function validateStep(step) {
             switch(step) {
                 case 1:
                     const userId = document.getElementById('user_id').value;
@@ -670,6 +767,22 @@ $default_amount = 100;
                         alert('Please select a payment date');
                         return false;
                     }
+
+                    // Update payment_months hidden field
+                    updatePaymentMonthsField();
+
+                    const monthsField = document.getElementById('payment_months').value;
+                    if (!monthsField) {
+                        alert('Please select at least one month');
+                        return false;
+                    }
+
+                    // Check for duplicate payments
+                    const duplicateCheck = await checkDuplicatePayment();
+                    if (!duplicateCheck.success) {
+                        return false;
+                    }
+
                     return true;
                 case 4:
                     const method = document.querySelector('input[name="payment_method"]:checked');
@@ -683,8 +796,9 @@ $default_amount = 100;
             }
         }
 
-        function nextStep(step) {
-            if (validateStep(step)) {
+        async function nextStep(step) {
+            const isValid = await validateStep(step);
+            if (isValid) {
                 if (step === 4) {
                     updateSummary();
                 }
@@ -851,6 +965,185 @@ $default_amount = 100;
                 searchResults.innerHTML = '';
             }
         });
+
+        // ==================== MULTI-MONTH PAYMENT LOGIC ====================
+
+        // Month selection mode toggle
+        const singleMonthCheckbox = document.getElementById('select-single-month');
+        const multipleMonthsCheckbox = document.getElementById('select-multiple-months');
+        const singleMonthSelector = document.getElementById('single-month-selector');
+        const multipleMonthsSelector = document.getElementById('multiple-months-selector');
+
+        singleMonthCheckbox.addEventListener('change', function() {
+            if (this.checked) {
+                multipleMonthsCheckbox.checked = false;
+                singleMonthSelector.style.display = 'block';
+                multipleMonthsSelector.style.display = 'none';
+                updatePaymentMonthsField();
+            }
+        });
+
+        multipleMonthsCheckbox.addEventListener('change', function() {
+            if (this.checked) {
+                singleMonthCheckbox.checked = false;
+                singleMonthSelector.style.display = 'none';
+                multipleMonthsSelector.style.display = 'block';
+                updatePaymentMonthsField();
+            } else if (!singleMonthCheckbox.checked) {
+                // If both unchecked, default to single month
+                singleMonthCheckbox.checked = true;
+                singleMonthSelector.style.display = 'block';
+                multipleMonthsSelector.style.display = 'none';
+            }
+        });
+
+        // Update selected months count
+        const monthCheckboxes = document.querySelectorAll('.month-checkbox');
+        monthCheckboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', function() {
+                updateSelectedMonthsCount();
+                updatePaymentMonthsField();
+            });
+        });
+
+        function updateSelectedMonthsCount() {
+            const checkedBoxes = document.querySelectorAll('.month-checkbox:checked');
+            const count = checkedBoxes.length;
+            document.getElementById('selected-months-count').textContent = count + ' month' + (count !== 1 ? 's' : '') + ' selected';
+        }
+
+        // Update payment_months hidden field
+        function updatePaymentMonthsField() {
+            let selectedMonths = [];
+
+            if (singleMonthCheckbox.checked) {
+                // Single month mode
+                const singleMonth = document.getElementById('single-month').value;
+                selectedMonths = [singleMonth];
+            } else if (multipleMonthsCheckbox.checked) {
+                // Multiple months mode
+                const checkedBoxes = document.querySelectorAll('.month-checkbox:checked');
+                selectedMonths = Array.from(checkedBoxes).map(cb => cb.value);
+            }
+
+            // Update hidden field as JSON array
+            document.getElementById('payment_months').value = JSON.stringify(selectedMonths);
+        }
+
+        // Initialize payment_months field on page load
+        updatePaymentMonthsField();
+
+        // Also update when single-month dropdown changes
+        document.getElementById('single-month').addEventListener('change', updatePaymentMonthsField);
+
+        // ==================== DUPLICATE PAYMENT CHECK ====================
+
+        async function checkDuplicatePayment() {
+            const userId = document.getElementById('user_id').value;
+            const monthsField = document.getElementById('payment_months').value;
+            const duplicateWarning = document.getElementById('duplicate-warning');
+            const duplicateMessage = document.getElementById('duplicate-message');
+
+            if (!userId || !monthsField) {
+                return { success: true };
+            }
+
+            try {
+                const formData = new FormData();
+                formData.append('user_id', userId);
+                formData.append('months', monthsField);
+
+                const response = await fetch('/public/group-admin/csf-api-check-duplicate.php', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    // No duplicates, hide warning
+                    duplicateWarning.style.display = 'none';
+                    return { success: true };
+                } else {
+                    // Duplicates found, show warning
+                    duplicateMessage.innerHTML = '<strong>' + selectedMemberName + '</strong> (Mobile: ' + selectedMemberMobile + ')<br>' + result.message;
+                    duplicateWarning.style.display = 'block';
+                    window.scrollTo(0, duplicateWarning.offsetTop - 100);
+                    return { success: false };
+                }
+            } catch (error) {
+                console.error('Duplicate check error:', error);
+                alert('Error checking for duplicate payments. Please try again.');
+                return { success: false };
+            }
+        }
+
+        // ==================== UPDATE SUMMARY FOR MULTI-MONTH ====================
+
+        function updateSummary() {
+            // Member
+            document.getElementById('summary_member').textContent = selectedMemberName + ' (' + selectedMemberMobile + ')';
+
+            // Amount
+            const amount = document.getElementById('amount').value;
+            document.getElementById('summary_amount').textContent = '₹' + parseFloat(amount).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+
+            // Date
+            const date = document.getElementById('payment_date').value;
+            const dateObj = new Date(date);
+            document.getElementById('summary_date').textContent = dateObj.toLocaleDateString('en-IN', {
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric'
+            });
+
+            // Method
+            const method = document.querySelector('input[name="payment_method"]:checked').value;
+            const methodLabels = {
+                'cash': 'Cash',
+                'upi': 'UPI / PhonePe / Google Pay',
+                'bank_transfer': 'Bank Transfer',
+                'cheque': 'Cheque'
+            };
+            document.getElementById('summary_method').textContent = methodLabels[method];
+
+            // Months (NEW)
+            const monthsField = document.getElementById('payment_months').value;
+            const selectedMonths = JSON.parse(monthsField);
+            const monthLabels = selectedMonths.map(m => {
+                const date = new Date(m + '-01');
+                return date.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+            });
+
+            // Add months to summary (insert after date)
+            let monthsSummaryContainer = document.getElementById('summary_months_container');
+            if (!monthsSummaryContainer) {
+                monthsSummaryContainer = document.createElement('div');
+                monthsSummaryContainer.id = 'summary_months_container';
+                monthsSummaryContainer.className = 'summary-item';
+                monthsSummaryContainer.innerHTML = '<div class="summary-label">Payment For Months</div><div class="summary-value" id="summary_months">-</div>';
+                document.getElementById('summary_date').closest('.summary-item').after(monthsSummaryContainer);
+            }
+            document.getElementById('summary_months').innerHTML = monthLabels.join('<br>');
+
+            // Reference Number
+            const reference = document.getElementById('transaction_id').value;
+            if (reference) {
+                document.getElementById('summary_reference').textContent = reference;
+                document.getElementById('summary_reference_container').style.display = 'block';
+            } else {
+                document.getElementById('summary_reference_container').style.display = 'none';
+            }
+
+            // Notes
+            const notes = document.getElementById('notes').value;
+            if (notes) {
+                document.getElementById('summary_notes').textContent = notes;
+                document.getElementById('summary_notes_container').style.display = 'block';
+            } else {
+                document.getElementById('summary_notes_container').style.display = 'none';
+            }
+        }
     </script>
 </body>
 </html>

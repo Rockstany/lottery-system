@@ -448,6 +448,12 @@ foreach ($yearly_data as $data) {
         <div class="header-section">
             <h1>
                 <i class="fas fa-chart-bar"></i> CSF Reports
+                <a href="csf-export-excel.php?month=<?php echo $selected_month; ?>&year=<?php echo $selected_year; ?>"
+                   class="btn btn-custom"
+                   style="background: #28a745; color: white; border: none; float: right; margin-left: 10px;"
+                   download>
+                    <i class="fas fa-file-excel"></i> Export to Excel
+                </a>
                 <button type="button" class="btn btn-custom print-btn" onclick="window.print()">
                     <i class="fas fa-print"></i> Print Report
                 </button>
