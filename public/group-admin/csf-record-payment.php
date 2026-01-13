@@ -35,7 +35,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $amount = $_POST['amount'];
             $payment_date = $_POST['payment_date'];
             $payment_method = $_POST['payment_method'];
-            $reference_number = $_POST['reference_number'] ?? null;
+            $transaction_id = $_POST['transaction_id'] ?? null;
             $notes = $_POST['notes'] ?? null;
 
             // Validate user belongs to community
@@ -53,7 +53,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             // Insert payment record
             $stmt = $db->prepare("INSERT INTO csf_payments
-                                   (community_id, user_id, amount, payment_date, payment_method, reference_number, notes, collected_by, created_at)
+                                   (community_id, user_id, amount, payment_date, payment_method, transaction_id, notes, collected_by, created_at)
                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())");
             $stmt->execute([
                 $communityId,
@@ -61,7 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $amount,
                 $payment_date,
                 $payment_method,
-                $reference_number,
+                $transaction_id,
                 $notes,
                 $userId
             ]);
@@ -500,9 +500,9 @@ $default_amount = 100;
                         </div>
                     </div>
 
-                    <div class="mb-4" id="reference_number_field" style="display: none;">
+                    <div class="mb-4" id="transaction_id_field" style="display: none;">
                         <label class="form-label">Transaction Reference Number (Optional)</label>
-                        <input type="text" class="form-control" name="reference_number" id="reference_number">
+                        <input type="text" class="form-control" name="transaction_id" id="transaction_id">
                     </div>
 
                     <div class="mb-4">
@@ -653,7 +653,7 @@ $default_amount = 100;
             radio.closest('.payment-method-card').classList.add('selected');
 
             // Show/hide reference number field
-            const refField = document.getElementById('reference_number_field');
+            const refField = document.getElementById('transaction_id_field');
             if (method !== 'cash') {
                 refField.style.display = 'block';
             } else {
@@ -691,7 +691,7 @@ $default_amount = 100;
             document.getElementById('summary_method').textContent = methodLabels[method];
 
             // Reference Number
-            const reference = document.getElementById('reference_number').value;
+            const reference = document.getElementById('transaction_id').value;
             if (reference) {
                 document.getElementById('summary_reference').textContent = reference;
                 document.getElementById('summary_reference_container').style.display = 'block';

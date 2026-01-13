@@ -49,7 +49,8 @@ $sql = "SELECT
             cp.amount,
             cp.payment_date,
             cp.payment_method,
-            cp.reference_number,
+            cp.transaction_id,
+            cp.proof_image,
             cp.notes,
             cp.created_at as recorded_at,
             u.full_name,
@@ -83,7 +84,7 @@ if ($filter_method) {
 }
 
 if ($search_query) {
-    $sql .= " AND (u.full_name LIKE ? OR cp.reference_number LIKE ? OR cp.notes LIKE ?)";
+    $sql .= " AND (u.full_name LIKE ? OR cp.transaction_id LIKE ? OR cp.notes LIKE ?)";
     $search_param = '%' . $search_query . '%';
     $params[] = $search_param;
     $params[] = $search_param;
@@ -541,8 +542,8 @@ $total_payments = count($payments);
                                         </span>
                                     </td>
                                     <td>
-                                        <?php if ($payment['reference_number']): ?>
-                                            <code><?php echo htmlspecialchars($payment['reference_number']); ?></code>
+                                        <?php if ($payment['transaction_id']): ?>
+                                            <code><?php echo htmlspecialchars($payment['transaction_id']); ?></code>
                                         <?php else: ?>
                                             <span class="text-muted">-</span>
                                         <?php endif; ?>
