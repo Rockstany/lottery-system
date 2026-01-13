@@ -400,6 +400,8 @@ $breadcrumbs = [
                             $featureUrl = '/public/group-admin/lottery.php';
                         } elseif ($feature['feature_key'] === 'community_building') {
                             $featureUrl = '/public/group-admin/community-building.php';
+                        } elseif ($feature['feature_key'] === 'csf_funds') {
+                            $featureUrl = '/public/group-admin/csf-funds.php';
                         }
                         ?>
                         <a href="<?php echo $featureUrl; ?>" class="feature-card">
