@@ -152,10 +152,13 @@ $unpaid_count = count($unpaid_members);
 $partial_count = 0; // No longer used, but kept for backward compatibility with charts
 $collection_rate = $total_members > 0 ? ($paid_count / $total_members) * 100 : 0;
 
-// Total collected for selected month
-$total_collected = array_sum($monthly_payment_lookup);
+// Total collected across all months in the date range
+$total_collected = 0;
+foreach ($month_wise_data as $month => $data) {
+    $total_collected += $data['total_amount'];
+}
 
-// Average payment for selected month
+// Average payment per member across the date range
 $average_payment = $paid_count > 0 ? $total_collected / $paid_count : 0;
 
 // Get yearly statistics
