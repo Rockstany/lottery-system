@@ -32,12 +32,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['action']) && $_POST['action'] === 'record_payment') {
         try {
             $user_id = $_POST['user_id'];
-            $amount = $_POST['amount'];
             $payment_date = $_POST['payment_date'];
             $payment_method = $_POST['payment_method'];
             $transaction_id = $_POST['transaction_id'] ?? null;
             $notes = $_POST['notes'] ?? null;
             $payment_months_json = $_POST['payment_months'] ?? '[]';
+            $month_amounts_json = $_POST['month_amounts_json'] ?? '{}';
 
             // Validate user belongs to community and get sub_community_id
             $stmt = $db->prepare("SELECT scm.user_id, scm.sub_community_id, u.full_name, u.mobile_number
@@ -54,10 +54,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $sub_community_id = $user['sub_community_id'];
 
-            // Parse selected months
+            // Parse selected months and amounts
             $payment_months = json_decode($payment_months_json, true);
+            $month_amounts = json_decode($month_amounts_json, true);
+
             if (empty($payment_months) || !is_array($payment_months)) {
                 throw new Exception("Please select at least one month");
+            }
+
+            if (empty($month_amounts) || !is_array($month_amounts)) {
+                throw new Exception("Invalid month amounts data");
             }
 
             // Check for duplicates before inserting
@@ -77,21 +83,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new Exception("Member " . htmlspecialchars($user['full_name']) . " (Mobile: " . htmlspecialchars($user['mobile_number']) . ") has already paid for: " . implode(', ', $duplicates));
             }
 
-            // Insert payment records for each month
+            // Insert payment records for each month with specific amounts
             $stmt = $db->prepare("INSERT INTO csf_payments
                                    (community_id, sub_community_id, user_id, amount, payment_date, payment_method, transaction_id, notes, collected_by, payment_for_months, created_at)
                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())");
 
             $insertedCount = 0;
+            $totalAmount = 0;
             foreach ($payment_months as $month) {
-                // Use the actual payment_date but store month in payment_for_months
+                // Get the specific amount for this month
+                $monthAmount = isset($month_amounts[$month]) ? floatval($month_amounts[$month]) : 0;
+
+                if ($monthAmount <= 0) {
+                    throw new Exception("Invalid amount for month: " . date('F Y', strtotime($month . '-01')));
+                }
+
+                $totalAmount += $monthAmount;
                 $payment_for_months = json_encode([$month], JSON_UNESCAPED_SLASHES);
 
                 $stmt->execute([
                     $communityId,
                     $sub_community_id,
                     $user_id,
-                    $amount,
+                    $monthAmount,  // Use specific month amount
                     $payment_date,
                     $payment_method,
                     $transaction_id,
@@ -103,7 +117,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             $monthsText = count($payment_months) === 1 ? '1 month' : count($payment_months) . ' months';
-            $success_message = "Payment of ₹" . number_format($amount, 2) . " recorded successfully for " . htmlspecialchars($user['full_name']) . " (" . $monthsText . ")";
+            $success_message = "Payment of ₹" . number_format($totalAmount, 2) . " recorded successfully for " . htmlspecialchars($user['full_name']) . " (" . $monthsText . ")";
 
             // Reset form
             $_POST = [];
@@ -459,18 +473,14 @@ $default_amount = 100;
                 </div>
                 <div class="step" id="step-indicator-2">
                     <div class="step-circle">2</div>
-                    <div class="step-label">Amount</div>
+                    <div class="step-label">Amount & Months</div>
                 </div>
                 <div class="step" id="step-indicator-3">
                     <div class="step-circle">3</div>
-                    <div class="step-label">Date</div>
+                    <div class="step-label">Method</div>
                 </div>
                 <div class="step" id="step-indicator-4">
                     <div class="step-circle">4</div>
-                    <div class="step-label">Method</div>
-                </div>
-                <div class="step" id="step-indicator-5">
-                    <div class="step-circle">5</div>
                     <div class="step-label">Confirm</div>
                 </div>
             </div>
@@ -504,17 +514,75 @@ $default_amount = 100;
                     </div>
                 </div>
 
-                <!-- Step 2: Enter Amount -->
+                <!-- Step 2: Amount & Months (MERGED) -->
                 <div class="step-content" id="step-2">
-                    <h3 class="mb-4">Step 2: Enter Amount</h3>
+                    <h3 class="mb-4">Step 2: Select Months & Enter Amounts</h3>
+
+                    <!-- Payment Date -->
                     <div class="mb-4">
-                        <label class="form-label">Payment Amount (₹)</label>
-                        <input type="number" class="form-control" name="amount" id="amount"
-                               value="<?php echo $default_amount; ?>" min="1" step="0.01" required>
+                        <label class="form-label">Payment Date</label>
+                        <input type="date" class="form-control" name="payment_date" id="payment_date"
+                               value="<?php echo date('Y-m-d'); ?>" max="<?php echo date('Y-m-d'); ?>" required>
                         <small class="text-muted" style="font-size: 16px;">
-                            Default monthly contribution: ₹<?php echo number_format($default_amount, 2); ?>
+                            <i class="fas fa-info-circle"></i> Date when payment was received
                         </small>
                     </div>
+
+                    <!-- Month Selection -->
+                    <div class="mb-4">
+                        <label class="form-label">Select Months for Payment</label>
+                        <div id="month-selection-container" style="background: #f8f9fa; padding: 20px; border-radius: 10px; border: 2px solid #dee2e6;">
+                            <div style="max-height: 250px; overflow-y: auto; background: white; padding: 15px; border-radius: 8px;">
+                                <?php
+                                // Generate checkboxes for last 12 months
+                                for ($i = 0; $i < 12; $i++) {
+                                    $monthDate = date('Y-m', strtotime("-$i months"));
+                                    $monthLabel = date('F Y', strtotime("-$i months"));
+                                    $checked = ($i == 0) ? 'checked' : '';
+                                    echo '<div style="margin-bottom: 10px;">';
+                                    echo '<label style="font-size: 18px; display: flex; align-items: center; cursor: pointer; padding: 10px; border-radius: 5px; background: #f8f9fa;">';
+                                    echo '<input type="checkbox" class="month-checkbox" value="'.$monthDate.'" data-month-label="'.$monthLabel.'" '.$checked.' style="width: 20px; height: 20px; margin-right: 10px;">';
+                                    echo '<span>'.$monthLabel.'</span>';
+                                    echo '</label>';
+                                    echo '</div>';
+                                }
+                                ?>
+                            </div>
+                            <div id="selected-months-count" style="margin-top: 10px; font-size: 16px; color: #007bff; font-weight: 600;">
+                                1 month selected
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Per-Month Amount Entry -->
+                    <div class="mb-4">
+                        <label class="form-label">Enter Amount for Each Month</label>
+                        <div id="month-amount-container" style="background: #fff; padding: 20px; border-radius: 10px; border: 2px solid #007bff;">
+                            <!-- Dynamic month amount inputs will be inserted here -->
+                        </div>
+                    </div>
+
+                    <!-- Total Amount Display -->
+                    <div class="mb-4" style="background: #e7f3ff; padding: 20px; border-radius: 10px; border: 2px solid #007bff;">
+                        <div style="font-size: 18px; color: #2c3e50; margin-bottom: 5px;">Total Amount</div>
+                        <div id="total-amount-display" style="font-size: 32px; font-weight: bold; color: #007bff;">₹0.00</div>
+                        <small class="text-muted" style="font-size: 16px;">
+                            Sum of all month amounts
+                        </small>
+                    </div>
+
+                    <!-- Duplicate Warning -->
+                    <div id="duplicate-warning" style="display: none; background: #f8d7da; border: 2px solid #dc3545; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
+                        <div style="font-size: 20px; color: #721c24; font-weight: bold;">
+                            <i class="fas fa-exclamation-triangle"></i> Payment Already Exists
+                        </div>
+                        <div id="duplicate-message" style="font-size: 18px; color: #721c24; margin-top: 10px;"></div>
+                    </div>
+
+                    <!-- Hidden fields for form submission -->
+                    <input type="hidden" name="payment_months" id="payment_months" required>
+                    <input type="hidden" name="month_amounts_json" id="month_amounts_json" required>
+
                     <div class="button-group">
                         <button type="button" class="btn btn-custom btn-prev" onclick="prevStep(2)">
                             <i class="fas fa-arrow-left"></i> Previous
@@ -525,96 +593,9 @@ $default_amount = 100;
                     </div>
                 </div>
 
-                <!-- Step 3: Select Date & Months -->
+                <!-- Step 3: Payment Method -->
                 <div class="step-content" id="step-3">
-                    <h3 class="mb-4">Step 3: Select Payment Date & Months</h3>
-
-                    <div class="mb-4">
-                        <label class="form-label">Payment Date</label>
-                        <input type="date" class="form-control" name="payment_date" id="payment_date"
-                               value="<?php echo date('Y-m-d'); ?>" max="<?php echo date('Y-m-d'); ?>" required>
-                        <small class="text-muted" style="font-size: 16px;">
-                            <i class="fas fa-info-circle"></i> Date when payment was received
-                        </small>
-                    </div>
-
-                    <div class="mb-4">
-                        <label class="form-label">Payment For Months</label>
-                        <div id="month-selection-container" style="background: #f8f9fa; padding: 20px; border-radius: 10px; border: 2px solid #dee2e6;">
-                            <div class="mb-3">
-                                <label style="font-size: 18px; font-weight: 600; color: #2c3e50;">
-                                    <input type="checkbox" id="select-single-month" checked style="width: 20px; height: 20px; margin-right: 10px;">
-                                    Single Month (Current)
-                                </label>
-                            </div>
-                            <div class="mb-3">
-                                <label style="font-size: 18px; font-weight: 600; color: #2c3e50;">
-                                    <input type="checkbox" id="select-multiple-months" style="width: 20px; height: 20px; margin-right: 10px;">
-                                    Multiple Months
-                                </label>
-                            </div>
-
-                            <!-- Single Month Selection (Default) -->
-                            <div id="single-month-selector" style="margin-top: 15px;">
-                                <select class="form-select" id="single-month" style="font-size: 18px;">
-                                    <?php
-                                    // Generate last 12 months options
-                                    for ($i = 0; $i < 12; $i++) {
-                                        $monthDate = date('Y-m', strtotime("-$i months"));
-                                        $monthLabel = date('F Y', strtotime("-$i months"));
-                                        $selected = ($i == 0) ? 'selected' : '';
-                                        echo "<option value='$monthDate' $selected>$monthLabel</option>";
-                                    }
-                                    ?>
-                                </select>
-                            </div>
-
-                            <!-- Multiple Months Selection -->
-                            <div id="multiple-months-selector" style="display: none; margin-top: 15px;">
-                                <div style="max-height: 300px; overflow-y: auto; background: white; padding: 15px; border-radius: 8px;">
-                                    <?php
-                                    // Generate checkboxes for last 12 months
-                                    for ($i = 0; $i < 12; $i++) {
-                                        $monthDate = date('Y-m', strtotime("-$i months"));
-                                        $monthLabel = date('F Y', strtotime("-$i months"));
-                                        echo '<div style="margin-bottom: 10px;">';
-                                        echo '<label style="font-size: 18px; display: flex; align-items: center; cursor: pointer; padding: 10px; border-radius: 5px; background: #f8f9fa;">';
-                                        echo '<input type="checkbox" class="month-checkbox" value="'.$monthDate.'" style="width: 20px; height: 20px; margin-right: 10px;">';
-                                        echo '<span>'.$monthLabel.'</span>';
-                                        echo '</label>';
-                                        echo '</div>';
-                                    }
-                                    ?>
-                                </div>
-                                <div id="selected-months-count" style="margin-top: 10px; font-size: 16px; color: #007bff; font-weight: 600;">
-                                    0 months selected
-                                </div>
-                            </div>
-
-                            <input type="hidden" name="payment_months" id="payment_months" required>
-                        </div>
-                    </div>
-
-                    <div id="duplicate-warning" style="display: none; background: #f8d7da; border: 2px solid #dc3545; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
-                        <div style="font-size: 20px; color: #721c24; font-weight: bold;">
-                            <i class="fas fa-exclamation-triangle"></i> Payment Already Exists
-                        </div>
-                        <div id="duplicate-message" style="font-size: 18px; color: #721c24; margin-top: 10px;"></div>
-                    </div>
-
-                    <div class="button-group">
-                        <button type="button" class="btn btn-custom btn-prev" onclick="prevStep(3)">
-                            <i class="fas fa-arrow-left"></i> Previous
-                        </button>
-                        <button type="button" class="btn btn-custom btn-next" onclick="nextStep(3)">
-                            Next <i class="fas fa-arrow-right"></i>
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Step 4: Payment Method -->
-                <div class="step-content" id="step-4">
-                    <h3 class="mb-4">Step 4: Payment Method</h3>
+                    <h3 class="mb-4">Step 3: Payment Method</h3>
                     <div class="mb-4">
                         <label class="form-label">How was the payment made?</label>
 
@@ -658,18 +639,18 @@ $default_amount = 100;
                     </div>
 
                     <div class="button-group">
-                        <button type="button" class="btn btn-custom btn-prev" onclick="prevStep(4)">
+                        <button type="button" class="btn btn-custom btn-prev" onclick="prevStep(3)">
                             <i class="fas fa-arrow-left"></i> Previous
                         </button>
-                        <button type="button" class="btn btn-custom btn-next" onclick="nextStep(4)">
+                        <button type="button" class="btn btn-custom btn-next" onclick="nextStep(3)">
                             Next <i class="fas fa-arrow-right"></i>
                         </button>
                     </div>
                 </div>
 
-                <!-- Step 5: Confirmation -->
-                <div class="step-content" id="step-5">
-                    <h3 class="mb-4">Step 5: Confirm Payment Details</h3>
+                <!-- Step 4: Confirmation -->
+                <div class="step-content" id="step-4">
+                    <h3 class="mb-4">Step 4: Confirm Payment Details</h3>
 
                     <div class="summary-item">
                         <div class="summary-label">Member</div>
@@ -702,7 +683,7 @@ $default_amount = 100;
                     </div>
 
                     <div class="button-group">
-                        <button type="button" class="btn btn-custom btn-prev" onclick="prevStep(5)">
+                        <button type="button" class="btn btn-custom btn-prev" onclick="prevStep(4)">
                             <i class="fas fa-arrow-left"></i> Previous
                         </button>
                         <button type="submit" class="btn btn-custom btn-submit">
@@ -717,7 +698,7 @@ $default_amount = 100;
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         let currentStep = 1;
-        const totalSteps = 5;
+        const totalSteps = 4;
         let selectedMemberName = '';
         let selectedMemberMobile = '';
         let selectedMemberArea = '';
@@ -755,13 +736,6 @@ $default_amount = 100;
                     }
                     return true;
                 case 2:
-                    const amount = document.getElementById('amount').value;
-                    if (!amount || amount <= 0) {
-                        alert('Please enter a valid amount');
-                        return false;
-                    }
-                    return true;
-                case 3:
                     const date = document.getElementById('payment_date').value;
                     if (!date) {
                         alert('Please select a payment date');
@@ -772,8 +746,23 @@ $default_amount = 100;
                     updatePaymentMonthsField();
 
                     const monthsField = document.getElementById('payment_months').value;
-                    if (!monthsField) {
+                    if (!monthsField || monthsField === '[]') {
                         alert('Please select at least one month');
+                        return false;
+                    }
+
+                    // Validate all month amounts
+                    const amountInputs = document.querySelectorAll('.month-amount-input');
+                    let hasInvalidAmount = false;
+                    amountInputs.forEach(input => {
+                        const value = parseFloat(input.value) || 0;
+                        if (value <= 0) {
+                            hasInvalidAmount = true;
+                        }
+                    });
+
+                    if (hasInvalidAmount) {
+                        alert('Please enter valid amounts (greater than 0) for all selected months');
                         return false;
                     }
 
@@ -784,7 +773,7 @@ $default_amount = 100;
                     }
 
                     return true;
-                case 4:
+                case 3:
                     const method = document.querySelector('input[name="payment_method"]:checked');
                     if (!method) {
                         alert('Please select a payment method');
@@ -799,7 +788,7 @@ $default_amount = 100;
         async function nextStep(step) {
             const isValid = await validateStep(step);
             if (isValid) {
-                if (step === 4) {
+                if (step === 3) {
                     updateSummary();
                 }
                 showStep(step + 1);
@@ -966,43 +955,21 @@ $default_amount = 100;
             }
         });
 
-        // ==================== MULTI-MONTH PAYMENT LOGIC ====================
+        // ==================== PER-MONTH AMOUNT LOGIC ====================
 
-        // Month selection mode toggle
-        const singleMonthCheckbox = document.getElementById('select-single-month');
-        const multipleMonthsCheckbox = document.getElementById('select-multiple-months');
-        const singleMonthSelector = document.getElementById('single-month-selector');
-        const multipleMonthsSelector = document.getElementById('multiple-months-selector');
-
-        singleMonthCheckbox.addEventListener('change', function() {
-            if (this.checked) {
-                multipleMonthsCheckbox.checked = false;
-                singleMonthSelector.style.display = 'block';
-                multipleMonthsSelector.style.display = 'none';
-                updatePaymentMonthsField();
-            }
-        });
-
-        multipleMonthsCheckbox.addEventListener('change', function() {
-            if (this.checked) {
-                singleMonthCheckbox.checked = false;
-                singleMonthSelector.style.display = 'none';
-                multipleMonthsSelector.style.display = 'block';
-                updatePaymentMonthsField();
-            } else if (!singleMonthCheckbox.checked) {
-                // If both unchecked, default to single month
-                singleMonthCheckbox.checked = true;
-                singleMonthSelector.style.display = 'block';
-                multipleMonthsSelector.style.display = 'none';
-            }
-        });
-
-        // Update selected months count
         const monthCheckboxes = document.querySelectorAll('.month-checkbox');
+        const monthAmountContainer = document.getElementById('month-amount-container');
+        const defaultAmount = <?php echo $default_amount; ?>;
+
+        // Initialize with first month checked
+        updateMonthAmountInputs();
+
+        // Update month checkboxes event listeners
         monthCheckboxes.forEach(checkbox => {
             checkbox.addEventListener('change', function() {
                 updateSelectedMonthsCount();
-                updatePaymentMonthsField();
+                updateMonthAmountInputs();
+                checkDuplicatePaymentOnChange();
             });
         });
 
@@ -1012,29 +979,100 @@ $default_amount = 100;
             document.getElementById('selected-months-count').textContent = count + ' month' + (count !== 1 ? 's' : '') + ' selected';
         }
 
-        // Update payment_months hidden field
-        function updatePaymentMonthsField() {
-            let selectedMonths = [];
+        function updateMonthAmountInputs() {
+            const checkedBoxes = Array.from(document.querySelectorAll('.month-checkbox:checked'));
+            monthAmountContainer.innerHTML = '';
 
-            if (singleMonthCheckbox.checked) {
-                // Single month mode
-                const singleMonth = document.getElementById('single-month').value;
-                selectedMonths = [singleMonth];
-            } else if (multipleMonthsCheckbox.checked) {
-                // Multiple months mode
-                const checkedBoxes = document.querySelectorAll('.month-checkbox:checked');
-                selectedMonths = Array.from(checkedBoxes).map(cb => cb.value);
+            if (checkedBoxes.length === 0) {
+                monthAmountContainer.innerHTML = '<p style="text-align: center; color: #6c757d; font-size: 18px;">Please select at least one month above</p>';
+                updateTotalAmount();
+                return;
             }
 
-            // Update hidden field as JSON array
+            // Sort months chronologically (most recent first)
+            checkedBoxes.sort((a, b) => b.value.localeCompare(a.value));
+
+            checkedBoxes.forEach((checkbox, index) => {
+                const monthValue = checkbox.value;
+                const monthLabel = checkbox.getAttribute('data-month-label');
+
+                const inputGroup = document.createElement('div');
+                inputGroup.style.cssText = 'margin-bottom: 15px; padding: 15px; background: #f8f9fa; border-radius: 8px; border: 2px solid #dee2e6;';
+
+                inputGroup.innerHTML = `
+                    <label style="font-size: 18px; font-weight: 600; color: #2c3e50; display: block; margin-bottom: 8px;">
+                        ${monthLabel}
+                    </label>
+                    <div style="display: flex; align-items: center;">
+                        <span style="font-size: 24px; font-weight: bold; margin-right: 10px; color: #007bff;">₹</span>
+                        <input type="number"
+                               class="form-control month-amount-input"
+                               data-month="${monthValue}"
+                               value="${defaultAmount}"
+                               min="1"
+                               step="0.01"
+                               required
+                               style="font-size: 20px; font-weight: 600; flex: 1;">
+                    </div>
+                `;
+
+                monthAmountContainer.appendChild(inputGroup);
+            });
+
+            // Add event listeners to amount inputs
+            document.querySelectorAll('.month-amount-input').forEach(input => {
+                input.addEventListener('input', updateTotalAmount);
+            });
+
+            updateTotalAmount();
+            updatePaymentMonthsField();
+        }
+
+        function updateTotalAmount() {
+            const amountInputs = document.querySelectorAll('.month-amount-input');
+            let total = 0;
+
+            amountInputs.forEach(input => {
+                const value = parseFloat(input.value) || 0;
+                total += value;
+            });
+
+            document.getElementById('total-amount-display').textContent = '₹' + total.toLocaleString('en-IN', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            });
+        }
+
+        // Update payment_months and month_amounts_json hidden fields
+        function updatePaymentMonthsField() {
+            const checkedBoxes = document.querySelectorAll('.month-checkbox:checked');
+            const selectedMonths = Array.from(checkedBoxes).map(cb => cb.value);
+
+            // Update payment_months as JSON array
             document.getElementById('payment_months').value = JSON.stringify(selectedMonths);
+
+            // Build month_amounts object
+            const monthAmounts = {};
+            document.querySelectorAll('.month-amount-input').forEach(input => {
+                const month = input.getAttribute('data-month');
+                const amount = parseFloat(input.value) || 0;
+                monthAmounts[month] = amount;
+            });
+
+            // Update month_amounts_json hidden field
+            document.getElementById('month_amounts_json').value = JSON.stringify(monthAmounts);
         }
 
         // Initialize payment_months field on page load
         updatePaymentMonthsField();
 
-        // Also update when single-month dropdown changes
-        document.getElementById('single-month').addEventListener('change', updatePaymentMonthsField);
+        // Helper function to check for duplicates when months change
+        async function checkDuplicatePaymentOnChange() {
+            const userId = document.getElementById('user_id').value;
+            if (userId) {
+                await checkDuplicatePayment();
+            }
+        }
 
         // ==================== DUPLICATE PAYMENT CHECK ====================
 
@@ -1078,15 +1116,39 @@ $default_amount = 100;
             }
         }
 
-        // ==================== UPDATE SUMMARY FOR MULTI-MONTH ====================
+        // ==================== UPDATE SUMMARY WITH PER-MONTH BREAKDOWN ====================
 
         function updateSummary() {
             // Member
             document.getElementById('summary_member').textContent = selectedMemberName + ' (' + selectedMemberMobile + ')';
 
-            // Amount
-            const amount = document.getElementById('amount').value;
-            document.getElementById('summary_amount').textContent = '₹' + parseFloat(amount).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            // Amount - Show per-month breakdown
+            const monthAmountsJson = document.getElementById('month_amounts_json').value;
+            const monthAmounts = JSON.parse(monthAmountsJson);
+            let totalAmount = 0;
+            let amountBreakdown = '<div style="font-size: 20px;">';
+
+            // Sort months chronologically
+            const sortedMonths = Object.keys(monthAmounts).sort((a, b) => b.localeCompare(a));
+
+            sortedMonths.forEach(month => {
+                const amount = monthAmounts[month];
+                totalAmount += parseFloat(amount);
+                const dateObj = new Date(month + '-01');
+                const monthLabel = dateObj.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+                amountBreakdown += `<div style="margin-bottom: 8px; padding: 8px; background: #f8f9fa; border-radius: 5px;">
+                    <span style="color: #007bff; font-weight: 600;">${monthLabel}:</span>
+                    <span style="font-weight: bold; color: #2c3e50;">₹${parseFloat(amount).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+                </div>`;
+            });
+
+            amountBreakdown += '</div>';
+            amountBreakdown += `<div style="margin-top: 15px; padding: 15px; background: #e7f3ff; border-radius: 8px; border: 2px solid #007bff;">
+                <span style="font-size: 18px; color: #2c3e50;">Total Amount:</span>
+                <span style="font-size: 28px; font-weight: bold; color: #007bff; margin-left: 10px;">₹${totalAmount.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+            </div>`;
+
+            document.getElementById('summary_amount').innerHTML = amountBreakdown;
 
             // Date
             const date = document.getElementById('payment_date').value;
