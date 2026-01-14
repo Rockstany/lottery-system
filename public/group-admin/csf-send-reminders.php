@@ -47,26 +47,43 @@ $stmt = $db->prepare("SELECT scm.user_id, u.full_name, u.mobile_number as phone
 $stmt->execute([$communityId]);
 $all_members = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Get payments for current month
+// Get ALL payments for current year (to track which months each member paid)
 $stmt = $db->prepare("SELECT
                            cp.user_id,
-                           SUM(cp.amount) as total_paid
+                           cp.payment_for_months
                        FROM csf_payments cp
                        WHERE cp.community_id = ?
-                       AND MONTH(cp.payment_date) = ?
-                       AND YEAR(cp.payment_date) = ?
-                       GROUP BY cp.user_id");
-$stmt->execute([$communityId, $current_month, $current_year]);
-$payments = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                       AND YEAR(cp.payment_date) = ?");
+$stmt->execute([$communityId, $current_year]);
+$all_payments = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Create payment lookup array
-$payment_lookup = [];
-foreach ($payments as $payment) {
-    $payment_lookup[$payment['user_id']] = $payment['total_paid'];
+// Build lookup: which months has each user paid for?
+$months_paid_lookup = [];
+foreach ($all_payments as $payment) {
+    $user_id = $payment['user_id'];
+    $months_json = json_decode($payment['payment_for_months'], true);
+
+    if (!empty($months_json) && is_array($months_json)) {
+        $payment_month = $months_json[0];
+
+        if (!isset($months_paid_lookup[$user_id])) {
+            $months_paid_lookup[$user_id] = [];
+        }
+
+        $months_paid_lookup[$user_id][] = $payment_month;
+    }
 }
 
-// Identify unpaid members only (no partial payment concept)
-$unpaid_members = [];
+// Generate list of months to check (last 3 months including current)
+$months_to_check = [];
+for ($i = 0; $i < 3; $i++) {
+    $date = date('Y-m', strtotime("-$i months"));
+    $label = date('F Y', strtotime("-$i months"));
+    $months_to_check[] = ['value' => $date, 'label' => $label];
+}
+
+// Identify members with unpaid months
+$members_with_unpaid_months = [];
 
 foreach ($all_members as $member) {
     $user_id = $member['user_id'];
@@ -77,16 +94,25 @@ foreach ($all_members as $member) {
         continue;
     }
 
-    $paid_amount = $payment_lookup[$user_id] ?? 0;
+    $paid_months = $months_paid_lookup[$user_id] ?? [];
+    $unpaid_months = [];
 
-    // Only UNPAID members (no payment at all)
-    if ($paid_amount == 0) {
-        $unpaid_members[] = $member;
+    // Check which months are unpaid
+    foreach ($months_to_check as $month_info) {
+        if (!in_array($month_info['value'], $paid_months)) {
+            $unpaid_months[] = $month_info;
+        }
+    }
+
+    // If member has any unpaid months, add to list
+    if (!empty($unpaid_months)) {
+        $member['unpaid_months'] = $unpaid_months;
+        $members_with_unpaid_months[] = $member;
     }
 }
 
-// Default reminder message (removed partial payment template)
-$unpaid_message_template = "Dear {name},\n\nThis is a reminder that your CSF contribution for {month} is pending.\n\nPlease make the payment at your earliest convenience.\n\nThank you!\n{community_name}";
+// Default reminder message (with unpaid months placeholder)
+$unpaid_message_template = "Dear {name},\n\nThis is a reminder that your CSF contribution for the following months is pending:\n{unpaid_months}\n\nPlease make the payment at your earliest convenience.\n\nThank you!\n{community_name}";
 
 ?>
 <!DOCTYPE html>
@@ -380,12 +406,12 @@ $unpaid_message_template = "Dear {name},\n\nThis is a reminder that your CSF con
 
         <div class="stats-row">
             <div class="stat-card">
-                <div class="stat-label">Unpaid Members</div>
-                <div class="stat-value"><?php echo count($unpaid_members); ?></div>
+                <div class="stat-label">Members with Unpaid Months</div>
+                <div class="stat-value"><?php echo count($members_with_unpaid_months); ?></div>
             </div>
         </div>
 
-        <?php if (empty($unpaid_members)): ?>
+        <?php if (empty($members_with_unpaid_months)): ?>
             <div class="members-section">
                 <div class="no-members">
                     <i class="fas fa-check-circle"></i>
@@ -395,14 +421,17 @@ $unpaid_message_template = "Dear {name},\n\nThis is a reminder that your CSF con
             </div>
         <?php else: ?>
             <!-- Unpaid Members -->
-            <?php if (!empty($unpaid_members)): ?>
+            <?php if (!empty($members_with_unpaid_months)): ?>
                 <div class="members-section">
-                    <h2><i class="fas fa-exclamation-circle"></i> Unpaid Members (<?php echo count($unpaid_members); ?>)</h2>
+                    <h2><i class="fas fa-exclamation-circle"></i> Members with Unpaid Months (<?php echo count($members_with_unpaid_months); ?>)</h2>
 
-                    <?php foreach ($unpaid_members as $member):
+                    <?php foreach ($members_with_unpaid_months as $member):
+                        $unpaid_month_labels = array_column($member['unpaid_months'], 'label');
+                        $unpaid_months_text = implode(', ', $unpaid_month_labels);
+
                         $message = str_replace(
-                            ['{name}', '{month}', '{community_name}'],
-                            [$member['full_name'], $month_name, $community_name],
+                            ['{name}', '{unpaid_months}', '{community_name}'],
+                            [$member['full_name'], $unpaid_months_text, $community_name],
                             $unpaid_message_template
                         );
                         $whatsapp_url = "https://wa.me/" . preg_replace('/[^0-9]/', '', $member['phone']) . "?text=" . urlencode($message);
@@ -414,8 +443,15 @@ $unpaid_message_template = "Dear {name},\n\nThis is a reminder that your CSF con
                             <div class="member-phone">
                                 <i class="fas fa-phone"></i> <?php echo htmlspecialchars($member['phone']); ?>
                             </div>
-                            <div class="member-amount">
-                                Status: No Payment Made
+                            <div class="member-amount" style="background: #fff3cd; padding: 10px; border-radius: 5px; margin: 10px 0;">
+                                <strong style="color: #856404;">Unpaid Months:</strong><br>
+                                <div style="display: flex; flex-wrap: wrap; gap: 5px; margin-top: 5px;">
+                                    <?php foreach ($member['unpaid_months'] as $month_info): ?>
+                                        <span class="badge bg-warning text-dark" style="font-size: 16px;">
+                                            <?php echo $month_info['label']; ?>
+                                        </span>
+                                    <?php endforeach; ?>
+                                </div>
                             </div>
                             <a href="<?php echo $whatsapp_url; ?>" target="_blank" class="btn btn-whatsapp">
                                 <i class="fab fa-whatsapp"></i> Send WhatsApp Reminder
@@ -438,13 +474,13 @@ $unpaid_message_template = "Dear {name},\n\nThis is a reminder that your CSF con
                     <textarea class="form-control" id="unpaid-template"><?php echo htmlspecialchars($unpaid_message_template); ?></textarea>
                     <div class="variable-tags">
                         <span class="variable-tag">{name}</span>
-                        <span class="variable-tag">{month}</span>
+                        <span class="variable-tag">{unpaid_months}</span>
                         <span class="variable-tag">{community_name}</span>
                     </div>
                     <div class="message-preview" id="unpaid-preview">
                         <?php echo htmlspecialchars(str_replace(
-                            ['{name}', '{month}', '{community_name}'],
-                            ['John Doe', $month_name, $community_name],
+                            ['{name}', '{unpaid_months}', '{community_name}'],
+                            ['John Doe', 'January 2026, December 2025', $community_name],
                             $unpaid_message_template
                         )); ?>
                     </div>
@@ -465,7 +501,7 @@ $unpaid_message_template = "Dear {name},\n\nThis is a reminder that your CSF con
             const template = this.value;
             const preview = template
                 .replace('{name}', 'John Doe')
-                .replace('{month}', '<?php echo $month_name; ?>')
+                .replace('{unpaid_months}', 'January 2026, December 2025')
                 .replace('{community_name}', '<?php echo htmlspecialchars($community_name, ENT_QUOTES); ?>');
             document.getElementById('unpaid-preview').textContent = preview;
         });

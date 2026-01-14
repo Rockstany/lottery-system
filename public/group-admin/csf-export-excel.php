@@ -45,43 +45,70 @@ $stmt = $db->prepare("SELECT scm.user_id, u.full_name, u.mobile_number as phone,
 $stmt->execute([$communityId]);
 $all_members = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Get payments for selected month
+// Get ALL payments for the selected year
 $stmt = $db->prepare("SELECT
-                           cp.payment_id,
                            cp.user_id,
                            cp.amount,
                            cp.payment_date,
                            cp.payment_method,
                            cp.transaction_id,
+                           cp.payment_for_months,
                            cp.notes,
                            u_collected.full_name as collected_by_name,
                            cp.created_at
                        FROM csf_payments cp
                        LEFT JOIN users u_collected ON cp.collected_by = u_collected.user_id
                        WHERE cp.community_id = ?
-                       AND MONTH(cp.payment_date) = ?
                        AND YEAR(cp.payment_date) = ?
-                       ORDER BY cp.payment_date DESC, cp.created_at DESC");
-$stmt->execute([$communityId, $selected_month, $selected_year]);
-$payments = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                       ORDER BY cp.payment_date DESC");
+$stmt->execute([$communityId, $selected_year]);
+$all_payments = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Create payment lookup array
+// Create payment lookup array grouped by user
 $payment_lookup = [];
-foreach ($payments as $payment) {
-    $payment_lookup[$payment['user_id']] = $payment;
+foreach ($all_payments as $payment) {
+    $user_id = $payment['user_id'];
+
+    $months_json = json_decode($payment['payment_for_months'], true);
+    if (!empty($months_json) && is_array($months_json)) {
+        $payment_month = $months_json[0];
+
+        if (!isset($payment_lookup[$user_id])) {
+            $payment_lookup[$user_id] = [
+                'months_paid' => [],
+                'total_amount' => 0,
+                'payment_records' => []
+            ];
+        }
+
+        $payment_lookup[$user_id]['months_paid'][] = $payment_month;
+        $payment_lookup[$user_id]['total_amount'] += $payment['amount'];
+        $payment_lookup[$user_id]['payment_records'][] = $payment;
+    }
 }
 
-// Classify members
+// Get payments specifically for selected month
+$stmt = $db->prepare("SELECT user_id FROM csf_payments
+                       WHERE community_id = ?
+                       AND JSON_CONTAINS(payment_for_months, ?)
+                       GROUP BY user_id");
+$selected_month_json = json_encode([$selected_year . '-' . str_pad($selected_month, 2, '0', STR_PAD_LEFT)]);
+$stmt->execute([$communityId, $selected_month_json]);
+$monthly_payers = $stmt->fetchAll(PDO::FETCH_COLUMN);
+$monthly_payment_lookup = array_fill_keys($monthly_payers, true);
+
+// Classify members based on selected month
 $paid_members = [];
 $unpaid_members = [];
 
 foreach ($all_members as $member) {
     $user_id = $member['user_id'];
 
-    if (isset($payment_lookup[$user_id])) {
+    if (isset($monthly_payment_lookup[$user_id])) {
         $member['payment_info'] = $payment_lookup[$user_id];
         $paid_members[] = $member;
     } else {
+        $member['payment_info'] = isset($payment_lookup[$user_id]) ? $payment_lookup[$user_id] : null;
         $unpaid_members[] = $member;
     }
 }
@@ -135,29 +162,32 @@ if (!empty($paid_members)) {
         "Mobile Number",
         "Email",
         "Area",
-        "Amount Paid",
-        "Payment Date",
-        "Payment Method",
-        "Transaction ID",
-        "Collected By",
-        "Notes"
+        "Months Paid ($selected_year)",
+        "Total Amount",
+        "Payment Count"
     ]);
 
     $sr_no = 1;
     foreach ($paid_members as $member) {
         $payment_info = $member['payment_info'];
+        $months_paid = $payment_info['months_paid'];
+
+        // Sort months and format
+        sort($months_paid);
+        $month_labels = array_map(function($m) {
+            $date = new DateTime($m . '-01');
+            return $date->format('M-Y');
+        }, $months_paid);
+
         fputcsv($output, [
             $sr_no++,
             $member['full_name'],
             $member['phone'],
             $member['email'] ?: '-',
             $member['area'],
-            number_format($payment_info['amount'], 2),
-            date('d-M-Y', strtotime($payment_info['payment_date'])),
-            ucfirst(str_replace('_', ' ', $payment_info['payment_method'])),
-            $payment_info['transaction_id'] ?: '-',
-            $payment_info['collected_by_name'] ?: '-',
-            $payment_info['notes'] ?: '-'
+            implode(', ', $month_labels),
+            number_format($payment_info['total_amount'], 2),
+            count($months_paid)
         ]);
     }
 

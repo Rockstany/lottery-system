@@ -40,40 +40,76 @@ $stmt = $db->prepare("SELECT scm.user_id, u.full_name, u.mobile_number as phone,
 $stmt->execute([$communityId]);
 $all_members = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Get payments for selected month
+// Get ALL payments for the selected year (not just one month)
 $stmt = $db->prepare("SELECT
                            cp.user_id,
-                           SUM(cp.amount) as total_paid,
-                           COUNT(*) as payment_count,
-                           MAX(cp.payment_date) as last_payment_date,
-                           MAX(cp.payment_method) as last_payment_method
+                           cp.amount,
+                           cp.payment_date,
+                           cp.payment_method,
+                           cp.transaction_id,
+                           cp.payment_for_months,
+                           cp.created_at
                        FROM csf_payments cp
                        WHERE cp.community_id = ?
-                       AND MONTH(cp.payment_date) = ?
                        AND YEAR(cp.payment_date) = ?
-                       GROUP BY cp.user_id");
-$stmt->execute([$communityId, $selected_month, $selected_year]);
-$payments = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                       ORDER BY cp.payment_date DESC");
+$stmt->execute([$communityId, $selected_year]);
+$all_payments = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Create payment lookup array
+// Create payment lookup array grouped by user
+// Each user can have multiple payment records (one per month)
 $payment_lookup = [];
-foreach ($payments as $payment) {
-    $payment_lookup[$payment['user_id']] = $payment;
+foreach ($all_payments as $payment) {
+    $user_id = $payment['user_id'];
+
+    // Extract month from payment_for_months JSON
+    $months_json = json_decode($payment['payment_for_months'], true);
+    if (!empty($months_json) && is_array($months_json)) {
+        $payment_month = $months_json[0]; // e.g., "2026-01"
+
+        if (!isset($payment_lookup[$user_id])) {
+            $payment_lookup[$user_id] = [
+                'months_paid' => [],
+                'total_amount' => 0,
+                'payment_count' => 0,
+                'latest_payment' => $payment
+            ];
+        }
+
+        $payment_lookup[$user_id]['months_paid'][] = $payment_month;
+        $payment_lookup[$user_id]['total_amount'] += $payment['amount'];
+        $payment_lookup[$user_id]['payment_count']++;
+    }
 }
 
-// Classify members - SIMPLE: Either PAID (any amount > 0) or UNPAID (no payment)
+// Get payments specifically for selected month (for monthly statistics)
+$stmt = $db->prepare("SELECT user_id, SUM(amount) as total_paid
+                       FROM csf_payments
+                       WHERE community_id = ?
+                       AND JSON_CONTAINS(payment_for_months, ?)
+                       GROUP BY user_id");
+$selected_month_json = json_encode([$selected_year . '-' . str_pad($selected_month, 2, '0', STR_PAD_LEFT)]);
+$stmt->execute([$communityId, $selected_month_json]);
+$monthly_payments = $stmt->fetchAll(PDO::FETCH_ASSOC);
+$monthly_payment_lookup = array_column($monthly_payments, 'total_paid', 'user_id');
+
+// Classify members based on SELECTED MONTH
 $paid_members = [];
 $unpaid_members = [];
 
 foreach ($all_members as $member) {
     $user_id = $member['user_id'];
 
-    if (isset($payment_lookup[$user_id])) {
-        // Member has made a payment (any amount counts as PAID)
+    // Check if member paid for the SELECTED month
+    if (isset($monthly_payment_lookup[$user_id])) {
+        // Member paid for selected month
         $member['payment_info'] = $payment_lookup[$user_id];
+        $member['paid_for_selected_month'] = true;
         $paid_members[] = $member;
     } else {
-        // Member has not made any payment
+        // Member has not paid for selected month
+        $member['payment_info'] = isset($payment_lookup[$user_id]) ? $payment_lookup[$user_id] : null;
+        $member['paid_for_selected_month'] = false;
         $unpaid_members[] = $member;
     }
 }
@@ -85,11 +121,10 @@ $unpaid_count = count($unpaid_members);
 $partial_count = 0; // No longer used, but kept for backward compatibility with charts
 $collection_rate = $total_members > 0 ? ($paid_count / $total_members) * 100 : 0;
 
-// Total collected is sum of all payments
-$total_collected = array_sum(array_column($payments, 'total_paid'));
+// Total collected for selected month
+$total_collected = array_sum($monthly_payment_lookup);
 
-// No "expected" amount since each member pays their own amount
-// We'll show average payment instead
+// Average payment for selected month
 $average_payment = $paid_count > 0 ? $total_collected / $paid_count : 0;
 
 // Get yearly statistics
@@ -596,14 +631,24 @@ foreach ($yearly_data as $data) {
                             <tr>
                                 <th>Member Name</th>
                                 <th>Contact</th>
-                                <th>Amount Paid</th>
-                                <th>Payment Date</th>
-                                <th>Method</th>
+                                <th>Months Paid (<?php echo $selected_year; ?>)</th>
+                                <th>Total Amount</th>
+                                <th>Payment Count</th>
                                 <th>Status</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <?php foreach ($paid_members as $member): ?>
+                            <?php foreach ($paid_members as $member):
+                                $payment_info = $member['payment_info'];
+                                $months_paid = $payment_info['months_paid'];
+
+                                // Sort months chronologically
+                                sort($months_paid);
+                                $month_labels_sorted = array_map(function($m) {
+                                    $date = new DateTime($m . '-01');
+                                    return $date->format('M');
+                                }, $months_paid);
+                            ?>
                                 <tr>
                                     <td><strong><?php echo htmlspecialchars($member['full_name']); ?></strong></td>
                                     <td>
@@ -615,17 +660,27 @@ foreach ($yearly_data as $data) {
                                         <?php endif; ?>
                                     </td>
                                     <td>
+                                        <div style="display: flex; flex-wrap: wrap; gap: 5px;">
+                                            <?php foreach ($month_labels_sorted as $month_label): ?>
+                                                <span class="badge bg-success" style="font-size: 14px;">
+                                                    <?php echo $month_label; ?>
+                                                </span>
+                                            <?php endforeach; ?>
+                                        </div>
+                                        <small style="color: #666; font-size: 14px;">
+                                            <?php echo count($months_paid); ?> month(s)
+                                        </small>
+                                    </td>
+                                    <td>
                                         <span class="amount-display amount-success">
-                                            ₹<?php echo number_format($member['payment_info']['total_paid'], 2); ?>
+                                            ₹<?php echo number_format($payment_info['total_amount'], 2); ?>
                                         </span>
                                     </td>
                                     <td>
-                                        <?php
-                                        $date = new DateTime($member['payment_info']['last_payment_date']);
-                                        echo $date->format('d M Y');
-                                        ?>
+                                        <span class="badge bg-info">
+                                            <?php echo $payment_info['payment_count']; ?> payment(s)
+                                        </span>
                                     </td>
-                                    <td><?php echo ucfirst(str_replace('_', ' ', $member['payment_info']['last_payment_method'])); ?></td>
                                     <td><span class="status-badge status-paid">Paid</span></td>
                                 </tr>
                             <?php endforeach; ?>
