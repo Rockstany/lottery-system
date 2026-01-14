@@ -23,9 +23,15 @@ if (!$featureAccess->isFeatureEnabled($communityId, 'csf_funds')) {
 $database = new Database();
 $db = $database->getConnection();
 
-// Get selected month and year
-$selected_month = $_GET['month'] ?? date('m');
-$selected_year = $_GET['year'] ?? date('Y');
+// Get date range (start month/year to end month/year)
+$start_month = $_GET['start_month'] ?? date('m');
+$start_year = $_GET['start_year'] ?? date('Y');
+$end_month = $_GET['end_month'] ?? date('m');
+$end_year = $_GET['end_year'] ?? date('Y');
+
+// Create date strings for comparison
+$start_date = $start_year . '-' . str_pad($start_month, 2, '0', STR_PAD_LEFT);
+$end_date = $end_year . '-' . str_pad($end_month, 2, '0', STR_PAD_LEFT);
 
 // Default monthly contribution (can be customized later)
 $monthly_contribution = 100;
@@ -40,7 +46,17 @@ $stmt = $db->prepare("SELECT scm.user_id, u.full_name, u.mobile_number as phone,
 $stmt->execute([$communityId]);
 $all_members = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Get ALL payments for the selected year (not just one month)
+// Generate list of months in the date range
+$months_in_range = [];
+$current = new DateTime($start_date . '-01');
+$end = new DateTime($end_date . '-01');
+
+while ($current <= $end) {
+    $months_in_range[] = $current->format('Y-m');
+    $current->modify('+1 month');
+}
+
+// Get ALL payments within the date range
 $stmt = $db->prepare("SELECT
                            cp.user_id,
                            cp.amount,
@@ -51,14 +67,30 @@ $stmt = $db->prepare("SELECT
                            cp.created_at
                        FROM csf_payments cp
                        WHERE cp.community_id = ?
-                       AND YEAR(cp.payment_date) = ?
+                       AND cp.payment_for_months REGEXP ?
                        ORDER BY cp.payment_date DESC");
-$stmt->execute([$communityId, $selected_year]);
+
+// Create regex pattern to match any month in range
+$month_pattern = implode('|', array_map(function($m) {
+    return preg_quote($m, '/');
+}, $months_in_range));
+
+$stmt->execute([$communityId, $month_pattern]);
 $all_payments = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Create payment lookup array grouped by user
-// Each user can have multiple payment records (one per month)
+// Create payment lookup array grouped by user and month
 $payment_lookup = [];
+$month_wise_data = []; // Track per-month statistics
+
+// Initialize month-wise data
+foreach ($months_in_range as $month) {
+    $month_wise_data[$month] = [
+        'paid_users' => [],
+        'total_amount' => 0,
+        'paid_count' => 0
+    ];
+}
+
 foreach ($all_payments as $payment) {
     $user_id = $payment['user_id'];
 
@@ -67,49 +99,48 @@ foreach ($all_payments as $payment) {
     if (!empty($months_json) && is_array($months_json)) {
         $payment_month = $months_json[0]; // e.g., "2026-01"
 
-        if (!isset($payment_lookup[$user_id])) {
-            $payment_lookup[$user_id] = [
-                'months_paid' => [],
-                'total_amount' => 0,
-                'payment_count' => 0,
-                'latest_payment' => $payment
-            ];
-        }
+        // Only include if month is in our range
+        if (in_array($payment_month, $months_in_range)) {
+            if (!isset($payment_lookup[$user_id])) {
+                $payment_lookup[$user_id] = [
+                    'months_paid' => [],
+                    'month_details' => [], // Store per-month details
+                    'total_amount' => 0,
+                    'payment_count' => 0
+                ];
+            }
 
-        $payment_lookup[$user_id]['months_paid'][] = $payment_month;
-        $payment_lookup[$user_id]['total_amount'] += $payment['amount'];
-        $payment_lookup[$user_id]['payment_count']++;
+            $payment_lookup[$user_id]['months_paid'][] = $payment_month;
+            $payment_lookup[$user_id]['month_details'][$payment_month] = [
+                'amount' => $payment['amount'],
+                'method' => $payment['payment_method'],
+                'date' => $payment['payment_date']
+            ];
+            $payment_lookup[$user_id]['total_amount'] += $payment['amount'];
+            $payment_lookup[$user_id]['payment_count']++;
+
+            // Update month-wise stats
+            $month_wise_data[$payment_month]['paid_users'][] = $user_id;
+            $month_wise_data[$payment_month]['total_amount'] += $payment['amount'];
+            $month_wise_data[$payment_month]['paid_count']++;
+        }
     }
 }
 
-// Get payments specifically for selected month (for monthly statistics)
-$stmt = $db->prepare("SELECT user_id, SUM(amount) as total_paid
-                       FROM csf_payments
-                       WHERE community_id = ?
-                       AND JSON_CONTAINS(payment_for_months, ?)
-                       GROUP BY user_id");
-$selected_month_json = json_encode([$selected_year . '-' . str_pad($selected_month, 2, '0', STR_PAD_LEFT)]);
-$stmt->execute([$communityId, $selected_month_json]);
-$monthly_payments = $stmt->fetchAll(PDO::FETCH_ASSOC);
-$monthly_payment_lookup = array_column($monthly_payments, 'total_paid', 'user_id');
-
-// Classify members based on SELECTED MONTH
+// Classify members: paid at least once in range vs never paid in range
 $paid_members = [];
 $unpaid_members = [];
 
 foreach ($all_members as $member) {
     $user_id = $member['user_id'];
 
-    // Check if member paid for the SELECTED month
-    if (isset($monthly_payment_lookup[$user_id])) {
-        // Member paid for selected month
+    if (isset($payment_lookup[$user_id]) && !empty($payment_lookup[$user_id]['months_paid'])) {
+        // Member paid for at least one month in the range
         $member['payment_info'] = $payment_lookup[$user_id];
-        $member['paid_for_selected_month'] = true;
         $paid_members[] = $member;
     } else {
-        // Member has not paid for selected month
-        $member['payment_info'] = isset($payment_lookup[$user_id]) ? $payment_lookup[$user_id] : null;
-        $member['paid_for_selected_month'] = false;
+        // Member has not paid for any month in the range
+        $member['payment_info'] = null;
         $unpaid_members[] = $member;
     }
 }
@@ -498,24 +529,58 @@ foreach ($yearly_data as $data) {
 
         <div class="filter-section">
             <form method="GET" action="">
+                <div style="margin-bottom: 20px;">
+                    <h5 style="color: #2c3e50; font-size: 20px; margin-bottom: 15px;">
+                        <i class="fas fa-calendar-alt"></i> Select Date Range
+                    </h5>
+                </div>
                 <div class="row g-3 align-items-end">
-                    <div class="col-md-3">
-                        <label class="form-label">Month</label>
-                        <select class="form-select" name="month">
+                    <!-- Start Date -->
+                    <div class="col-md-2">
+                        <label class="form-label" style="font-weight: 600;">Start Month</label>
+                        <select class="form-select" name="start_month" style="font-size: 18px;">
                             <?php for ($m = 1; $m <= 12; $m++): ?>
                                 <option value="<?php echo sprintf('%02d', $m); ?>"
-                                        <?php echo $selected_month == sprintf('%02d', $m) ? 'selected' : ''; ?>>
+                                        <?php echo $start_month == sprintf('%02d', $m) ? 'selected' : ''; ?>>
                                     <?php echo date('F', mktime(0, 0, 0, $m, 1)); ?>
                                 </option>
                             <?php endfor; ?>
                         </select>
                     </div>
 
-                    <div class="col-md-3">
-                        <label class="form-label">Year</label>
-                        <select class="form-select" name="year">
+                    <div class="col-md-2">
+                        <label class="form-label" style="font-weight: 600;">Start Year</label>
+                        <select class="form-select" name="start_year" style="font-size: 18px;">
                             <?php for ($y = date('Y'); $y >= date('Y') - 5; $y--): ?>
-                                <option value="<?php echo $y; ?>" <?php echo $selected_year == $y ? 'selected' : ''; ?>>
+                                <option value="<?php echo $y; ?>" <?php echo $start_year == $y ? 'selected' : ''; ?>>
+                                    <?php echo $y; ?>
+                                </option>
+                            <?php endfor; ?>
+                        </select>
+                    </div>
+
+                    <div class="col-md-1" style="text-align: center;">
+                        <div style="font-size: 24px; font-weight: bold; color: #007bff; padding-top: 8px;">to</div>
+                    </div>
+
+                    <!-- End Date -->
+                    <div class="col-md-2">
+                        <label class="form-label" style="font-weight: 600;">End Month</label>
+                        <select class="form-select" name="end_month" style="font-size: 18px;">
+                            <?php for ($m = 1; $m <= 12; $m++): ?>
+                                <option value="<?php echo sprintf('%02d', $m); ?>"
+                                        <?php echo $end_month == sprintf('%02d', $m) ? 'selected' : ''; ?>>
+                                    <?php echo date('F', mktime(0, 0, 0, $m, 1)); ?>
+                                </option>
+                            <?php endfor; ?>
+                        </select>
+                    </div>
+
+                    <div class="col-md-2">
+                        <label class="form-label" style="font-weight: 600;">End Year</label>
+                        <select class="form-select" name="end_year" style="font-size: 18px;">
+                            <?php for ($y = date('Y'); $y >= date('Y') - 5; $y--): ?>
+                                <option value="<?php echo $y; ?>" <?php echo $end_year == $y ? 'selected' : ''; ?>>
                                     <?php echo $y; ?>
                                 </option>
                             <?php endfor; ?>
@@ -523,10 +588,14 @@ foreach ($yearly_data as $data) {
                     </div>
 
                     <div class="col-md-3">
-                        <button type="submit" class="btn btn-custom btn-filter">
+                        <button type="submit" class="btn btn-custom btn-filter" style="font-size: 20px; padding: 12px 30px;">
                             <i class="fas fa-search"></i> View Report
                         </button>
                     </div>
+                </div>
+
+                <div style="margin-top: 15px; font-size: 16px; color: #666;">
+                    <i class="fas fa-info-circle"></i> Showing data from <strong><?php echo date('F Y', strtotime($start_date)); ?></strong> to <strong><?php echo date('F Y', strtotime($end_date)); ?></strong>
                 </div>
             </form>
         </div>
@@ -560,6 +629,80 @@ foreach ($yearly_data as $data) {
             <div class="stat-card">
                 <div class="stat-label">Average Payment</div>
                 <div class="stat-value">₹<?php echo number_format($average_payment, 0); ?></div>
+            </div>
+        </div>
+
+        <!-- Month-Wise Breakdown Section -->
+        <div class="table-container" style="margin-bottom: 30px;">
+            <h3 style="margin-bottom: 20px; color: #2c3e50;">
+                <i class="fas fa-calendar-check"></i> Month-Wise Breakdown
+            </h3>
+            <div style="overflow-x: auto;">
+                <table class="table table-striped table-hover">
+                    <thead style="background: #007bff; color: white;">
+                        <tr>
+                            <th>Month</th>
+                            <th>Paid Members</th>
+                            <th>Unpaid Members</th>
+                            <th>Total Amount Collected</th>
+                            <th>Collection Rate</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($months_in_range as $month):
+                            $month_data = $month_wise_data[$month];
+                            $month_paid = count($month_data['paid_users']);
+                            $month_unpaid = $total_members - $month_paid;
+                            $month_rate = $total_members > 0 ? ($month_paid / $total_members) * 100 : 0;
+                            $month_label = date('F Y', strtotime($month . '-01'));
+                        ?>
+                            <tr>
+                                <td><strong><?php echo $month_label; ?></strong></td>
+                                <td>
+                                    <span class="badge bg-success" style="font-size: 16px; padding: 8px 15px;">
+                                        <?php echo $month_paid; ?> members
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="badge bg-danger" style="font-size: 16px; padding: 8px 15px;">
+                                        <?php echo $month_unpaid; ?> members
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="amount-display amount-success">
+                                        ₹<?php echo number_format($month_data['total_amount'], 2); ?>
+                                    </span>
+                                </td>
+                                <td>
+                                    <div class="progress" style="height: 30px; font-size: 16px;">
+                                        <div class="progress-bar <?php echo $month_rate >= 80 ? 'bg-success' : ($month_rate >= 50 ? 'bg-warning' : 'bg-danger'); ?>"
+                                             role="progressbar"
+                                             style="width: <?php echo $month_rate; ?>%;"
+                                             aria-valuenow="<?php echo $month_rate; ?>"
+                                             aria-valuemin="0"
+                                             aria-valuemax="100">
+                                            <?php echo number_format($month_rate, 1); ?>%
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                    <tfoot style="background: #f8f9fa; font-weight: bold;">
+                        <tr>
+                            <td>TOTAL</td>
+                            <td colspan="2"><?php echo count($months_in_range); ?> months</td>
+                            <td>
+                                <span class="amount-display amount-success">
+                                    ₹<?php echo number_format($total_collected, 2); ?>
+                                </span>
+                            </td>
+                            <td>
+                                Avg: <?php echo number_format($collection_rate, 1); ?>%
+                            </td>
+                        </tr>
+                    </tfoot>
+                </table>
             </div>
         </div>
 
@@ -631,23 +774,19 @@ foreach ($yearly_data as $data) {
                             <tr>
                                 <th>Member Name</th>
                                 <th>Contact</th>
-                                <th>Months Paid (<?php echo $selected_year; ?>)</th>
+                                <th>Month-Wise Payment Details</th>
                                 <th>Total Amount</th>
-                                <th>Payment Count</th>
                                 <th>Status</th>
                             </tr>
                         </thead>
                         <tbody>
                             <?php foreach ($paid_members as $member):
                                 $payment_info = $member['payment_info'];
-                                $months_paid = $payment_info['months_paid'];
+                                $months_paid = isset($payment_info['months_paid']) ? $payment_info['months_paid'] : [];
+                                $month_details = isset($payment_info['month_details']) ? $payment_info['month_details'] : [];
 
                                 // Sort months chronologically
                                 sort($months_paid);
-                                $month_labels_sorted = array_map(function($m) {
-                                    $date = new DateTime($m . '-01');
-                                    return $date->format('M');
-                                }, $months_paid);
                             ?>
                                 <tr>
                                     <td><strong><?php echo htmlspecialchars($member['full_name']); ?></strong></td>
@@ -660,25 +799,42 @@ foreach ($yearly_data as $data) {
                                         <?php endif; ?>
                                     </td>
                                     <td>
-                                        <div style="display: flex; flex-wrap: wrap; gap: 5px;">
-                                            <?php foreach ($month_labels_sorted as $month_label): ?>
-                                                <span class="badge bg-success" style="font-size: 14px;">
-                                                    <?php echo $month_label; ?>
-                                                </span>
-                                            <?php endforeach; ?>
+                                        <div style="display: flex; flex-direction: column; gap: 8px;">
+                                            <?php foreach ($months_paid as $month):
+                                                $date = new DateTime($month . '-01');
+                                                $month_label = $date->format('F Y');
+                                                $details = $month_details[$month] ?? null;
+                                                if ($details):
+                                            ?>
+                                                <div style="background: #f8f9fa; padding: 10px; border-radius: 5px; border-left: 4px solid #28a745;">
+                                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                                                        <strong style="color: #28a745; font-size: 16px;"><?php echo $month_label; ?></strong>
+                                                        <span class="badge bg-success" style="font-size: 14px;">
+                                                            ₹<?php echo number_format($details['amount'], 2); ?>
+                                                        </span>
+                                                    </div>
+                                                    <div style="font-size: 14px; color: #666;">
+                                                        <i class="fas fa-credit-card"></i> <?php echo ucfirst(str_replace('_', ' ', $details['method'])); ?>
+                                                        &nbsp;&nbsp;
+                                                        <i class="fas fa-calendar"></i> <?php echo date('d M Y', strtotime($details['date'])); ?>
+                                                    </div>
+                                                </div>
+                                            <?php
+                                                endif;
+                                            endforeach; ?>
                                         </div>
-                                        <small style="color: #666; font-size: 14px;">
-                                            <?php echo count($months_paid); ?> month(s)
+                                        <small style="color: #666; font-size: 14px; margin-top: 8px; display: block;">
+                                            <strong><?php echo count($months_paid); ?> month(s) paid</strong>
                                         </small>
                                     </td>
                                     <td>
                                         <span class="amount-display amount-success">
-                                            ₹<?php echo number_format($payment_info['total_amount'], 2); ?>
+                                            ₹<?php echo number_format(isset($payment_info['total_amount']) ? $payment_info['total_amount'] : 0, 2); ?>
                                         </span>
                                     </td>
                                     <td>
                                         <span class="badge bg-info">
-                                            <?php echo $payment_info['payment_count']; ?> payment(s)
+                                            <?php echo count($months_paid); ?> payment(s)
                                         </span>
                                     </td>
                                     <td><span class="status-badge status-paid">Paid</span></td>
