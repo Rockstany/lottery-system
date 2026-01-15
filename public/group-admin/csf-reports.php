@@ -161,24 +161,13 @@ foreach ($month_wise_data as $month => $data) {
 // Average payment per member across the date range
 $average_payment = $paid_count > 0 ? $total_collected / $paid_count : 0;
 
-// Get yearly statistics
-$stmt = $db->prepare("SELECT
-                           MONTH(payment_date) as month,
-                           SUM(amount) as monthly_total,
-                           COUNT(DISTINCT user_id) as unique_payers
-                       FROM csf_payments
-                       WHERE community_id = ? AND YEAR(payment_date) = ?
-                       GROUP BY MONTH(payment_date)
-                       ORDER BY month");
-$stmt->execute([$communityId, $selected_year]);
-$yearly_data = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-// Create monthly data array
-$monthly_stats = array_fill(1, 12, ['total' => 0, 'payers' => 0]);
-foreach ($yearly_data as $data) {
-    $monthly_stats[$data['month']] = [
-        'total' => $data['monthly_total'],
-        'payers' => $data['unique_payers']
+// Build monthly stats from month_wise_data for the selected date range
+// This replaces the old yearly statistics query
+$monthly_stats_range = [];
+foreach ($months_in_range as $month) {
+    $monthly_stats_range[$month] = [
+        'total' => $month_wise_data[$month]['total_amount'],
+        'payers' => count(array_unique($month_wise_data[$month]['paid_users']))
     ];
 }
 
@@ -517,7 +506,7 @@ foreach ($yearly_data as $data) {
         <div class="header-section">
             <h1>
                 <i class="fas fa-chart-bar"></i> CSF Reports
-                <a href="csf-export-excel.php?month=<?php echo $selected_month; ?>&year=<?php echo $selected_year; ?>"
+                <a href="csf-export-excel.php?start_month=<?php echo $start_month; ?>&start_year=<?php echo $start_year; ?>&end_month=<?php echo $end_month; ?>&end_year=<?php echo $end_year; ?>"
                    class="btn btn-custom"
                    style="background: #28a745; color: white; border: none; float: right; margin-left: 10px;"
                    download>
@@ -731,7 +720,7 @@ foreach ($yearly_data as $data) {
         <div class="charts-row">
             <!-- Bar Chart: Monthly Trend -->
             <div class="chart-container" style="grid-column: 1 / -1;">
-                <h3><i class="fas fa-chart-bar"></i> Monthly Collection Trend - <?php echo $selected_year; ?></h3>
+                <h3><i class="fas fa-chart-bar"></i> Monthly Collection Trend (<?php echo date('M Y', strtotime($start_date)); ?> - <?php echo date('M Y', strtotime($end_date)); ?>)</h3>
                 <div class="chart-wrapper" style="height: 400px;">
                     <canvas id="monthlyBarChart"></canvas>
                 </div>
@@ -746,156 +735,76 @@ foreach ($yearly_data as $data) {
             </div>
         </div>
 
-        <!-- Original Monthly Bars (Keep for comparison) -->
+        <!-- Monthly Bars for Selected Date Range -->
         <div class="chart-container">
-            <h3><i class="fas fa-calendar-alt"></i> Detailed Monthly Breakdown - <?php echo $selected_year; ?></h3>
+            <h3><i class="fas fa-calendar-alt"></i> Detailed Monthly Breakdown (<?php echo date('M Y', strtotime($start_date)); ?> - <?php echo date('M Y', strtotime($end_date)); ?>)</h3>
             <?php
-            $month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-            for ($m = 1; $m <= 12; $m++):
-                $is_current = ($m == $selected_month);
-                $month_data = $monthly_stats[$m];
+            foreach ($months_in_range as $month):
+                $month_stats = $monthly_stats_range[$month];
+                $month_label = date('M Y', strtotime($month . '-01'));
             ?>
-                <div class="month-bar <?php echo $is_current ? 'active' : ''; ?>">
-                    <span class="month-amount">₹<?php echo number_format($month_data['total'], 0); ?></span>
-                    <div class="month-name"><?php echo $month_names[$m - 1]; ?> <?php echo $selected_year; ?></div>
+                <div class="month-bar active">
+                    <span class="month-amount">₹<?php echo number_format($month_stats['total'], 0); ?></span>
+                    <div class="month-name"><?php echo $month_label; ?></div>
                     <div class="month-stats">
-                        <?php echo $month_data['payers']; ?> member(s) paid
+                        <?php echo $month_stats['payers']; ?> member(s) paid
                     </div>
                 </div>
-            <?php endfor; ?>
+            <?php endforeach; ?>
         </div>
 
-        <!-- Paid Members -->
-        <?php if (!empty($paid_members)): ?>
-            <div class="section-header success">
-                <h2><i class="fas fa-check-circle"></i> Paid Members (<?php echo count($paid_members); ?>)</h2>
-            </div>
-            <div class="members-table">
-                <div class="table-responsive">
-                    <table class="table table-hover">
-                        <thead>
-                            <tr>
-                                <th>Member Name</th>
-                                <th>Contact</th>
-                                <th>Month-Wise Payment Details</th>
-                                <th>Total Amount</th>
-                                <th>Status</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($paid_members as $member):
-                                $payment_info = $member['payment_info'];
-                                $months_paid = isset($payment_info['months_paid']) ? $payment_info['months_paid'] : [];
-                                $month_details = isset($payment_info['month_details']) ? $payment_info['month_details'] : [];
-
-                                // Sort months chronologically
-                                sort($months_paid);
-                            ?>
-                                <tr>
-                                    <td><strong><?php echo htmlspecialchars($member['full_name']); ?></strong></td>
-                                    <td>
-                                        <?php if ($member['phone']): ?>
-                                            <i class="fas fa-phone"></i> <?php echo htmlspecialchars($member['phone']); ?><br>
-                                        <?php endif; ?>
-                                        <?php if ($member['email']): ?>
-                                            <i class="fas fa-envelope"></i> <?php echo htmlspecialchars($member['email']); ?>
-                                        <?php endif; ?>
-                                    </td>
-                                    <td>
-                                        <div style="display: flex; flex-direction: column; gap: 8px;">
-                                            <?php foreach ($months_paid as $month):
-                                                $date = new DateTime($month . '-01');
-                                                $month_label = $date->format('F Y');
-                                                $details = $month_details[$month] ?? null;
-                                                if ($details):
-                                            ?>
-                                                <div style="background: #f8f9fa; padding: 10px; border-radius: 5px; border-left: 4px solid #28a745;">
-                                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
-                                                        <strong style="color: #28a745; font-size: 16px;"><?php echo $month_label; ?></strong>
-                                                        <span class="badge bg-success" style="font-size: 14px;">
-                                                            ₹<?php echo number_format($details['amount'], 2); ?>
-                                                        </span>
-                                                    </div>
-                                                    <div style="font-size: 14px; color: #666;">
-                                                        <i class="fas fa-credit-card"></i> <?php echo ucfirst(str_replace('_', ' ', $details['method'])); ?>
-                                                        &nbsp;&nbsp;
-                                                        <i class="fas fa-calendar"></i> <?php echo date('d M Y', strtotime($details['date'])); ?>
-                                                    </div>
-                                                </div>
-                                            <?php
-                                                endif;
-                                            endforeach; ?>
-                                        </div>
-                                        <small style="color: #666; font-size: 14px; margin-top: 8px; display: block;">
-                                            <strong><?php echo count($months_paid); ?> month(s) paid</strong>
-                                        </small>
-                                    </td>
-                                    <td>
-                                        <span class="amount-display amount-success">
-                                            ₹<?php echo number_format(isset($payment_info['total_amount']) ? $payment_info['total_amount'] : 0, 2); ?>
-                                        </span>
-                                    </td>
-                                    <td>
-                                        <span class="badge bg-info">
-                                            <?php echo count($months_paid); ?> payment(s)
-                                        </span>
-                                    </td>
-                                    <td><span class="status-badge status-paid">Paid</span></td>
-                                </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
+        <!-- Member Summary Cards (No individual listing - just counts) -->
+        <div class="row" style="margin-bottom: 30px;">
+            <div class="col-md-6">
+                <div class="chart-container" style="border-left: 5px solid #28a745;">
+                    <h3 style="color: #28a745;"><i class="fas fa-check-circle"></i> Paid Members</h3>
+                    <div style="font-size: 48px; font-weight: bold; color: #28a745; margin: 20px 0;">
+                        <?php echo count($paid_members); ?>
+                    </div>
+                    <p style="color: #666; font-size: 18px;">members have paid at least once in this date range</p>
+                    <a href="csf-payment-history.php" class="btn btn-success" style="font-size: 18px; padding: 12px 25px;">
+                        <i class="fas fa-history"></i> View Payment History
+                    </a>
                 </div>
             </div>
-        <?php endif; ?>
-
-        <!-- Partial Payment section removed - CSF only supports PAID or UNPAID -->
-
-        <!-- Unpaid Members -->
-        <?php if (!empty($unpaid_members)): ?>
-            <div class="section-header danger">
-                <h2><i class="fas fa-times-circle"></i> Unpaid Members (<?php echo count($unpaid_members); ?>)</h2>
-            </div>
-            <div class="members-table">
-                <div class="table-responsive">
-                    <table class="table table-hover">
-                        <thead>
-                            <tr>
-                                <th>Member Name</th>
-                                <th>Contact</th>
-                                <th>Status</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($unpaid_members as $member): ?>
-                                <tr>
-                                    <td><strong><?php echo htmlspecialchars($member['full_name']); ?></strong></td>
-                                    <td>
-                                        <?php if ($member['phone']): ?>
-                                            <i class="fas fa-phone"></i> <?php echo htmlspecialchars($member['phone']); ?><br>
-                                        <?php endif; ?>
-                                        <?php if ($member['email']): ?>
-                                            <i class="fas fa-envelope"></i> <?php echo htmlspecialchars($member['email']); ?>
-                                        <?php endif; ?>
-                                    </td>
-                                    <td><span class="status-badge status-unpaid">Unpaid</span></td>
-                                </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
+            <div class="col-md-6">
+                <div class="chart-container" style="border-left: 5px solid #dc3545;">
+                    <h3 style="color: #dc3545;"><i class="fas fa-times-circle"></i> Unpaid Members</h3>
+                    <div style="font-size: 48px; font-weight: bold; color: #dc3545; margin: 20px 0;">
+                        <?php echo count($unpaid_members); ?>
+                    </div>
+                    <p style="color: #666; font-size: 18px;">members have not paid in this date range</p>
+                    <a href="csf-send-reminders.php" class="btn btn-danger" style="font-size: 18px; padding: 12px 25px;">
+                        <i class="fas fa-bell"></i> Send Reminders
+                    </a>
                 </div>
             </div>
-        <?php endif; ?>
+        </div>
 
-        <?php if (empty($paid_members) && empty($unpaid_members)): ?>
-            <div class="members-table">
-                <div class="no-members">
-                    <i class="fas fa-users"></i>
-                    <h3>No Members Found</h3>
-                    <p>There are no members in this group</p>
+        <!-- Individual Member Payment Lookup -->
+        <div class="chart-container" style="margin-bottom: 30px;">
+            <h3><i class="fas fa-search"></i> Look Up Individual Member Payment History</h3>
+            <p style="color: #666; margin-bottom: 20px;">Search for a member to view their complete payment history</p>
+
+            <div class="row">
+                <div class="col-md-6">
+                    <select id="memberSelect" class="form-select" style="font-size: 18px; padding: 15px;">
+                        <option value="">-- Select a Member --</option>
+                        <?php foreach ($all_members as $member): ?>
+                            <option value="<?php echo $member['user_id']; ?>">
+                                <?php echo htmlspecialchars($member['full_name']); ?>
+                                <?php if ($member['phone']): ?> (<?php echo $member['phone']; ?>)<?php endif; ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <button type="button" id="viewHistoryBtn" class="btn btn-primary" style="font-size: 20px; padding: 15px 30px;" onclick="viewMemberHistory()">
+                        <i class="fas fa-eye"></i> View Payment History
+                    </button>
                 </div>
             </div>
-        <?php endif; ?>
+        </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
@@ -998,23 +907,33 @@ foreach ($yearly_data as $data) {
             }
         });
 
-        // 3. Monthly Bar Chart
+        // 3. Monthly Bar Chart - Using date range data
         const monthlyBarCtx = document.getElementById('monthlyBarChart').getContext('2d');
-        const monthLabels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const monthLabels = [
+            <?php
+            $labels = [];
+            foreach ($months_in_range as $month) {
+                $labels[] = "'" . date('M Y', strtotime($month . '-01')) . "'";
+            }
+            echo implode(', ', $labels);
+            ?>
+        ];
         const monthlyAmounts = [
             <?php
-            for ($m = 1; $m <= 12; $m++) {
-                echo $monthly_stats[$m]['total'];
-                if ($m < 12) echo ', ';
+            $amounts = [];
+            foreach ($months_in_range as $month) {
+                $amounts[] = $monthly_stats_range[$month]['total'];
             }
+            echo implode(', ', $amounts);
             ?>
         ];
         const monthlyPayers = [
             <?php
-            for ($m = 1; $m <= 12; $m++) {
-                echo $monthly_stats[$m]['payers'];
-                if ($m < 12) echo ', ';
+            $payers = [];
+            foreach ($months_in_range as $month) {
+                $payers[] = $monthly_stats_range[$month]['payers'];
             }
+            echo implode(', ', $payers);
             ?>
         ];
 
@@ -1158,6 +1077,16 @@ foreach ($yearly_data as $data) {
                 }
             }
         });
+
+        // Function to view individual member payment history
+        function viewMemberHistory() {
+            const memberId = document.getElementById('memberSelect').value;
+            if (memberId) {
+                window.location.href = 'csf-payment-history.php?user_id=' + memberId;
+            } else {
+                alert('Please select a member first');
+            }
+        }
     </script>
 </body>
 </html>
