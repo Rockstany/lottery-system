@@ -504,6 +504,34 @@ CREATE TABLE sub_community_custom_data (
 );
 ```
 
+## CSF Funds System Tables (Feature-Specific)
+
+### 14. `csf_payments` - CSF Payment Transactions
+```sql
+CREATE TABLE csf_payments (
+    payment_id INT(10) UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+    community_id INT(10) UNSIGNED NOT NULL,
+    user_id INT(10) UNSIGNED NOT NULL,
+    amount DECIMAL(10,2) NOT NULL,
+    payment_date DATE NOT NULL,
+    payment_method ENUM('cash', 'upi', 'bank_transfer', 'cheque', 'other') DEFAULT 'cash',
+    payment_for_months JSON, -- Stores array like ["2025-01", "2025-02"]
+    transaction_id VARCHAR(100) NULL,
+    notes TEXT NULL,
+    collected_by INT(10) UNSIGNED NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (community_id) REFERENCES communities(community_id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+    FOREIGN KEY (collected_by) REFERENCES users(user_id)
+);
+```
+
+**Key Columns:**
+- `payment_for_months` - JSON array storing which months the payment covers (e.g., `["2025-01", "2025-02"]`)
+- `collected_by` - User ID of the group admin who recorded the payment
+- `payment_method` - Enum supporting cash, UPI, bank transfer, cheque, other
+
 ## Database Relationships
 
 ```
@@ -553,6 +581,12 @@ member_custom_data
 sub_community_custom_data
   ├─ sub_community_id → sub_communities
   └─ field_id → custom_field_definitions
+
+csf_payments
+  ├─ community_id → communities
+  ├─ user_id → users (member who made payment)
+  ├─ collected_by → users (group admin who recorded)
+  └─ payment_for_months (JSON array of months covered)
 ```
 
 ---
@@ -924,6 +958,79 @@ class FeatureAccess {
 ```sql
 -- See database/community_building_schema.sql for complete schema
 ```
+
+---
+
+### 3. CSF Funds (Community Social Funds)
+**Feature Key:** `csf_funds`
+**Status:** ✅ Implemented (v4.2)
+**Description:** Track and manage community social fund contributions from members
+
+**Capabilities:**
+1. Record CSF payments from members (single or bulk)
+2. Track payment status by month (paid/unpaid per member)
+3. View comprehensive reports with date range filtering
+4. Export payment data to Excel/CSV for accounting
+5. Send WhatsApp reminders to unpaid members
+6. Look up individual member payment history
+7. Month-wise breakdown of collection statistics
+
+**Files:**
+- `public/group-admin/csf-funds.php` - Main dashboard with quick stats
+- `public/group-admin/csf-record-payment.php` - Record individual payments
+- `public/group-admin/csf-reports.php` - Comprehensive reports with date range filtering
+- `public/group-admin/csf-payment-history.php` - View payment history by member
+- `public/group-admin/csf-send-reminders.php` - Send WhatsApp reminders
+- `public/group-admin/csf-manage-members.php` - Manage CSF members
+- `public/group-admin/csf-export-excel.php` - Export data to CSV/Excel
+- `public/group-admin/csf-api-search-member.php` - AJAX API for member search
+
+**Database Tables:**
+- `csf_payments` - Records all CSF payment transactions
+
+**Database Schema:**
+```sql
+CREATE TABLE csf_payments (
+    payment_id INT(10) UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+    community_id INT(10) UNSIGNED NOT NULL,
+    user_id INT(10) UNSIGNED NOT NULL,
+    amount DECIMAL(10,2) NOT NULL,
+    payment_date DATE NOT NULL,
+    payment_method ENUM('cash', 'upi', 'bank_transfer', 'cheque', 'other') DEFAULT 'cash',
+    payment_for_months JSON, -- Stores array like ["2025-01", "2025-02"]
+    transaction_id VARCHAR(100) NULL,
+    notes TEXT NULL,
+    collected_by INT(10) UNSIGNED NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (community_id) REFERENCES communities(community_id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+    FOREIGN KEY (collected_by) REFERENCES users(user_id)
+);
+```
+
+**Key Features:**
+- **Date Range Filtering:** Reports support start month/year to end month/year filtering
+- **Per-Month Tracking:** System tracks which members paid for each specific month
+- **Month-Wise Breakdown:** Shows paid/unpaid counts and amounts for each month in range
+- **Searchable Member Lookup:** AJAX-based autocomplete search for finding members (supports 1000+ users)
+- **Excel Export:** Generate detailed CSV reports with member-wise and month-wise breakdown
+- **WhatsApp Integration:** Send payment reminders via WhatsApp to unpaid members
+- **Payment Methods:** Supports cash, UPI, bank transfer, cheque, and other payment types
+
+**Report Features:**
+- Summary statistics (total members, paid count, unpaid count, collection rate)
+- Month-wise breakdown with collection amounts per month
+- Paid members list with per-month payment details
+- Unpaid members list for current period
+- Individual member payment history lookup
+- Export all data to Excel for accounting
+
+**Integration with Community Building:**
+- Uses `sub_community_members` to get list of active community members
+- References `users` table for member details (name, mobile, email)
+- Uses `sub_communities` for area/zone information
+- Follows backbone architecture (CSF → Community Building)
 
 ---
 
@@ -2372,7 +2479,7 @@ LEFT JOIN community_features cf ON f.feature_id = cf.feature_id AND cf.community
 
 # Summary
 
-**GetToKnow v4.1** is a SAAS multi-tenant community management platform with:
+**GetToKnow v4.2** is a SAAS multi-tenant community management platform with:
 
 ✅ Feature-based access control
 ✅ Multi-tenant architecture
@@ -2383,12 +2490,14 @@ LEFT JOIN community_features cf ON f.feature_id = cf.feature_id AND cf.community
 ✅ Easy feature management
 ✅ Dynamic custom fields (NEW in v4.1)
 ✅ Sub-community management (NEW in v4.1)
+✅ CSF Funds tracking with date range reports (NEW in v4.2)
 
 **Core Principle:** Admin enables features per community → Group Admin sees enabled features as cards → Modular system allows unlimited features
 
-**Current Features (v4.1):**
+**Current Features (v4.2):**
 1. **Lottery System** - Complete 6-part lottery event management
 2. **Community Building** - Sub-communities with dynamic member fields and flexible data structure
+3. **CSF Funds** - Community social fund tracking with payments, reports, and reminders
 
 **Community Building Highlights:**
 - Create sub-communities within main communities
@@ -2412,10 +2521,19 @@ LEFT JOIN community_features cf ON f.feature_id = cf.feature_id AND cf.community
 
 ---
 
-**Document Version:** 1.2
-**Last Updated:** January 12, 2026
-**Platform Version:** v4.1
+**Document Version:** 1.3
+**Last Updated:** January 15, 2026
+**Platform Version:** v4.2
 **Maintained By:** Development Team
+
+**Major Updates in v1.3:**
+- ✅ Added CSF Funds (Community Social Funds) feature documentation
+- ✅ Documented CSF database schema and table structure
+- ✅ Added CSF files listing and capabilities
+- ✅ Documented date range filtering for CSF reports
+- ✅ Added per-month payment tracking documentation
+- ✅ Documented AJAX-based member search for large communities (1000+ users)
+- ✅ Updated platform version to v4.2
 
 **Major Updates in v1.2:**
 - ✅ Added "Architectural Principles and Data Flow" section

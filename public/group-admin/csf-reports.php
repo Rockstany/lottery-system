@@ -787,20 +787,27 @@ foreach ($months_in_range as $month) {
             <p style="color: #666; margin-bottom: 20px;">Search for a member to view their complete payment history</p>
 
             <div class="row">
-                <div class="col-md-6">
-                    <select id="memberSelect" class="form-select" style="font-size: 18px; padding: 15px;">
-                        <option value="">-- Select a Member --</option>
-                        <?php foreach ($all_members as $member): ?>
-                            <option value="<?php echo $member['user_id']; ?>">
-                                <?php echo htmlspecialchars($member['full_name']); ?>
-                                <?php if ($member['phone']): ?> (<?php echo $member['phone']; ?>)<?php endif; ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
+                <div class="col-md-8">
+                    <input type="text" class="form-control" id="member_search" placeholder="Type member name or mobile number..." autocomplete="off" style="font-size: 20px; padding: 15px 20px; border: 2px solid #dee2e6; border-radius: 10px;">
+                    <input type="hidden" id="selected_user_id">
+                    <div id="search_results" style="position: relative;"></div>
                 </div>
-                <div class="col-md-6">
-                    <button type="button" id="viewHistoryBtn" class="btn btn-primary" style="font-size: 20px; padding: 15px 30px;" onclick="viewMemberHistory()">
-                        <i class="fas fa-eye"></i> View Payment History
+                <div class="col-md-4">
+                    <button type="button" id="viewHistoryBtn" class="btn btn-primary" style="font-size: 20px; padding: 15px 30px; width: 100%;" onclick="viewMemberHistory()">
+                        <i class="fas fa-eye"></i> View History
+                    </button>
+                </div>
+            </div>
+
+            <!-- Selected Member Display -->
+            <div id="selected_member_display" style="display: none; margin-top: 20px; background: #e7f3ff; padding: 20px; border-radius: 10px; border: 2px solid #007bff;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <h5 style="margin: 0; color: #007bff;"><i class="fas fa-user-check"></i> Selected Member:</h5>
+                        <div id="selected_member_info" style="font-size: 20px; margin-top: 10px;"></div>
+                    </div>
+                    <button type="button" class="btn btn-outline-danger" onclick="clearSelectedMember()" style="font-size: 16px;">
+                        <i class="fas fa-times"></i> Clear
                     </button>
                 </div>
             </div>
@@ -1078,13 +1085,99 @@ foreach ($months_in_range as $month) {
             }
         });
 
+        // ==================== MEMBER SEARCH FUNCTIONALITY ====================
+
+        let searchTimeout;
+        const memberSearchInput = document.getElementById('member_search');
+        const searchResults = document.getElementById('search_results');
+        const selectedUserIdInput = document.getElementById('selected_user_id');
+        const selectedMemberDisplay = document.getElementById('selected_member_display');
+        const selectedMemberInfo = document.getElementById('selected_member_info');
+
+        memberSearchInput.addEventListener('input', function() {
+            clearTimeout(searchTimeout);
+            const query = this.value.trim();
+
+            if (query.length < 2) {
+                searchResults.innerHTML = '';
+                return;
+            }
+
+            searchTimeout = setTimeout(() => {
+                fetch(`/public/group-admin/csf-api-search-member.php?q=${encodeURIComponent(query)}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success && data.members.length > 0) {
+                            let html = '<div style="background: white; border: 2px solid #007bff; border-radius: 10px; max-height: 400px; overflow-y: auto; box-shadow: 0 4px 12px rgba(0,0,0,0.15); position: absolute; width: 100%; z-index: 1000;">';
+
+                            data.members.forEach(member => {
+                                html += `<div class="search-result-item" onclick="selectMember(${member.user_id}, '${escapeHtml(member.full_name)}', '${escapeHtml(member.mobile_number)}', '${escapeHtml(member.sub_community_name)}')"
+                                    style="padding: 15px; border-bottom: 1px solid #eee; cursor: pointer; font-size: 18px; transition: background 0.2s;"
+                                    onmouseover="this.style.background='#f8f9fa'" onmouseout="this.style.background='white'">
+                                    <strong>${escapeHtml(member.full_name)}</strong><br>
+                                    <span style="color: #666; font-size: 16px;">
+                                        <i class="fas fa-phone"></i> ${escapeHtml(member.mobile_number)} |
+                                        <i class="fas fa-map-marker-alt"></i> ${escapeHtml(member.sub_community_name)}
+                                    </span>
+                                </div>`;
+                            });
+
+                            html += '</div>';
+                            searchResults.innerHTML = html;
+                        } else {
+                            searchResults.innerHTML = '<div style="padding: 15px; background: #fff3cd; border-radius: 8px; color: #856404; margin-top: 10px;">No members found</div>';
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Search error:', error);
+                        searchResults.innerHTML = '<div style="padding: 15px; background: #f8d7da; border-radius: 8px; color: #721c24; margin-top: 10px;">Search failed</div>';
+                    });
+            }, 300);
+        });
+
+        function selectMember(userId, fullName, mobile, area) {
+            selectedUserIdInput.value = userId;
+            memberSearchInput.value = fullName;
+            searchResults.innerHTML = '';
+
+            selectedMemberInfo.innerHTML = `
+                <strong>${escapeHtml(fullName)}</strong><br>
+                <span style="color: #666;">
+                    <i class="fas fa-phone"></i> ${escapeHtml(mobile)} |
+                    <i class="fas fa-map-marker-alt"></i> ${escapeHtml(area)}
+                </span>
+            `;
+            selectedMemberDisplay.style.display = 'block';
+        }
+
+        function clearSelectedMember() {
+            selectedUserIdInput.value = '';
+            memberSearchInput.value = '';
+            selectedMemberDisplay.style.display = 'none';
+            selectedMemberInfo.innerHTML = '';
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Clear search results when clicking outside
+        document.addEventListener('click', function(e) {
+            if (!memberSearchInput.contains(e.target) && !searchResults.contains(e.target)) {
+                searchResults.innerHTML = '';
+            }
+        });
+
         // Function to view individual member payment history
         function viewMemberHistory() {
-            const memberId = document.getElementById('memberSelect').value;
+            const memberId = selectedUserIdInput.value;
             if (memberId) {
                 window.location.href = 'csf-payment-history.php?user_id=' + memberId;
             } else {
-                alert('Please select a member first');
+                alert('Please search and select a member first');
             }
         }
     </script>
