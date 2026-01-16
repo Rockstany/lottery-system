@@ -36,6 +36,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     }
 }
 
+// Handle edit payment
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'edit_payment') {
+    $payment_id = $_POST['payment_id'];
+    $amount = floatval($_POST['amount']);
+    $payment_method = $_POST['payment_method'];
+    $transaction_id = trim($_POST['transaction_id'] ?? '');
+    $notes = trim($_POST['notes'] ?? '');
+
+    try {
+        $stmt = $db->prepare("UPDATE csf_payments
+                              SET amount = ?, payment_method = ?, transaction_id = ?, notes = ?
+                              WHERE payment_id = ? AND community_id = ?");
+        $stmt->execute([$amount, $payment_method, $transaction_id, $notes, $payment_id, $communityId]);
+        $success_message = "Payment record updated successfully";
+    } catch (Exception $e) {
+        $error_message = "Error updating payment: " . $e->getMessage();
+    }
+}
+
 // Get filter parameters
 $filter_user = $_GET['user_id'] ?? '';
 $filter_month = $_GET['month'] ?? '';
@@ -305,6 +324,15 @@ $total_payments = count($payments);
             cursor: pointer;
         }
 
+        .btn-edit {
+            background: #007bff;
+            color: white;
+        }
+
+        .btn-edit:hover {
+            background: #0056b3;
+        }
+
         .btn-delete {
             background: #dc3545;
             color: white;
@@ -364,6 +392,10 @@ $total_payments = count($payments);
             background: #dc3545;
             color: white;
             border-radius: 15px 15px 0 0;
+        }
+
+        .modal-header.edit-header {
+            background: #007bff;
         }
 
         .modal-title {
@@ -579,6 +611,10 @@ $total_payments = count($payments);
                                     </td>
                                     <td>
                                         <div class="action-buttons">
+                                            <button type="button" class="btn-action btn-edit"
+                                                    onclick="openEditModal(<?php echo $payment['payment_id']; ?>, '<?php echo htmlspecialchars($payment['full_name'], ENT_QUOTES); ?>', <?php echo $payment['amount']; ?>, '<?php echo $payment['payment_method']; ?>', '<?php echo htmlspecialchars($payment['transaction_id'] ?? '', ENT_QUOTES); ?>', '<?php echo htmlspecialchars($payment['notes'] ?? '', ENT_QUOTES); ?>')">
+                                                <i class="fas fa-edit"></i> Edit
+                                            </button>
                                             <button type="button" class="btn-action btn-delete"
                                                     onclick="confirmDelete(<?php echo $payment['payment_id']; ?>, '<?php echo htmlspecialchars($payment['full_name'], ENT_QUOTES); ?>', <?php echo $payment['amount']; ?>)">
                                                 <i class="fas fa-trash"></i> Delete
@@ -622,6 +658,60 @@ $total_payments = count($payments);
         </div>
     </div>
 
+    <!-- Edit Payment Modal -->
+    <div class="modal fade" id="editModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header edit-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-edit"></i> Edit Payment
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <form method="POST" id="editForm">
+                    <div class="modal-body">
+                        <input type="hidden" name="action" value="edit_payment">
+                        <input type="hidden" name="payment_id" id="edit-payment-id">
+
+                        <p class="mb-4"><strong>Member:</strong> <span id="edit-member-name"></span></p>
+
+                        <div class="mb-4">
+                            <label class="form-label">Amount (₹)</label>
+                            <input type="number" class="form-control" name="amount" id="edit-amount"
+                                   step="0.01" min="0" required>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="form-label">Payment Method</label>
+                            <select class="form-select" name="payment_method" id="edit-payment-method" required>
+                                <option value="cash">Cash</option>
+                                <option value="upi">UPI</option>
+                                <option value="bank_transfer">Bank Transfer</option>
+                                <option value="cheque">Cheque</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="form-label">Transaction ID / Reference</label>
+                            <input type="text" class="form-control" name="transaction_id" id="edit-transaction-id"
+                                   placeholder="Optional">
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Notes</label>
+                            <textarea class="form-control" name="notes" id="edit-notes" rows="3"
+                                      placeholder="Optional notes..."></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Save Changes</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         function confirmDelete(paymentId, memberName, amount) {
@@ -630,6 +720,18 @@ $total_payments = count($payments);
             document.getElementById('delete-amount').textContent = parseFloat(amount).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
 
             const modal = new bootstrap.Modal(document.getElementById('deleteModal'));
+            modal.show();
+        }
+
+        function openEditModal(paymentId, memberName, amount, paymentMethod, transactionId, notes) {
+            document.getElementById('edit-payment-id').value = paymentId;
+            document.getElementById('edit-member-name').textContent = memberName;
+            document.getElementById('edit-amount').value = amount;
+            document.getElementById('edit-payment-method').value = paymentMethod;
+            document.getElementById('edit-transaction-id').value = transactionId;
+            document.getElementById('edit-notes').value = notes;
+
+            const modal = new bootstrap.Modal(document.getElementById('editModal'));
             modal.show();
         }
     </script>
