@@ -651,5 +651,7 @@ Jane Smith, 9876543211"></textarea>
             }
         }
     </script>
+
+    <?php include __DIR__ . '/includes/footer.php'; ?>
 </body>
 </html>

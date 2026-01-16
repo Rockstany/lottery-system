@@ -1047,5 +1047,7 @@ $current_params = array_filter([
             modal.show();
         }
     </script>
+
+    <?php include __DIR__ . '/includes/footer.php'; ?>
 </body>
 </html>

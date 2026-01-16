@@ -506,5 +506,7 @@ $unpaid_message_template = "Dear {name},\n\nThis is a reminder that your CSF con
             document.getElementById('unpaid-preview').textContent = preview;
         });
     </script>
+
+    <?php include __DIR__ . '/includes/footer.php'; ?>
 </body>
 </html>

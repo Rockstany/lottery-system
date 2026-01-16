@@ -1207,5 +1207,7 @@ $default_amount = 100;
             }
         }
     </script>
+
+    <?php include __DIR__ . '/includes/footer.php'; ?>
 </body>
 </html>

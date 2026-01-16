@@ -495,19 +495,25 @@ Complete monthly contribution tracking system designed for community administrat
   - Transaction ID capture (optional)
   - Notes field
 
-#### 4. **Payment History**
-- Searchable payment records
-- Filter by:
-  - Member name
-  - Month and year
-  - Payment method
-  - Transaction ID
-- Displays:
-  - Member details
+#### 4. **Payment History** (Enhanced)
+- **Month Column**: Shows which month the payment is for (not just payment date)
+- **Searchable Records**: Filter by member, month, year, payment method, or search text
+- **Sortable Columns**: Click headers to sort by Month, Date, Member, or Amount (asc/desc)
+- **Pagination**: 15 records per page with smart page navigation
+- **Quick Stats**: When filtering by specific month, shows:
+  - Members paid count
+  - Total transactions
+  - Payment method breakdown (Cash, UPI, Bank, Cheque with amounts)
+- **Edit Payment**: Modify amount, payment method, transaction ID, and notes
+- **Delete Payment**: Remove records with confirmation dialog
+- **Displays**:
+  - Payment month (what payment is for)
+  - Payment date (when paid)
+  - Member details with phone
   - Amount paid
-  - Payment date and method
-  - Transaction reference
-  - Recorded by (admin name)
+  - Payment method badge
+  - Transaction reference and notes
+  - Recorded by (admin name and timestamp)
 
 #### 5. **Reports & Analytics**
 - **Monthly Overview**:
@@ -596,6 +602,16 @@ Akshit Kumar, 9876543212, akshit@example.com
 
 ## Changelog
 
+### Version 1.3 (2026-01-17)
+- ✅ **Payment History Enhancements**
+  - Added "Month" column showing payment period (not just payment date)
+  - Edit Payment feature with modal form
+  - Sortable columns (Month, Date, Member, Amount) with asc/desc toggle
+  - Pagination with 15 records per page and smart navigation
+  - Quick Stats panel when filtering by specific month
+  - Payment method breakdown in Quick Stats
+  - Improved UI with sort indicators and active column highlighting
+
 ### Version 1.2 (2026-01-13)
 - ✅ **CSF (Community Social Funds) Feature Complete**
   - Member management (single add + bulk CSV import)
@@ -625,7 +641,9 @@ Akshit Kumar, 9876543212, akshit@example.com
 
 ---
 
-**Status:** CSF Feature Complete - Production Ready
+**Status:** CSF Feature Complete with Enhanced Payment History - Production Ready
+**Version:** 1.3
+**Last Updated:** 2026-01-17
 **Next Step:** Testing & User Acceptance (UAT)
 #   l o t t e r y - s y s t e m  
  
