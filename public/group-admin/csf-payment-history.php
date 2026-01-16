@@ -51,6 +51,7 @@ $sql = "SELECT
             cp.payment_method,
             cp.transaction_id,
             cp.notes,
+            cp.payment_for_months,
             cp.created_at as recorded_at,
             u.full_name,
             u.mobile_number as phone,
@@ -512,12 +513,22 @@ $total_payments = count($payments);
                                 <tr>
                                     <td>
                                         <?php
-                                        $date = new DateTime($payment['payment_date']);
-                                        echo $date->format('M Y');
+                                        // Display the month(s) the payment is FOR
+                                        $paymentForMonths = json_decode($payment['payment_for_months'], true);
+                                        if (!empty($paymentForMonths) && is_array($paymentForMonths)) {
+                                            $formattedMonths = array_map(function($m) {
+                                                $monthDate = DateTime::createFromFormat('Y-m', $m);
+                                                return $monthDate ? $monthDate->format('M Y') : $m;
+                                            }, $paymentForMonths);
+                                            echo htmlspecialchars(implode(', ', $formattedMonths));
+                                        } else {
+                                            echo '<span class="text-muted">-</span>';
+                                        }
                                         ?>
                                     </td>
                                     <td>
                                         <?php
+                                        $date = new DateTime($payment['payment_date']);
                                         echo $date->format('d M Y');
                                         ?>
                                     </td>
