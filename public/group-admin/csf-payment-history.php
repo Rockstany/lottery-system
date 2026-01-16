@@ -62,7 +62,78 @@ $filter_year = $_GET['year'] ?? date('Y');
 $filter_method = $_GET['payment_method'] ?? '';
 $search_query = $_GET['search'] ?? '';
 
-// Build query
+// Sorting parameters
+$sort_column = $_GET['sort'] ?? 'date';
+$sort_direction = $_GET['dir'] ?? 'desc';
+$allowed_sorts = ['date', 'month', 'member', 'amount'];
+$allowed_dirs = ['asc', 'desc'];
+if (!in_array($sort_column, $allowed_sorts)) $sort_column = 'date';
+if (!in_array($sort_direction, $allowed_dirs)) $sort_direction = 'desc';
+
+// Pagination parameters
+$page = max(1, intval($_GET['page'] ?? 1));
+$per_page = 15;
+$offset = ($page - 1) * $per_page;
+
+// Build base query for counting and fetching
+$base_sql = "FROM csf_payments cp
+        INNER JOIN users u ON cp.user_id = u.user_id
+        LEFT JOIN users recorder ON cp.collected_by = recorder.user_id
+        WHERE cp.community_id = ?";
+
+$params = [$communityId];
+
+if ($filter_user) {
+    $base_sql .= " AND cp.user_id = ?";
+    $params[] = $filter_user;
+}
+
+if ($filter_month) {
+    $base_sql .= " AND MONTH(cp.payment_date) = ?";
+    $params[] = $filter_month;
+}
+
+if ($filter_year) {
+    $base_sql .= " AND YEAR(cp.payment_date) = ?";
+    $params[] = $filter_year;
+}
+
+if ($filter_method) {
+    $base_sql .= " AND cp.payment_method = ?";
+    $params[] = $filter_method;
+}
+
+if ($search_query) {
+    $base_sql .= " AND (u.full_name LIKE ? OR cp.transaction_id LIKE ? OR cp.notes LIKE ?)";
+    $search_param = '%' . $search_query . '%';
+    $params[] = $search_param;
+    $params[] = $search_param;
+    $params[] = $search_param;
+}
+
+// Count total records for pagination
+$count_sql = "SELECT COUNT(*) as total " . $base_sql;
+$stmt = $db->prepare($count_sql);
+$stmt->execute($params);
+$total_records = $stmt->fetch(PDO::FETCH_ASSOC)['total'];
+$total_pages = ceil($total_records / $per_page);
+
+// Get sum of amounts for filtered results
+$sum_sql = "SELECT SUM(cp.amount) as total_amount " . $base_sql;
+$stmt = $db->prepare($sum_sql);
+$stmt->execute($params);
+$total_amount = $stmt->fetch(PDO::FETCH_ASSOC)['total_amount'] ?? 0;
+
+// Build ORDER BY clause based on sort column
+$order_by = match($sort_column) {
+    'date' => "cp.payment_date $sort_direction, cp.created_at $sort_direction",
+    'month' => "cp.payment_for_months $sort_direction, cp.payment_date $sort_direction",
+    'member' => "u.full_name $sort_direction",
+    'amount' => "cp.amount $sort_direction",
+    default => "cp.payment_date DESC, cp.created_at DESC"
+};
+
+// Build query with sorting and pagination
 $sql = "SELECT
             cp.payment_id,
             cp.amount,
@@ -75,46 +146,45 @@ $sql = "SELECT
             u.full_name,
             u.mobile_number as phone,
             recorder.full_name as recorded_by_name
-        FROM csf_payments cp
-        INNER JOIN users u ON cp.user_id = u.user_id
-        LEFT JOIN users recorder ON cp.collected_by = recorder.user_id
-        WHERE cp.community_id = ?";
-
-$params = [$communityId];
-
-if ($filter_user) {
-    $sql .= " AND cp.user_id = ?";
-    $params[] = $filter_user;
-}
-
-if ($filter_month) {
-    $sql .= " AND MONTH(cp.payment_date) = ?";
-    $params[] = $filter_month;
-}
-
-if ($filter_year) {
-    $sql .= " AND YEAR(cp.payment_date) = ?";
-    $params[] = $filter_year;
-}
-
-if ($filter_method) {
-    $sql .= " AND cp.payment_method = ?";
-    $params[] = $filter_method;
-}
-
-if ($search_query) {
-    $sql .= " AND (u.full_name LIKE ? OR cp.transaction_id LIKE ? OR cp.notes LIKE ?)";
-    $search_param = '%' . $search_query . '%';
-    $params[] = $search_param;
-    $params[] = $search_param;
-    $params[] = $search_param;
-}
-
-$sql .= " ORDER BY cp.payment_date DESC, cp.created_at DESC";
+        " . $base_sql . " ORDER BY $order_by LIMIT $per_page OFFSET $offset";
 
 $stmt = $db->prepare($sql);
 $stmt->execute($params);
 $payments = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// Quick Stats for specific month filter
+$quick_stats = null;
+if ($filter_month && $filter_year) {
+    // Get payment method breakdown
+    $stats_sql = "SELECT
+                    cp.payment_method,
+                    COUNT(*) as count,
+                    SUM(cp.amount) as total
+                  FROM csf_payments cp
+                  WHERE cp.community_id = ?
+                  AND MONTH(cp.payment_date) = ?
+                  AND YEAR(cp.payment_date) = ?
+                  GROUP BY cp.payment_method";
+    $stmt = $db->prepare($stats_sql);
+    $stmt->execute([$communityId, $filter_month, $filter_year]);
+    $method_breakdown = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // Get unique members who paid
+    $unique_sql = "SELECT COUNT(DISTINCT cp.user_id) as unique_members
+                   FROM csf_payments cp
+                   WHERE cp.community_id = ?
+                   AND MONTH(cp.payment_date) = ?
+                   AND YEAR(cp.payment_date) = ?";
+    $stmt = $db->prepare($unique_sql);
+    $stmt->execute([$communityId, $filter_month, $filter_year]);
+    $unique_members = $stmt->fetch(PDO::FETCH_ASSOC)['unique_members'];
+
+    $quick_stats = [
+        'month_name' => date('F Y', mktime(0, 0, 0, $filter_month, 1, $filter_year)),
+        'method_breakdown' => $method_breakdown,
+        'unique_members' => $unique_members
+    ];
+}
 
 // Get all members for filter dropdown
 $stmt = $db->prepare("SELECT scm.user_id, u.full_name
@@ -126,9 +196,31 @@ $stmt = $db->prepare("SELECT scm.user_id, u.full_name
 $stmt->execute([$communityId]);
 $members = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Calculate summary statistics
-$total_amount = array_sum(array_column($payments, 'amount'));
-$total_payments = count($payments);
+// Helper function to build sort URL
+function buildSortUrl($column, $currentSort, $currentDir, $params) {
+    $newDir = ($currentSort === $column && $currentDir === 'asc') ? 'desc' : 'asc';
+    $params['sort'] = $column;
+    $params['dir'] = $newDir;
+    unset($params['page']); // Reset to page 1 on sort change
+    return '?' . http_build_query($params);
+}
+
+// Helper function to build pagination URL
+function buildPageUrl($page, $params) {
+    $params['page'] = $page;
+    return '?' . http_build_query($params);
+}
+
+// Current filter params for URL building
+$current_params = array_filter([
+    'user_id' => $filter_user,
+    'month' => $filter_month,
+    'year' => $filter_year,
+    'payment_method' => $filter_method,
+    'search' => $search_query,
+    'sort' => $sort_column,
+    'dir' => $sort_direction
+]);
 
 ?>
 <!DOCTYPE html>
@@ -412,6 +504,119 @@ $total_payments = count($payments);
             font-size: 20px;
             padding: 12px 30px;
         }
+
+        /* Sortable headers */
+        .sortable {
+            cursor: pointer;
+            user-select: none;
+            white-space: nowrap;
+        }
+
+        .sortable:hover {
+            background: #e9ecef;
+        }
+
+        .sortable i {
+            margin-left: 8px;
+            font-size: 14px;
+            color: #6c757d;
+        }
+
+        .sortable.active i {
+            color: #007bff;
+        }
+
+        /* Pagination */
+        .pagination-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 2px solid #dee2e6;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .pagination-info {
+            font-size: 18px;
+            color: #6c757d;
+        }
+
+        .pagination {
+            margin: 0;
+        }
+
+        .pagination .page-link {
+            font-size: 18px;
+            padding: 12px 18px;
+            color: #007bff;
+            border: 2px solid #dee2e6;
+            margin: 0 3px;
+            border-radius: 8px;
+        }
+
+        .pagination .page-link:hover {
+            background: #007bff;
+            color: white;
+            border-color: #007bff;
+        }
+
+        .pagination .page-item.active .page-link {
+            background: #007bff;
+            border-color: #007bff;
+            color: white;
+        }
+
+        .pagination .page-item.disabled .page-link {
+            color: #6c757d;
+            background: #f8f9fa;
+        }
+
+        /* Quick Stats */
+        .quick-stats {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 25px 30px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .quick-stats h4 {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 20px;
+        }
+
+        .quick-stats h4 i {
+            margin-right: 10px;
+        }
+
+        .quick-stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 20px;
+        }
+
+        .quick-stat-item {
+            text-align: center;
+            padding: 15px;
+            background: rgba(255,255,255,0.15);
+            border-radius: 10px;
+        }
+
+        .quick-stat-item .stat-value {
+            font-size: 28px;
+            font-weight: bold;
+            display: block;
+        }
+
+        .quick-stat-item .stat-label {
+            font-size: 14px;
+            opacity: 0.9;
+            margin-top: 5px;
+        }
     </style>
 </head>
 <body>
@@ -440,13 +645,44 @@ $total_payments = count($payments);
         <div class="summary-cards">
             <div class="summary-card">
                 <div class="summary-label">Total Payments</div>
-                <div class="summary-value"><?php echo $total_payments; ?></div>
+                <div class="summary-value"><?php echo $total_records; ?></div>
             </div>
             <div class="summary-card success">
                 <div class="summary-label">Total Amount</div>
                 <div class="summary-value">₹<?php echo number_format($total_amount, 2); ?></div>
             </div>
         </div>
+
+        <?php if ($quick_stats): ?>
+        <div class="quick-stats">
+            <h4><i class="fas fa-chart-pie"></i> Quick Stats for <?php echo $quick_stats['month_name']; ?></h4>
+            <div class="quick-stats-grid">
+                <div class="quick-stat-item">
+                    <span class="stat-value"><?php echo $quick_stats['unique_members']; ?></span>
+                    <span class="stat-label">Members Paid</span>
+                </div>
+                <div class="quick-stat-item">
+                    <span class="stat-value"><?php echo $total_records; ?></span>
+                    <span class="stat-label">Total Transactions</span>
+                </div>
+                <?php
+                $method_labels = [
+                    'cash' => 'Cash',
+                    'upi' => 'UPI',
+                    'bank_transfer' => 'Bank',
+                    'cheque' => 'Cheque'
+                ];
+                foreach ($quick_stats['method_breakdown'] as $method):
+                    $label = $method_labels[$method['payment_method']] ?? $method['payment_method'];
+                ?>
+                <div class="quick-stat-item">
+                    <span class="stat-value"><?php echo $method['count']; ?></span>
+                    <span class="stat-label"><?php echo $label; ?> (₹<?php echo number_format($method['total']); ?>)</span>
+                </div>
+                <?php endforeach; ?>
+            </div>
+        </div>
+        <?php endif; ?>
 
         <div class="filter-section">
             <h3><i class="fas fa-filter"></i> Filter Payments</h3>
@@ -530,10 +766,30 @@ $total_payments = count($payments);
                     <table class="table table-hover">
                         <thead>
                             <tr>
-                                <th>Month</th>
-                                <th>Date</th>
-                                <th>Member</th>
-                                <th>Amount</th>
+                                <th class="sortable <?php echo $sort_column === 'month' ? 'active' : ''; ?>">
+                                    <a href="<?php echo buildSortUrl('month', $sort_column, $sort_direction, $current_params); ?>" style="color: inherit; text-decoration: none;">
+                                        Month
+                                        <i class="fas fa-sort<?php echo $sort_column === 'month' ? ($sort_direction === 'asc' ? '-up' : '-down') : ''; ?>"></i>
+                                    </a>
+                                </th>
+                                <th class="sortable <?php echo $sort_column === 'date' ? 'active' : ''; ?>">
+                                    <a href="<?php echo buildSortUrl('date', $sort_column, $sort_direction, $current_params); ?>" style="color: inherit; text-decoration: none;">
+                                        Date
+                                        <i class="fas fa-sort<?php echo $sort_column === 'date' ? ($sort_direction === 'asc' ? '-up' : '-down') : ''; ?>"></i>
+                                    </a>
+                                </th>
+                                <th class="sortable <?php echo $sort_column === 'member' ? 'active' : ''; ?>">
+                                    <a href="<?php echo buildSortUrl('member', $sort_column, $sort_direction, $current_params); ?>" style="color: inherit; text-decoration: none;">
+                                        Member
+                                        <i class="fas fa-sort<?php echo $sort_column === 'member' ? ($sort_direction === 'asc' ? '-up' : '-down') : ''; ?>"></i>
+                                    </a>
+                                </th>
+                                <th class="sortable <?php echo $sort_column === 'amount' ? 'active' : ''; ?>">
+                                    <a href="<?php echo buildSortUrl('amount', $sort_column, $sort_direction, $current_params); ?>" style="color: inherit; text-decoration: none;">
+                                        Amount
+                                        <i class="fas fa-sort<?php echo $sort_column === 'amount' ? ($sort_direction === 'asc' ? '-up' : '-down') : ''; ?>"></i>
+                                    </a>
+                                </th>
                                 <th>Method</th>
                                 <th>Reference</th>
                                 <th>Recorded By</th>
@@ -626,6 +882,62 @@ $total_payments = count($payments);
                         </tbody>
                     </table>
                 </div>
+
+                <?php if ($total_pages > 1): ?>
+                <div class="pagination-container">
+                    <div class="pagination-info">
+                        Showing <?php echo $offset + 1; ?> - <?php echo min($offset + $per_page, $total_records); ?> of <?php echo $total_records; ?> payments
+                    </div>
+                    <nav>
+                        <ul class="pagination">
+                            <!-- Previous button -->
+                            <li class="page-item <?php echo $page <= 1 ? 'disabled' : ''; ?>">
+                                <a class="page-link" href="<?php echo $page > 1 ? buildPageUrl($page - 1, $current_params) : '#'; ?>">
+                                    <i class="fas fa-chevron-left"></i> Prev
+                                </a>
+                            </li>
+
+                            <?php
+                            // Calculate page range to show
+                            $start_page = max(1, $page - 2);
+                            $end_page = min($total_pages, $page + 2);
+
+                            // Always show first page
+                            if ($start_page > 1): ?>
+                                <li class="page-item">
+                                    <a class="page-link" href="<?php echo buildPageUrl(1, $current_params); ?>">1</a>
+                                </li>
+                                <?php if ($start_page > 2): ?>
+                                    <li class="page-item disabled"><span class="page-link">...</span></li>
+                                <?php endif; ?>
+                            <?php endif; ?>
+
+                            <?php for ($i = $start_page; $i <= $end_page; $i++): ?>
+                                <li class="page-item <?php echo $i === $page ? 'active' : ''; ?>">
+                                    <a class="page-link" href="<?php echo buildPageUrl($i, $current_params); ?>"><?php echo $i; ?></a>
+                                </li>
+                            <?php endfor; ?>
+
+                            <?php if ($end_page < $total_pages): ?>
+                                <?php if ($end_page < $total_pages - 1): ?>
+                                    <li class="page-item disabled"><span class="page-link">...</span></li>
+                                <?php endif; ?>
+                                <li class="page-item">
+                                    <a class="page-link" href="<?php echo buildPageUrl($total_pages, $current_params); ?>"><?php echo $total_pages; ?></a>
+                                </li>
+                            <?php endif; ?>
+
+                            <!-- Next button -->
+                            <li class="page-item <?php echo $page >= $total_pages ? 'disabled' : ''; ?>">
+                                <a class="page-link" href="<?php echo $page < $total_pages ? buildPageUrl($page + 1, $current_params) : '#'; ?>">
+                                    Next <i class="fas fa-chevron-right"></i>
+                                </a>
+                            </li>
+                        </ul>
+                    </nav>
+                </div>
+                <?php endif; ?>
+
             <?php endif; ?>
         </div>
     </div>
