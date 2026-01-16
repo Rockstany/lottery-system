@@ -497,6 +497,7 @@ $total_payments = count($payments);
                     <table class="table table-hover">
                         <thead>
                             <tr>
+                                <th>Month</th>
                                 <th>Date</th>
                                 <th>Member</th>
                                 <th>Amount</th>
@@ -512,6 +513,11 @@ $total_payments = count($payments);
                                     <td>
                                         <?php
                                         $date = new DateTime($payment['payment_date']);
+                                        echo $date->format('M Y');
+                                        ?>
+                                    </td>
+                                    <td>
+                                        <?php
                                         echo $date->format('d M Y');
                                         ?>
                                     </td>
