@@ -25,7 +25,7 @@ $database = new Database();
 $db = $database->getConnection();
 
 // Get all members for validation
-$membersQuery = "SELECT u.user_id, u.full_name, u.mobile_number, sc.name as sub_community_name
+$membersQuery = "SELECT u.user_id, u.full_name, u.mobile_number, sc.sub_community_name
                  FROM sub_community_members scm
                  JOIN users u ON scm.user_id = u.user_id
                  JOIN sub_communities sc ON scm.sub_community_id = sc.sub_community_id
