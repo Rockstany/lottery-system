@@ -210,7 +210,7 @@ $breadcrumbs = [
     </style>
 </head>
 <body>
-    <?php include __DIR__ . '/../includes/breadcrumb.php'; ?>
+    <?php include __DIR__ . '/../../includes/breadcrumb.php'; ?>
 
     <div class="container" style="max-width: 1400px; margin: 0 auto; padding: 20px;">
         <?php if (isset($_SESSION['success_message'])): ?>

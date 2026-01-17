@@ -689,12 +689,17 @@ require_once __DIR__ . '/../../../config/config.php';
 require_once __DIR__ . '/../../../config/feature-access.php';
 ```
 
-#### 2. Footer Include
+#### 2. Footer Include (group-admin/includes/)
 ```php
 <?php include __DIR__ . '/../includes/footer.php'; ?>
 ```
 
-#### 3. Feature Access Check
+#### 3. Breadcrumb Include (public/includes/)
+```php
+<?php include __DIR__ . '/../../includes/breadcrumb.php'; ?>
+```
+
+#### 4. Feature Access Check
 ```php
 $featureAccess = new FeatureAccess();
 if (!$featureAccess->isFeatureEnabled($communityId, 'feature_key')) {
@@ -704,7 +709,7 @@ if (!$featureAccess->isFeatureEnabled($communityId, 'feature_key')) {
 }
 ```
 
-#### 4. Breadcrumb Navigation
+#### 5. Breadcrumb Navigation
 ```php
 $breadcrumbs = [
     ['label' => 'Dashboard', 'url' => '/public/group-admin/dashboard.php'],
@@ -713,7 +718,7 @@ $breadcrumbs = [
 ];
 ```
 
-#### 5. URL Patterns (Absolute URLs)
+#### 6. URL Patterns (Absolute URLs)
 ```php
 // Links to feature pages
 '/public/group-admin/{feature}/{feature}-page.php'

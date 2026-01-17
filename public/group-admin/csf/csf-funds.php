@@ -131,7 +131,7 @@ $breadcrumbs = [
     </style>
 </head>
 <body>
-    <?php include __DIR__ . '/../includes/breadcrumb.php'; ?>
+    <?php include __DIR__ . '/../../includes/breadcrumb.php'; ?>
 
     <div class="container" style="max-width: 1200px; margin: 40px auto; padding: 0 20px;">
         <div class="header" style="margin-bottom: 30px;">

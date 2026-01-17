@@ -286,7 +286,7 @@ $breadcrumbs = [
     </style>
 </head>
 <body>
-    <?php include __DIR__ . '/../includes/breadcrumb.php'; ?>
+    <?php include __DIR__ . '/../../includes/breadcrumb.php'; ?>
 
     <div class="content-wrapper">
         <?php if (isset($_SESSION['success_message'])): ?>
