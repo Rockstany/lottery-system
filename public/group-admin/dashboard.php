@@ -397,11 +397,11 @@ $breadcrumbs = [
                         $featureIcon = $feature['feature_icon'] ?? '🎯'; // Use icon from database
 
                         if ($feature['feature_key'] === 'lottery_system') {
-                            $featureUrl = '/public/group-admin/lottery.php';
+                            $featureUrl = '/public/group-admin/lottery/lottery.php';
                         } elseif ($feature['feature_key'] === 'community_building') {
-                            $featureUrl = '/public/group-admin/community-building.php';
+                            $featureUrl = '/public/group-admin/community/community-building.php';
                         } elseif ($feature['feature_key'] === 'csf_funds') {
-                            $featureUrl = '/public/group-admin/csf-funds.php';
+                            $featureUrl = '/public/group-admin/csf/csf-funds.php';
                         }
                         ?>
                         <a href="<?php echo $featureUrl; ?>" class="feature-card">

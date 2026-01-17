@@ -44,38 +44,48 @@ GetToKnow is a modern, senior-friendly community management platform focused on 
 ## Project Structure
 
 ```
-Church Project/
-├── config/                 # Configuration files
-│   ├── config.php         # Application settings
-│   └── database.php       # Database connection
+lottery-system/
+├── config/                     # Configuration files
+│   ├── config.php             # Application settings
+│   ├── database.php           # Database connection
+│   └── feature-access.php     # Feature access control
 │
-├── database/              # Database files
-│   └── schema.sql        # MySQL schema (14 tables)
+├── database/                   # Database files
+│   ├── Current Scheme.sql     # MySQL schema
+│   └── CSF_Single_Payment_Constraint.sql
 │
-├── src/                   # Backend source code
-│   ├── controllers/      # Request handlers
-│   ├── models/           # Database models
-│   │   └── User.php     # User authentication model
-│   ├── middleware/       # Authentication & security
+├── src/                        # Backend source code
+│   ├── controllers/           # Request handlers
+│   ├── models/                # Database models
+│   │   └── User.php          # User authentication model
+│   ├── middleware/            # Authentication & security
 │   │   └── AuthMiddleware.php
-│   ├── utils/            # Utility classes
-│   │   ├── Response.php # JSON response handler
-│   │   └── Validator.php # Input validation
-│   ├── routes/           # API routes
-│   └── views/            # View templates
+│   ├── utils/                 # Utility classes
+│   │   ├── Response.php      # JSON response handler
+│   │   └── Validator.php     # Input validation
+│   ├── routes/                # API routes
+│   └── views/                 # View templates
 │
-├── public/                # Public web files
-│   ├── css/
-│   │   └── main.css     # Responsive senior-friendly CSS
-│   ├── js/              # JavaScript files
-│   ├── images/          # Image assets
-│   ├── uploads/         # User uploads (CSV, etc.)
-│   ├── index.php        # Application entry point
-│   ├── login.php        # Login page
-│   └── logout.php       # Logout handler
+├── public/                     # Public web files
+│   ├── css/                   # Stylesheets
+│   ├── js/                    # JavaScript files
+│   ├── images/                # Image assets
+│   ├── uploads/               # User uploads (CSV, etc.)
+│   ├── includes/              # Shared includes (breadcrumb, etc.)
+│   ├── admin/                 # Super Admin pages
+│   ├── group-admin/           # Group Admin pages (organized by feature)
+│   │   ├── dashboard.php      # Main dashboard
+│   │   ├── change-password.php
+│   │   ├── includes/          # Shared includes (footer, navigation)
+│   │   ├── lottery/           # Lottery System files (30 files)
+│   │   ├── csf/               # CSF Funds files (13 files)
+│   │   └── community/         # Community Building files (12 files)
+│   ├── index.php              # Application entry point
+│   ├── login.php              # Login page
+│   └── logout.php             # Logout handler
 │
-├── assets/               # Additional assets
-└── Documentation/        # Project documentation
+├── assets/                     # Additional assets
+└── Documentation/              # Project documentation
     ├── Executive Summary.md
     ├── Project Documentation.md
     ├── Lottery System Summary.md
@@ -562,17 +572,54 @@ communities → sub_communities (areas) → sub_community_members → csf_paymen
 ### File Structure
 ```
 public/group-admin/
-├── csf-funds.php              # Main dashboard
-├── csf-manage-members.php     # Member management (single/bulk)
-├── csf-record-payment.php     # 5-step payment form
-├── csf-payment-history.php    # Payment records
-├── csf-reports.php            # Analytics dashboard
-├── csf-send-reminders.php     # WhatsApp reminders
-├── csf-api-search-member.php  # Smart search API
-├── csf-api-check-duplicate.php # Duplicate payment check
-├── csf-upload-proof.php       # Payment proof upload
-├── csf-bulk-import-payments.php # Bulk import past payments
-└── csf-payment-error.php      # Import error status page
+├── lottery/                    # Lottery System (30 files)
+│   ├── lottery.php            # Main lottery dashboard
+│   ├── lottery-create.php     # Create new event
+│   ├── lottery-edit.php       # Edit event
+│   ├── lottery-books.php      # Book management
+│   ├── lottery-books-generate.php
+│   ├── lottery-book-assign.php
+│   ├── lottery-book-bulk-assign.php
+│   ├── lottery-book-reassign.php
+│   ├── lottery-distribution-setup.php
+│   ├── lottery-payments.php   # Payment tracking
+│   ├── lottery-payment-collect.php
+│   ├── lottery-payment-bulk.php
+│   ├── lottery-payment-edit.php
+│   ├── lottery-payment-transactions.php
+│   ├── lottery-reports.php    # Reports & analytics
+│   ├── lottery-winners.php
+│   ├── lottery-commission-setup.php
+│   └── ... (more lottery files)
+│
+├── csf/                        # CSF Funds (13 files)
+│   ├── csf-funds.php          # Main dashboard
+│   ├── csf-manage-members.php # Member management
+│   ├── csf-record-payment.php # 5-step payment form
+│   ├── csf-payment-history.php
+│   ├── csf-reports.php        # Analytics
+│   ├── csf-send-reminders.php # WhatsApp reminders
+│   ├── csf-bulk-import-payments.php # Bulk import
+│   ├── csf-payment-error.php  # Error status page
+│   ├── csf-api-search-member.php
+│   ├── csf-api-check-duplicate.php
+│   ├── csf-export-excel.php
+│   ├── csf-upload-proof.php
+│   └── check-csf-table.php
+│
+└── community/                  # Community Building (12 files)
+    ├── community-building.php # Main dashboard
+    ├── community-members.php  # Member list
+    ├── sub-communities.php    # Sub-community list
+    ├── sub-community-create.php
+    ├── sub-community-edit.php
+    ├── sub-community-view.php
+    ├── member-register.php    # Register new member
+    ├── custom-fields.php      # Custom field management
+    ├── get-field-value.php
+    ├── bulk-operations.php    # Bulk operations
+    ├── bulk-import.php
+    └── bulk-delete-confirm.php
 ```
 
 ### Configuration Requirements
@@ -602,9 +649,110 @@ Akshit Kumar, 9876543212, akshit@example.com
 
 ---
 
+## Developer Guide: Creating New Feature Folders
+
+When adding a new feature to the system, follow this standardized folder structure and naming convention.
+
+### Folder Structure Template
+
+```
+public/group-admin/{feature-name}/
+├── {feature-name}.php              # Main dashboard/entry point
+├── {feature-name}-create.php       # Create new item
+├── {feature-name}-edit.php         # Edit existing item
+├── {feature-name}-view.php         # View item details
+├── {feature-name}-delete.php       # Delete item (if needed)
+├── {feature-name}-list.php         # List all items (if separate from main)
+├── {feature-name}-reports.php      # Reports & analytics
+├── {feature-name}-export-excel.php # Excel export functionality
+├── {feature-name}-api-*.php        # API endpoints (e.g., api-search, api-validate)
+└── {feature-name}-bulk-*.php       # Bulk operations (e.g., bulk-import, bulk-delete)
+```
+
+### File Naming Convention
+
+| Type | Pattern | Example |
+|------|---------|---------|
+| Main Dashboard | `{feature}.php` | `lottery.php`, `csf-funds.php` |
+| CRUD Operations | `{feature}-{action}.php` | `lottery-create.php`, `lottery-edit.php` |
+| Reports | `{feature}-reports.php` | `csf-reports.php` |
+| API Endpoints | `{feature}-api-{action}.php` | `csf-api-search-member.php` |
+| Bulk Operations | `{feature}-bulk-{action}.php` | `csf-bulk-import-payments.php` |
+| Export | `{feature}-export-{format}.php` | `lottery-export-excel.php` |
+| Status Pages | `{feature}-{status}.php` | `csf-payment-error.php` |
+
+### Required Code Patterns
+
+#### 1. Config Includes (from feature subfolder)
+```php
+require_once __DIR__ . '/../../../config/config.php';
+require_once __DIR__ . '/../../../config/feature-access.php';
+```
+
+#### 2. Footer Include
+```php
+<?php include __DIR__ . '/../includes/footer.php'; ?>
+```
+
+#### 3. Feature Access Check
+```php
+$featureAccess = new FeatureAccess();
+if (!$featureAccess->isFeatureEnabled($communityId, 'feature_key')) {
+    $_SESSION['error_message'] = "Feature is not enabled for your community";
+    header('Location: /public/group-admin/dashboard.php');
+    exit();
+}
+```
+
+#### 4. Breadcrumb Navigation
+```php
+$breadcrumbs = [
+    ['label' => 'Dashboard', 'url' => '/public/group-admin/dashboard.php'],
+    ['label' => 'Feature Name', 'url' => '/public/group-admin/{feature}/{feature}.php'],
+    ['label' => 'Current Page', 'url' => null]
+];
+```
+
+#### 5. URL Patterns (Absolute URLs)
+```php
+// Links to feature pages
+'/public/group-admin/{feature}/{feature}-page.php'
+
+// Redirects
+header('Location: /public/group-admin/{feature}/{feature}.php');
+```
+
+### Checklist for New Features
+
+- [ ] Create folder: `public/group-admin/{feature-name}/`
+- [ ] Create main dashboard: `{feature-name}.php`
+- [ ] Update `config/feature-access.php` with new feature key
+- [ ] Add feature to database `features` table
+- [ ] Update `dashboard.php` with feature URL mapping
+- [ ] Update `includes/navigation.php` if needed
+- [ ] Add feature documentation to README.md
+- [ ] Update changelog with new feature
+
+### Existing Features Reference
+
+| Feature | Folder | Key | Files |
+|---------|--------|-----|-------|
+| Lottery System | `lottery/` | `lottery_system` | 30 |
+| CSF Funds | `csf/` | `csf_funds` | 13 |
+| Community Building | `community/` | `community_building` | 12 |
+
+---
+
 ## Changelog
 
 ### Version 1.4 (2026-01-17)
+- ✅ **Folder Reorganization**
+  - Organized group-admin files into feature-based subfolders
+  - `lottery/` - 30 Lottery System files
+  - `csf/` - 13 CSF Funds files
+  - `community/` - 12 Community Building files
+  - Updated all internal links, includes, and navigation
+  - Cleaner project structure for easier maintenance
 - ✅ **Bulk Import Past Payments**
   - Import multiple historical payment records via CSV paste
   - Supports Mobile/Name, Amount, Month (YYYY-MM), Date, Payment Method
