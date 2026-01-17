@@ -570,7 +570,9 @@ public/group-admin/
 ├── csf-send-reminders.php     # WhatsApp reminders
 ├── csf-api-search-member.php  # Smart search API
 ├── csf-api-check-duplicate.php # Duplicate payment check
-└── csf-upload-proof.php       # Payment proof upload
+├── csf-upload-proof.php       # Payment proof upload
+├── csf-bulk-import-payments.php # Bulk import past payments
+└── csf-payment-error.php      # Import error status page
 ```
 
 ### Configuration Requirements
@@ -601,6 +603,20 @@ Akshit Kumar, 9876543212, akshit@example.com
 ---
 
 ## Changelog
+
+### Version 1.4 (2026-01-17)
+- ✅ **Bulk Import Past Payments**
+  - Import multiple historical payment records via CSV paste
+  - Supports Mobile/Name, Amount, Month (YYYY-MM), Date, Payment Method
+  - Preview mode with validation before import
+  - Duplicate detection and skip option
+  - Detailed error status page showing success/failure breakdown
+  - Common error fixes guide
+- ✅ **Post-Submission Error Status Page**
+  - Visual summary of import results (success vs errors)
+  - Detailed error list with row numbers and specific issues
+  - Successfully imported records display
+  - Quick action buttons for retry or navigation
 
 ### Version 1.3 (2026-01-17)
 - ✅ **Payment History Enhancements**
@@ -641,8 +657,8 @@ Akshit Kumar, 9876543212, akshit@example.com
 
 ---
 
-**Status:** CSF Feature Complete with Enhanced Payment History - Production Ready
-**Version:** 1.3
+**Status:** CSF Feature Complete with Bulk Import - Production Ready
+**Version:** 1.4
 **Last Updated:** 2026-01-17
 **Next Step:** Testing & User Acceptance (UAT)
 #   l o t t e r y - s y s t e m  

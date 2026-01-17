@@ -201,6 +201,13 @@ $breadcrumbs = [
                 <p style="color: #666;">View all recorded payments</p>
                 <a href="/public/group-admin/csf-payment-history.php" class="action-btn">View History</a>
             </div>
+
+            <div class="action-card">
+                <div class="action-icon">📥</div>
+                <h3>Bulk Import Payments</h3>
+                <p style="color: #666;">Import past/historical payments in bulk</p>
+                <a href="/public/group-admin/csf-bulk-import-payments.php" class="action-btn">Import Payments</a>
+            </div>
         </div>
     </div>
 
